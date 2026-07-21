@@ -1,65 +1,254 @@
-import Image from "next/image";
+import Link from "next/link";
+import { eq } from "drizzle-orm";
+import { checkIns, getDb } from "@/lib/db";
+import { mondayOf, todayLocal } from "@/lib/dates";
+import { dashboardData, weekStats } from "@/lib/stats";
+import {
+  classicPhysiqueWeightCap,
+  formatHeight,
+} from "@/lib/classic-physique";
+import { WeightChart } from "@/components/WeightChart";
+import { ComplianceChart } from "@/components/ComplianceChart";
+import { WeeklyAnalysis } from "@/components/WeeklyAnalysis";
 
-export default function Home() {
+export const dynamic = "force-dynamic";
+
+function Card({
+  title,
+  children,
+  className = "",
+}: {
+  title?: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <section
+      className={`rounded-xl border border-borderc bg-surface p-4 ${className}`}
+    >
+      {title && (
+        <h2 className="mb-3 text-sm font-semibold tracking-wide text-muted uppercase">
+          {title}
+        </h2>
+      )}
+      {children}
+    </section>
+  );
+}
+
+export default async function Dashboard() {
+  const data = await dashboardData();
+  const { settings, protocol } = data;
+  const weekStart = mondayOf(todayLocal(settings.timezone));
+  const stats = await weekStats(weekStart);
+
+  const db = await getDb();
+  const [weekCheckIn] = await db
+    .select()
+    .from(checkIns)
+    .where(eq(checkIns.weekStart, weekStart));
+
+  const cap =
+    settings.heightInches != null
+      ? classicPhysiqueWeightCap(settings.heightInches)
+      : null;
+  const latest = data.latestWeight;
+  const toTarget =
+    latest && settings.targetStageWeightLbs != null
+      ? Math.round((latest.weightLbs - settings.targetStageWeightLbs) * 10) / 10
+      : null;
+
+  return (
+    <div className="space-y-4">
+      {/* Stat tiles */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <p className="text-xs font-medium text-muted uppercase tracking-wide">
+            {settings.showName ?? "Show day"}
           </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+          {data.daysToShow != null ? (
+            <>
+              <p className="mt-1 text-3xl font-semibold tabular-nums">
+                {data.daysToShow > 0 ? data.daysToShow : 0}
+                <span className="ml-1 text-base font-normal text-muted">days out</span>
+              </p>
+              <p className="mt-1 text-xs text-muted">
+                {settings.showDate}
+                {settings.division ? ` · ${settings.division.replace("_", " ")}` : ""}
+              </p>
+            </>
+          ) : (
+            <p className="mt-2 text-sm text-muted">
+              Set your show date in <Link href="/settings" className="text-accent underline">Settings</Link>.
+            </p>
+          )}
+        </Card>
+
+        <Card>
+          <p className="text-xs font-medium text-muted uppercase tracking-wide">Current weight</p>
+          {latest ? (
+            <>
+              <p className="mt-1 text-3xl font-semibold tabular-nums">
+                {latest.weightLbs}
+                <span className="ml-1 text-base font-normal text-muted">lbs</span>
+              </p>
+              <p className="mt-1 text-xs text-muted">
+                {data.weeklyChangeLbs != null && (
+                  <span className={data.weeklyChangeLbs <= 0 ? "text-good" : "text-warn"}>
+                    {data.weeklyChangeLbs > 0 ? "+" : ""}
+                    {data.weeklyChangeLbs} lbs/wk
+                  </span>
+                )}
+                {toTarget != null && ` · ${Math.abs(toTarget)} lbs ${toTarget > 0 ? "above" : "under"} stage target`}
+              </p>
+            </>
+          ) : (
+            <p className="mt-2 text-sm text-muted">No weigh-ins synced yet.</p>
+          )}
+        </Card>
+
+        <Card>
+          <p className="text-xs font-medium text-muted uppercase tracking-wide">Active protocol</p>
+          {protocol ? (
+            <>
+              <p className="mt-1 text-3xl font-semibold tabular-nums">
+                {protocol.calories ?? "—"}
+                <span className="ml-1 text-base font-normal text-muted">kcal</span>
+              </p>
+              <p className="mt-1 text-xs text-muted">
+                {protocol.proteinG ?? "?"}P / {protocol.carbsG ?? "?"}C / {protocol.fatG ?? "?"}F
+                {" · since "}
+                {protocol.effectiveFrom}
+              </p>
+            </>
+          ) : (
+            <p className="mt-2 text-sm text-muted">
+              No active protocol — upload a coach doc in{" "}
+              <Link href="/documents" className="text-accent underline">Documents</Link>.
+            </p>
+          )}
+        </Card>
+
+        <Card>
+          <p className="text-xs font-medium text-muted uppercase tracking-wide">Class weight cap</p>
+          {cap && settings.heightInches != null ? (
+            <>
+              <p className="mt-1 text-3xl font-semibold tabular-nums">
+                {cap.maxWeightLbs}
+                <span className="ml-1 text-base font-normal text-muted">lbs max</span>
+              </p>
+              <p className="mt-1 text-xs text-muted">
+                Classic Physique @ {formatHeight(settings.heightInches)}
+                {latest && (
+                  <span>
+                    {" · "}
+                    {latest.weightLbs <= cap.maxWeightLbs ? (
+                      <span className="text-good">under by {Math.round((cap.maxWeightLbs - latest.weightLbs) * 10) / 10}</span>
+                    ) : (
+                      <span className="text-bad">over by {Math.round((latest.weightLbs - cap.maxWeightLbs) * 10) / 10}</span>
+                    )}
+                  </span>
+                )}
+              </p>
+            </>
+          ) : (
+            <p className="mt-2 text-sm text-muted">
+              Set your height in <Link href="/settings" className="text-accent underline">Settings</Link>{" "}
+              or use the <Link href="/calculator" className="text-accent underline">calculator</Link>.
+            </p>
+          )}
+        </Card>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card title="Bodyweight — last 90 days">
+          <WeightChart
+            series={data.weightSeries}
+            trend={data.weightTrend}
+            targetLbs={settings.targetStageWeightLbs}
+          />
+        </Card>
+
+        <Card title="Macro compliance — last 14 days">
+          <ComplianceChart
+            days={data.compliance}
+            targets={
+              protocol
+                ? {
+                    calories: protocol.calories,
+                    proteinG: protocol.proteinG,
+                    carbsG: protocol.carbsG,
+                    fatG: protocol.fatG,
+                  }
+                : null
+            }
+          />
+          {stats.nutrition.avg && (
+            <p className="mt-2 text-xs text-muted">
+              This week: {stats.nutrition.daysLogged}/7 days logged, avg{" "}
+              {stats.nutrition.avg.calories} kcal ({stats.nutrition.avg.proteinG}P/
+              {stats.nutrition.avg.carbsG}C/{stats.nutrition.avg.fatG}F)
+              {stats.nutrition.avgCaloriesDeltaPct != null &&
+                ` — ${stats.nutrition.avgCaloriesDeltaPct > 0 ? "+" : ""}${stats.nutrition.avgCaloriesDeltaPct}% vs plan`}
+              {stats.nutrition.onTargetDays != null &&
+                `, ${stats.nutrition.onTargetDays} on-target days`}
+            </p>
+          )}
+        </Card>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card title={`Weekly analysis — week of ${weekStart}`}>
+          <WeeklyAnalysis
+            weekStart={weekStart}
+            initialAnalysis={weekCheckIn?.aiAnalysis ?? null}
+          />
+        </Card>
+
+        <Card title="This week at a glance">
+          <ul className="space-y-2 text-sm">
+            <li className="flex justify-between">
+              <span className="text-muted">Water ({stats.water.targetLiters}L/day min)</span>
+              <span className="tabular-nums">
+                {stats.water.daysLogged
+                  ? `${stats.water.daysMet}/${stats.water.daysLogged} days · avg ${stats.water.avgLiters}L`
+                  : "no data"}
+              </span>
+            </li>
+            <li className="flex justify-between">
+              <span className="text-muted">Sleep ({stats.sleep.targetHours}h min)</span>
+              <span className="tabular-nums">
+                {stats.sleep.nightsLogged
+                  ? `${stats.sleep.nightsMet}/${stats.sleep.nightsLogged} nights · avg ${stats.sleep.avgHours}h`
+                  : "no data"}
+              </span>
+            </li>
+            <li className="flex justify-between">
+              <span className="text-muted">Lifting (min {stats.training.strengthTarget}/wk)</span>
+              <span className="tabular-nums">{stats.training.strengthCount} sessions</span>
+            </li>
+            <li className="flex justify-between">
+              <span className="text-muted">
+                Cardio{stats.training.cardioTarget > 0 ? ` (${stats.training.cardioTarget}/wk prescribed)` : ""}
+              </span>
+              <span className="tabular-nums">{stats.training.cardioCount} sessions</span>
+            </li>
+            {protocol?.cardioPlan && (
+              <li className="border-t border-borderc pt-2 text-xs text-muted">
+                Cardio plan: {protocol.cardioPlan}
+              </li>
+            )}
+          </ul>
+          <div className="mt-4">
+            <Link
+              href="/check-in"
+              className="inline-block rounded-md border border-borderc px-3 py-1.5 text-sm font-medium hover:bg-borderc/30"
+            >
+              Draft this week&apos;s coach check-in →
+            </Link>
+          </div>
+        </Card>
+      </div>
     </div>
   );
 }

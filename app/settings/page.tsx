@@ -1,0 +1,177 @@
+"use client";
+
+import { useEffect, useState } from "react";
+
+interface SettingsShape {
+  showName: string | null;
+  showDate: string | null;
+  division: string;
+  nextCompetitionNote: string | null;
+  targetStageWeightLbs: number | null;
+  heightInches: number | null;
+  timezone: string;
+}
+
+interface TargetsShape {
+  waterMlMin: number;
+  sleepHoursMin: number;
+  workoutsPerWeekMin: number;
+  cardioSessionsPerWeek: number;
+}
+
+export default function SettingsPage() {
+  const [s, setS] = useState<SettingsShape | null>(null);
+  const [t, setT] = useState<TargetsShape | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/settings")
+      .then((r) => r.json())
+      .then((json) => {
+        setS(json.settings);
+        setT(json.targets);
+      });
+  }, []);
+
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    if (!s || !t) return;
+    setBusy(true);
+    setNote(null);
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          settings: {
+            showName: s.showName,
+            showDate: s.showDate,
+            division: s.division,
+            nextCompetitionNote: s.nextCompetitionNote,
+            targetStageWeightLbs: s.targetStageWeightLbs,
+            heightInches: s.heightInches,
+            timezone: s.timezone,
+          },
+          targets: t,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Save failed");
+      setS(json.settings);
+      setT(json.targets);
+      setNote("Saved.");
+    } catch (err) {
+      setNote(err instanceof Error ? err.message : "Save failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!s || !t) return <p className="text-sm text-muted">Loading…</p>;
+
+  const text = (
+    label: string,
+    value: string | null,
+    onChange: (v: string | null) => void,
+    props: React.InputHTMLAttributes<HTMLInputElement> = {},
+  ) => (
+    <label className="block text-sm">
+      <span className="mb-1 block text-muted">{label}</span>
+      <input
+        {...props}
+        value={value ?? ""}
+        onChange={(e) => onChange(e.target.value || null)}
+        className="w-full rounded-md border border-borderc bg-background px-3 py-1.5"
+      />
+    </label>
+  );
+
+  const num = (
+    label: string,
+    value: number | null,
+    onChange: (v: number | null) => void,
+    step = 1,
+  ) => (
+    <label className="block text-sm">
+      <span className="mb-1 block text-muted">{label}</span>
+      <input
+        type="number"
+        step={step}
+        value={value ?? ""}
+        onChange={(e) =>
+          onChange(e.target.value === "" ? null : Number(e.target.value))
+        }
+        className="w-full rounded-md border border-borderc bg-background px-3 py-1.5 tabular-nums"
+      />
+    </label>
+  );
+
+  return (
+    <form onSubmit={save} className="max-w-2xl space-y-6">
+      <section className="rounded-xl border border-borderc bg-surface p-4">
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted">
+          Show
+        </h2>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {text("Show name", s.showName, (v) => setS({ ...s, showName: v }))}
+          {text("Show date", s.showDate, (v) => setS({ ...s, showDate: v }), {
+            type: "date",
+          })}
+          <label className="block text-sm">
+            <span className="mb-1 block text-muted">Division</span>
+            <select
+              value={s.division}
+              onChange={(e) => setS({ ...s, division: e.target.value })}
+              className="w-full rounded-md border border-borderc bg-background px-3 py-1.5"
+            >
+              <option value="classic_physique">Classic Physique</option>
+              <option value="mens_physique">Men&apos;s Physique</option>
+              <option value="bodybuilding">Bodybuilding</option>
+              <option value="wellness">Wellness</option>
+              <option value="figure">Figure</option>
+              <option value="bikini">Bikini</option>
+            </select>
+          </label>
+          {text(
+            "Next competition note (shown in check-ins)",
+            s.nextCompetitionNote,
+            (v) => setS({ ...s, nextCompetitionNote: v }),
+          )}
+          {num("Target stage weight (lbs)", s.targetStageWeightLbs, (v) =>
+            setS({ ...s, targetStageWeightLbs: v }), 0.5)}
+          {num("Height (inches — for the weight cap)", s.heightInches, (v) =>
+            setS({ ...s, heightInches: v }), 0.5)}
+          {text("Timezone (day bucketing)", s.timezone, (v) =>
+            setS({ ...s, timezone: v ?? "America/Los_Angeles" }))}
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-borderc bg-surface p-4">
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted">
+          Weekly targets (check-in thresholds)
+        </h2>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {num("Water minimum (ml/day)", t.waterMlMin, (v) =>
+            setT({ ...t, waterMlMin: v ?? 3000 }), 100)}
+          {num("Sleep minimum (hours/night)", t.sleepHoursMin, (v) =>
+            setT({ ...t, sleepHoursMin: v ?? 7 }), 0.5)}
+          {num("Workouts minimum (days/week)", t.workoutsPerWeekMin, (v) =>
+            setT({ ...t, workoutsPerWeekMin: v ?? 3 }))}
+          {num("Cardio sessions prescribed (per week, 0 = none)", t.cardioSessionsPerWeek, (v) =>
+            setT({ ...t, cardioSessionsPerWeek: v ?? 0 }))}
+        </div>
+      </section>
+
+      <div className="flex items-center gap-3">
+        <button
+          disabled={busy}
+          className="rounded-md bg-accent px-4 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+        >
+          {busy ? "Saving…" : "Save settings"}
+        </button>
+        {note && <span className="text-sm text-muted">{note}</span>}
+      </div>
+    </form>
+  );
+}
