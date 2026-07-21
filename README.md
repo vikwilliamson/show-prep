@@ -6,6 +6,9 @@ data from Health Connect via an Android companion app, and closes the loop
 with a compliance dashboard, an AI weekly analysis, and a generated coach
 check-in.
 
+> **Live demo:** _add your Vercel URL here_ — the login page has a one-click
+> "Enter demo" button; it's seeded with sample contest-prep data.
+
 Monorepo layout (pnpm workspaces):
 
 - **`/`** — Next.js 16 (App Router) + TypeScript + Drizzle + PostgreSQL web app
@@ -54,6 +57,24 @@ same Drizzle schema/migrations either way.
 
 > PGlite is single-process: stop the dev server before running `pnpm seed`,
 > and vice versa.
+
+## Deploying (Vercel + Neon)
+
+1. Create a Postgres database (Neon, or Vercel → Storage → Postgres) and copy
+   its **pooled** connection string. Migrations and the `vector` extension are
+   applied automatically on first boot — no manual setup.
+2. Import the repo at [vercel.com/new](https://vercel.com/new) and set env vars:
+   `DATABASE_URL`, `ANTHROPIC_API_KEY`, `VOYAGE_API_KEY`, `INGEST_API_KEY`
+   (required in prod — the ingest API is public), `APP_PASSWORD`, and for a
+   public portfolio demo `NEXT_PUBLIC_DEMO_PASSWORD` (= `APP_PASSWORD`).
+3. Seed the deployed database with sample data + AI content from your machine:
+
+   ```bash
+   DATABASE_URL="<neon-pooled-url>" SEED_AI=1 pnpm seed
+   ```
+
+AI routes run with `maxDuration = 300`; `next.config.ts` bundles the migration
+SQL into the serverless output.
 
 ## Commands
 
