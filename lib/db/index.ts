@@ -1,0 +1,76 @@
+import { sql } from "drizzle-orm";
+import path from "node:path";
+import { env } from "../env";
+import { DEFAULT_CHECKIN_TEMPLATE } from "../checkin-template";
+import * as schema from "./schema";
+
+// Two drivers behind one interface:
+//  - DATABASE_URL set  -> real Postgres via postgres-js (needs pgvector installed)
+//  - otherwise         -> embedded PGlite (WASM Postgres) with the vector extension,
+//                         persisted under .data/pglite. Zero-config dev.
+// Both run the same generated migrations from ./drizzle at startup.
+
+import type { PgliteDatabase } from "drizzle-orm/pglite";
+import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
+
+export type Db =
+  | PgliteDatabase<typeof schema>
+  | PostgresJsDatabase<typeof schema>;
+
+const globalForDb = globalThis as unknown as { __showPrepDb?: Promise<Db> };
+
+async function initDb(): Promise<Db> {
+  const migrationsFolder = path.join(process.cwd(), "drizzle");
+  let db: Db;
+
+  if (env.databaseUrl) {
+    const { drizzle } = await import("drizzle-orm/postgres-js");
+    const { migrate } = await import("drizzle-orm/postgres-js/migrator");
+    const postgres = (await import("postgres")).default;
+    const client = postgres(env.databaseUrl, { max: 5 });
+    const pgDb = drizzle(client, { schema });
+    await pgDb.execute(sql`CREATE EXTENSION IF NOT EXISTS vector`);
+    await migrate(pgDb, { migrationsFolder });
+    db = pgDb;
+  } else {
+    const { PGlite } = await import("@electric-sql/pglite");
+    const { vector } = await import("@electric-sql/pglite-pgvector");
+    const { drizzle } = await import("drizzle-orm/pglite");
+    const { migrate } = await import("drizzle-orm/pglite/migrator");
+    const dataDir = path.join(process.cwd(), env.pgliteDir);
+    const { mkdirSync } = await import("node:fs");
+    mkdirSync(dataDir, { recursive: true });
+    const client = new PGlite(dataDir, { extensions: { vector } });
+    const liteDb = drizzle(client, { schema });
+    await liteDb.execute(sql`CREATE EXTENSION IF NOT EXISTS vector`);
+    await migrate(liteDb, { migrationsFolder });
+    db = liteDb;
+  }
+
+  await ensureDefaultRows(db);
+  return db;
+}
+
+async function ensureDefaultRows(db: Db) {
+  await db
+    .insert(schema.settings)
+    .values({ id: 1, checkinTemplate: DEFAULT_CHECKIN_TEMPLATE })
+    .onConflictDoNothing();
+  const targets = await db.select().from(schema.weeklyTargets).limit(1);
+  if (targets.length === 0) {
+    await db.insert(schema.weeklyTargets).values({});
+  }
+}
+
+export function getDb(): Promise<Db> {
+  if (!globalForDb.__showPrepDb) {
+    globalForDb.__showPrepDb = initDb().catch((err) => {
+      // Don't cache a failed init (e.g. transient PGlite lock during HMR).
+      globalForDb.__showPrepDb = undefined;
+      throw err;
+    });
+  }
+  return globalForDb.__showPrepDb;
+}
+
+export * from "./schema";
