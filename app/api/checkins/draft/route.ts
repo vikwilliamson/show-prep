@@ -6,6 +6,9 @@ import { dataAnswers, generateCheckinDraft } from "@/lib/ai/analysis";
 import { getSettings, weekStats } from "@/lib/stats";
 import type { CheckinQuestion } from "@/lib/checkin-template";
 
+// Allow long-running Claude/Voyage calls on Vercel (clamped to the plan's max).
+export const maxDuration = 300;
+
 const schema = z.object({ weekStart: z.iso.date() });
 
 // POST /api/checkins/draft — generate the filled-in coach template for a week

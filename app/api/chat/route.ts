@@ -4,6 +4,9 @@ import { z } from "zod";
 import { chatMessages, getDb } from "@/lib/db";
 import { answerQuestion } from "@/lib/rag";
 
+// Allow long-running Claude/Voyage calls on Vercel (clamped to the plan's max).
+export const maxDuration = 300;
+
 export async function GET() {
   const db = await getDb();
   const rows = await db

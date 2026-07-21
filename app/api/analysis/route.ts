@@ -5,6 +5,9 @@ import { generateWeeklyAnalysis } from "@/lib/ai/analysis";
 import { mondayOf, todayLocal } from "@/lib/dates";
 import { getSettings, weekStats } from "@/lib/stats";
 
+// Allow long-running Claude/Voyage calls on Vercel (clamped to the plan's max).
+export const maxDuration = 300;
+
 const schema = z.object({ weekStart: z.iso.date().optional() });
 
 // POST /api/analysis — AI-written plain-language analysis of a week,

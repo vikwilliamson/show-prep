@@ -6,6 +6,9 @@ import { indexDocument } from "@/lib/rag";
 import { todayLocal } from "@/lib/dates";
 import { getSettings } from "@/lib/stats";
 
+// Allow long-running Claude/Voyage calls on Vercel (clamped to the plan's max).
+export const maxDuration = 300;
+
 // Re-runs extraction and/or embedding for an existing document — useful after
 // configuring API keys, or if the first pass failed.
 export async function POST(
