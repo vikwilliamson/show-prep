@@ -10,6 +10,7 @@
  */
 import { eq, like, inArray } from "drizzle-orm";
 import {
+  checkIns,
   documents,
   getDb,
   hydrationEntries,
@@ -21,7 +22,15 @@ import {
   weightEntries,
   workouts,
 } from "../lib/db";
-import { addDays, localDateOf, todayLocal } from "../lib/dates";
+import { addDays, localDateOf, mondayOf, todayLocal } from "../lib/dates";
+import { indexDocument } from "../lib/rag";
+import {
+  dataAnswers,
+  generateCheckinDraft,
+  generateWeeklyAnalysis,
+} from "../lib/ai/analysis";
+import { getSettings, weekStats } from "../lib/stats";
+import type { CheckinQuestion } from "../lib/checkin-template";
 
 const TZ = "America/Los_Angeles";
 const DAYS = 35;
@@ -327,7 +336,78 @@ async function main() {
   );
   console.log("Settings: NPC Iron Coast Classic, 73 days out, target 187 lbs @ 5'8\" (cap 187).");
   console.log("Protocols: 1 active (2100 kcal), 1 pending peak-week extraction to review.");
+
+  // SEED_AI=1 pre-populates the demo with real AI output: document embeddings
+  // (so doc chat works immediately), the current week's plain-language
+  // analysis, and a filled-in coach check-in draft. Requires ANTHROPIC_API_KEY
+  // and VOYAGE_API_KEY. Skipped by default so local seeding stays fast/offline.
+  if (process.env.SEED_AI === "1") {
+    await populateAiContent(today);
+  } else {
+    console.log("(Set SEED_AI=1 to also embed docs + generate analysis/draft.)");
+  }
+
   process.exit(0);
+}
+
+async function populateAiContent(today: string) {
+  const db = await getDb();
+  console.log("\nSEED_AI: generating demo AI content…");
+
+  // 1) Embed every document so doc chat is ready (Voyage free-tier friendly:
+  //    embeddings.ts backs off on 429s).
+  const docs = await db.select().from(documents);
+  for (const doc of docs) {
+    try {
+      const chunks = await indexDocument(doc);
+      console.log(`  embedded "${doc.title.slice(0, 40)}" (${chunks} chunks)`);
+    } catch (err) {
+      console.warn(`  embed failed for ${doc.id}: ${err instanceof Error ? err.message : err}`);
+    }
+  }
+
+  // 2) Seed subjective check-in answers for the current week, then generate
+  //    the analysis and the filled-in coach draft.
+  const settingsRow = await getSettings();
+  const weekStart = mondayOf(today);
+  const manual = {
+    waistIn: 31.25,
+    strengthTrend:
+      "Pressing felt a little flat mid-week but pulls are holding — rows went up 5 lbs.",
+    digestion: "Regular, no issues this week.",
+    changeRequests: "Could use a few more carbs pre-workout if we have room.",
+    manualNotes: null,
+  };
+  await db
+    .insert(checkIns)
+    .values({ weekStart, ...manual, updatedAt: new Date() })
+    .onConflictDoUpdate({
+      target: checkIns.weekStart,
+      set: { ...manual, updatedAt: new Date() },
+    });
+
+  try {
+    const stats = await weekStats(weekStart);
+    const analysis = await generateWeeklyAnalysis(stats, settingsRow);
+    const draft = await generateCheckinDraft({
+      template: settingsRow.checkinTemplate as CheckinQuestion[],
+      stats,
+      settings: settingsRow,
+      manual,
+    });
+    await db
+      .update(checkIns)
+      .set({
+        aiAnalysis: analysis,
+        generatedDraft: draft,
+        dataAnswers: dataAnswers(stats, settingsRow),
+        updatedAt: new Date(),
+      })
+      .where(eq(checkIns.weekStart, weekStart));
+    console.log("  generated weekly analysis + check-in draft.");
+  } catch (err) {
+    console.warn(`  analysis/draft failed: ${err instanceof Error ? err.message : err}`);
+  }
 }
 
 main().catch((err) => {
