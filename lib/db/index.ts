@@ -23,11 +23,21 @@ async function initDb(): Promise<Db> {
   const migrationsFolder = path.join(process.cwd(), "drizzle");
   let db: Db;
 
+  if (!env.databaseUrl && process.env.VERCEL) {
+    // Serverless filesystems are ephemeral — the PGlite fallback would lose
+    // data on every cold start. Refuse to boot without a real database.
+    throw new Error(
+      "DATABASE_URL must be set in production (e.g. a Neon/Vercel Postgres URL with pgvector).",
+    );
+  }
+
   if (env.databaseUrl) {
     const { drizzle } = await import("drizzle-orm/postgres-js");
     const { migrate } = await import("drizzle-orm/postgres-js/migrator");
     const postgres = (await import("postgres")).default;
-    const client = postgres(env.databaseUrl, { max: 5 });
+    // prepare:false keeps postgres-js compatible with transaction-mode
+    // poolers (Neon -pooler URLs, PgBouncer).
+    const client = postgres(env.databaseUrl, { max: 5, prepare: false });
     const pgDb = drizzle(client, { schema });
     await pgDb.execute(sql`CREATE EXTENSION IF NOT EXISTS vector`);
     await migrate(pgDb, { migrationsFolder });
