@@ -1,0 +1,31 @@
+{
+  "expo": {
+    "name": "Show Prep Companion",
+    "slug": "show-prep-companion",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "platforms": ["android"],
+    "android": {
+      "package": "com.showprep.companion",
+      "permissions": [
+        "android.permission.health.READ_NUTRITION",
+        "android.permission.health.READ_WEIGHT",
+        "android.permission.health.READ_HYDRATION",
+        "android.permission.health.READ_SLEEP",
+        "android.permission.health.READ_EXERCISE",
+        "android.permission.health.READ_STEPS",
+        "android.permission.health.READ_TOTAL_CALORIES_BURNED",
+        "android.permission.health.READ_HEALTH_DATA_HISTORY"
+      ]
+    },
+    "plugins": [
+      [
+        "react-native-health-connect",
+        {
+          "permissionsRationaleActivity": true
+        }
+      ],
+      "expo-background-task"
+    ]
+  }
+}
