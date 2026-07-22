@@ -1,6 +1,39 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import ReactMarkdown, { type Components } from "react-markdown";
+import remarkGfm from "remark-gfm";
+
+const markdownComponents: Components = {
+  p: ({ ...props }) => <p className="mb-2 last:mb-0" {...props} />,
+  ul: ({ ...props }) => <ul className="mb-2 list-disc space-y-0.5 pl-5 last:mb-0" {...props} />,
+  ol: ({ ...props }) => <ol className="mb-2 list-decimal space-y-0.5 pl-5 last:mb-0" {...props} />,
+  li: ({ ...props }) => <li {...props} />,
+  strong: ({ ...props }) => <strong className="font-semibold" {...props} />,
+  a: ({ ...props }) => (
+    <a className="text-accent underline" target="_blank" rel="noreferrer" {...props} />
+  ),
+  code: ({ ...props }) => (
+    <code className="rounded bg-borderc/40 px-1 py-0.5 font-mono text-xs" {...props} />
+  ),
+  pre: ({ ...props }) => (
+    <pre className="mb-2 overflow-x-auto rounded-md bg-borderc/40 p-2 font-mono text-xs last:mb-0" {...props} />
+  ),
+};
+
+function TypingIndicator() {
+  return (
+    <div className="mr-auto flex items-center gap-1 rounded-xl border border-borderc bg-background px-3 py-2.5">
+      {[0, 1, 2].map((i) => (
+        <span
+          key={i}
+          className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted"
+          style={{ animationDelay: `${i * 0.15}s` }}
+        />
+      ))}
+    </div>
+  );
+}
 
 interface Message {
   id: number;
@@ -84,13 +117,19 @@ export default function ChatPage() {
         {messages.map((m) => (
           <div
             key={m.id}
-            className={`max-w-[85%] rounded-xl px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap ${
+            className={`max-w-[85%] rounded-xl px-3 py-2 text-sm leading-relaxed ${
               m.role === "user"
-                ? "ml-auto bg-accent/15"
+                ? "ml-auto whitespace-pre-wrap bg-accent/15"
                 : "mr-auto border border-borderc bg-background"
             }`}
           >
-            {m.content}
+            {m.role === "assistant" ? (
+              <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                {m.content}
+              </ReactMarkdown>
+            ) : (
+              m.content
+            )}
             {m.role === "assistant" && m.sources && m.sources.length > 0 && (
               <p className="mt-2 border-t border-borderc pt-1 text-xs text-muted">
                 Sources: {m.sources.map((s) => s.title).join(" · ")}
@@ -98,11 +137,7 @@ export default function ChatPage() {
             )}
           </div>
         ))}
-        {busy && (
-          <div className="mr-auto max-w-[85%] rounded-xl border border-borderc bg-background px-3 py-2 text-sm text-muted">
-            Searching your documents…
-          </div>
-        )}
+        {busy && <TypingIndicator />}
         {error && <p className="text-sm text-bad">{error}</p>}
         <div ref={bottomRef} />
       </div>

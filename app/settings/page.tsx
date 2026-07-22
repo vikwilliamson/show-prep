@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { DIVISIONS, DIVISION_LABELS } from "@/lib/divisions";
 
 interface SettingsShape {
   showName: string | null;
   showDate: string | null;
-  division: string;
+  divisions: string[];
   nextCompetitionNote: string | null;
   targetStageWeightLbs: number | null;
   heightInches: number | null;
@@ -47,7 +48,7 @@ export default function SettingsPage() {
           settings: {
             showName: s.showName,
             showDate: s.showDate,
-            division: s.division,
+            divisions: s.divisions,
             nextCompetitionNote: s.nextCompetitionNote,
             targetStageWeightLbs: s.targetStageWeightLbs,
             heightInches: s.heightInches,
@@ -118,21 +119,33 @@ export default function SettingsPage() {
           {text("Show date", s.showDate, (v) => setS({ ...s, showDate: v }), {
             type: "date",
           })}
-          <label className="block text-sm">
-            <span className="mb-1 block text-muted">Division</span>
-            <select
-              value={s.division}
-              onChange={(e) => setS({ ...s, division: e.target.value })}
-              className="w-full rounded-md border border-borderc bg-background px-3 py-1.5"
-            >
-              <option value="classic_physique">Classic Physique</option>
-              <option value="mens_physique">Men&apos;s Physique</option>
-              <option value="bodybuilding">Bodybuilding</option>
-              <option value="wellness">Wellness</option>
-              <option value="figure">Figure</option>
-              <option value="bikini">Bikini</option>
-            </select>
-          </label>
+          <div className="text-sm sm:col-span-2">
+            <span className="mb-1 block text-muted">
+              Divisions (cross-competing? check more than one)
+            </span>
+            <div className="flex flex-wrap gap-x-4 gap-y-2">
+              {DIVISIONS.map((d) => {
+                const checked = s.divisions.includes(d);
+                return (
+                  <label key={d} className="flex items-center gap-1.5">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() =>
+                        setS({
+                          ...s,
+                          divisions: checked
+                            ? s.divisions.filter((x) => x !== d)
+                            : [...s.divisions, d],
+                        })
+                      }
+                    />
+                    {DIVISION_LABELS[d]}
+                  </label>
+                );
+              })}
+            </div>
+          </div>
           {text(
             "Next competition note (shown in check-ins)",
             s.nextCompetitionNote,
@@ -165,7 +178,7 @@ export default function SettingsPage() {
 
       <div className="flex items-center gap-3">
         <button
-          disabled={busy}
+          disabled={busy || s.divisions.length === 0}
           className="rounded-md bg-accent px-4 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
         >
           {busy ? "Saving…" : "Save settings"}

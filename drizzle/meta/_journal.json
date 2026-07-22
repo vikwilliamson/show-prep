@@ -8,6 +8,20 @@
       "when": 1784172386029,
       "tag": "0000_brainy_mongu",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1784747860159,
+      "tag": "0001_add_divisions_array",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1784747870009,
+      "tag": "0002_drop_division_column",
+      "breakpoints": true
     }
   ]
 }

@@ -3,10 +3,8 @@ import { eq } from "drizzle-orm";
 import { checkIns, getDb } from "@/lib/db";
 import { mondayOf, todayLocal } from "@/lib/dates";
 import { dashboardData, weekStats } from "@/lib/stats";
-import {
-  classicPhysiqueWeightCap,
-  formatHeight,
-} from "@/lib/classic-physique";
+import { formatHeight, type WeightCapResult } from "@/lib/classic-physique";
+import { DIVISION_WEIGHT_CAPS, divisionLabel } from "@/lib/divisions";
 import { WeightChart } from "@/components/WeightChart";
 import { ComplianceChart } from "@/components/ComplianceChart";
 import { WeeklyAnalysis } from "@/components/WeeklyAnalysis";
@@ -48,10 +46,15 @@ export default async function Dashboard() {
     .from(checkIns)
     .where(eq(checkIns.weekStart, weekStart));
 
-  const cap =
+  const caps: { division: string; result: WeightCapResult }[] =
     settings.heightInches != null
-      ? classicPhysiqueWeightCap(settings.heightInches)
-      : null;
+      ? settings.divisions
+          .map((d) => {
+            const fn = DIVISION_WEIGHT_CAPS[d as keyof typeof DIVISION_WEIGHT_CAPS];
+            return fn ? { division: d, result: fn(settings.heightInches!) } : null;
+          })
+          .filter((c): c is { division: string; result: WeightCapResult } => c != null)
+      : [];
   const latest = data.latestWeight;
   const toTarget =
     latest && settings.targetStageWeightLbs != null
@@ -72,10 +75,19 @@ export default async function Dashboard() {
                 {data.daysToShow > 0 ? data.daysToShow : 0}
                 <span className="ml-1 text-base font-normal text-muted">days out</span>
               </p>
-              <p className="mt-1 text-xs text-muted">
-                {settings.showDate}
-                {settings.division ? ` · ${settings.division.replace("_", " ")}` : ""}
-              </p>
+              <p className="mt-1 text-xs text-muted">{settings.showDate}</p>
+              {settings.divisions.length > 0 && (
+                <div className="mt-1.5 flex flex-wrap gap-1">
+                  {settings.divisions.map((d) => (
+                    <span
+                      key={d}
+                      className="rounded-full bg-accent/10 px-2 py-0.5 text-[11px] font-medium text-accent"
+                    >
+                      {divisionLabel(d)}
+                    </span>
+                  ))}
+                </div>
+              )}
             </>
           ) : (
             <p className="mt-2 text-sm text-muted">
@@ -131,31 +143,40 @@ export default async function Dashboard() {
 
         <Card>
           <p className="text-xs font-medium text-muted uppercase tracking-wide">Class weight cap</p>
-          {cap && settings.heightInches != null ? (
-            <>
-              <p className="mt-1 text-3xl font-semibold tabular-nums">
-                {cap.maxWeightLbs}
-                <span className="ml-1 text-base font-normal text-muted">lbs max</span>
-              </p>
-              <p className="mt-1 text-xs text-muted">
-                Classic Physique @ {formatHeight(settings.heightInches)}
-                {latest && (
-                  <span>
-                    {" · "}
-                    {latest.weightLbs <= cap.maxWeightLbs ? (
-                      <span className="text-good">under by {Math.round((cap.maxWeightLbs - latest.weightLbs) * 10) / 10}</span>
-                    ) : (
-                      <span className="text-bad">over by {Math.round((latest.weightLbs - cap.maxWeightLbs) * 10) / 10}</span>
-                    )}
-                  </span>
-                )}
-              </p>
-            </>
-          ) : (
+          {settings.heightInches == null ? (
             <p className="mt-2 text-sm text-muted">
               Set your height in <Link href="/settings" className="text-accent underline">Settings</Link>{" "}
               or use the <Link href="/calculator" className="text-accent underline">calculator</Link>.
             </p>
+          ) : caps.length === 0 ? (
+            <p className="mt-2 text-sm text-muted">
+              No weight-classed division selected — weight caps apply to
+              divisions like Classic Physique.
+            </p>
+          ) : (
+            <div className={caps.length > 1 ? "mt-1 space-y-2" : "mt-1"}>
+              {caps.map(({ division, result }) => (
+                <div key={division}>
+                  <p className="text-3xl font-semibold tabular-nums">
+                    {result.maxWeightLbs}
+                    <span className="ml-1 text-base font-normal text-muted">lbs max</span>
+                  </p>
+                  <p className="text-xs text-muted">
+                    {divisionLabel(division)} @ {formatHeight(settings.heightInches!)}
+                    {latest && (
+                      <span>
+                        {" · "}
+                        {latest.weightLbs <= result.maxWeightLbs ? (
+                          <span className="text-good">under by {Math.round((result.maxWeightLbs - latest.weightLbs) * 10) / 10}</span>
+                        ) : (
+                          <span className="text-bad">over by {Math.round((latest.weightLbs - result.maxWeightLbs) * 10) / 10}</span>
+                        )}
+                      </span>
+                    )}
+                  </p>
+                </div>
+              ))}
+            </div>
           )}
         </Card>
       </div>

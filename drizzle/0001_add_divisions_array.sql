@@ -1,0 +1,1 @@
+ALTER TABLE "settings" ADD COLUMN "divisions" text[] DEFAULT ARRAY['classic_physique']::text[] NOT NULL;

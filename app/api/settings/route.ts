@@ -14,7 +14,7 @@ const putSchema = z.object({
     .object({
       showName: z.string().nullable().optional(),
       showDate: z.iso.date().nullable().optional(),
-      division: z.string().optional(),
+      divisions: z.array(z.string()).min(1).optional(),
       nextCompetitionNote: z.string().nullable().optional(),
       targetStageWeightLbs: z.number().positive().nullable().optional(),
       heightInches: z.number().positive().nullable().optional(),

@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   boolean,
   date,
@@ -248,7 +249,10 @@ export const settings = pgTable("settings", {
   id: integer("id").primaryKey().default(1),
   showName: text("show_name"),
   showDate: date("show_date"),
-  division: text("division").notNull().default("classic_physique"),
+  divisions: text("divisions")
+    .array()
+    .notNull()
+    .default(sql`ARRAY['classic_physique']::text[]`),
   nextCompetitionNote: text("next_competition_note"),
   targetStageWeightLbs: real("target_stage_weight_lbs"),
   heightInches: real("height_inches"), // for Classic Physique weight-cap calc

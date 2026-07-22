@@ -13,7 +13,7 @@ function statsBrief(stats: WeekStats, settings: Settings): string {
     {
       week: `${stats.weekStart} to ${stats.weekEnd}`,
       show: settings.showDate
-        ? { name: settings.showName, date: settings.showDate, division: settings.division }
+        ? { name: settings.showName, date: settings.showDate, divisions: settings.divisions }
         : null,
       target_stage_weight_lbs: settings.targetStageWeightLbs,
       active_protocol: p

@@ -114,7 +114,7 @@ async function main() {
     .set({
       showName: "NPC Iron Coast Classic",
       showDate: addDays(today, 73), // ~10.5 weeks out
-      division: "classic_physique",
+      divisions: ["classic_physique", "mens_physique"],
       nextCompetitionNote: "first show of the season, aiming to qualify for state",
       targetStageWeightLbs: 187,
       heightInches: 68,

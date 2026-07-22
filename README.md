@@ -6,8 +6,8 @@ data from Health Connect via an Android companion app, and closes the loop
 with a compliance dashboard, an AI weekly analysis, and a generated coach
 check-in.
 
-> **Live demo:** _add your Vercel URL here_ — the login page has a one-click
-> "Enter demo" button; it's seeded with sample contest-prep data.
+> **Live demo:** https://show-prep-gamma.vercel.app — the login page has a
+> one-click "Enter demo" button; it's seeded with sample contest-prep data.
 
 Monorepo layout (pnpm workspaces):
 
