@@ -2,6 +2,7 @@ import { cosineDistance, desc, eq, gt, sql } from "drizzle-orm";
 import { documentChunks, documents, getDb, type Document } from "./db";
 import { embed } from "./ai/embeddings";
 import { getAnthropic, MODEL } from "./ai/client";
+import { getActiveProtocol, getSettings } from "./stats";
 
 // -- Chunking ---------------------------------------------------------------
 
@@ -107,13 +108,38 @@ Rules:
 - Ground every answer in the provided document excerpts; cite which document a fact came from by title.
 - If the excerpts don't contain the answer, say so plainly rather than guessing.
 - You are not the coach: describe what the documents say, don't invent new prescriptions or medical advice.
-- Be concise and concrete; use the athlete's coach's numbers verbatim when quoting targets.`;
+- Be concise and concrete; use the athlete's coach's numbers verbatim when quoting targets.
+- Use "Right now" below for anything relative to today/this week (e.g. "how many carbs can I eat today") — weigh it against any day-specific schedule in the excerpts (e.g. peak week's Mon-Wed vs Thu-Fri splits) rather than just quoting the flat weekly target.`;
+
+/** "Right now" block: current date/time + the active protocol snapshot, so
+ *  the model can answer day-relative questions without re-deriving "today"
+ *  or guessing at numbers RAG retrieval might not surface. */
+async function nowContext(): Promise<string> {
+  const [settings, protocol] = await Promise.all([getSettings(), getActiveProtocol()]);
+  const now = new Intl.DateTimeFormat("en-US", {
+    timeZone: settings.timezone,
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "short",
+  }).format(new Date());
+
+  const protocolLine = protocol
+    ? `Active protocol (flat weekly target, effective since ${protocol.effectiveFrom}): ${protocol.calories ?? "?"} kcal, ${protocol.proteinG ?? "?"}P/${protocol.carbsG ?? "?"}C/${protocol.fatG ?? "?"}F.` +
+      (protocol.cardioPlan ? ` Cardio: ${protocol.cardioPlan}.` : "")
+    : "No active (confirmed) protocol is set.";
+
+  return `Right now: ${now}.\n${protocolLine}`;
+}
 
 export async function answerQuestion(
   question: string,
   history: { role: "user" | "assistant"; content: string }[],
 ): Promise<ChatAnswer> {
-  const chunks = await retrieve(question);
+  const [chunks, now] = await Promise.all([retrieve(question), nowContext()]);
   const context = chunks.length
     ? chunks
         .map(
@@ -128,7 +154,7 @@ export async function answerQuestion(
     model: MODEL,
     max_tokens: 16000,
     thinking: { type: "adaptive" },
-    system: CHAT_SYSTEM,
+    system: `${CHAT_SYSTEM}\n\n${now}`,
     messages: [
       ...history.slice(-8),
       {
