@@ -4,7 +4,8 @@ import { checkIns, getDb } from "@/lib/db";
 import { mondayOf, todayLocal } from "@/lib/dates";
 import { dashboardData, weekStats } from "@/lib/stats";
 import { formatHeight, type WeightCapResult } from "@/lib/classic-physique";
-import { DIVISION_WEIGHT_CAPS, divisionLabel } from "@/lib/divisions";
+import type { WeightClassResult } from "@/lib/bodybuilding";
+import { DIVISION_WEIGHT_CAPS, DIVISION_WEIGHT_CLASSES, divisionLabel } from "@/lib/divisions";
 import { WeightChart } from "@/components/WeightChart";
 import { ComplianceChart } from "@/components/ComplianceChart";
 import { WeeklyAnalysis } from "@/components/WeeklyAnalysis";
@@ -56,6 +57,15 @@ export default async function Dashboard() {
           .filter((c): c is { division: string; result: WeightCapResult } => c != null)
       : [];
   const latest = data.latestWeight;
+  const classes: { division: string; result: WeightClassResult }[] =
+    latest != null
+      ? settings.divisions
+          .map((d) => {
+            const fn = DIVISION_WEIGHT_CLASSES[d as keyof typeof DIVISION_WEIGHT_CLASSES];
+            return fn ? { division: d, result: fn(latest.weightLbs) } : null;
+          })
+          .filter((c): c is { division: string; result: WeightClassResult } => c != null)
+      : [];
   const toTarget =
     latest && settings.targetStageWeightLbs != null
       ? Math.round((latest.weightLbs - settings.targetStageWeightLbs) * 10) / 10
@@ -142,19 +152,20 @@ export default async function Dashboard() {
         </Card>
 
         <Card>
-          <p className="text-xs font-medium text-muted uppercase tracking-wide">Class weight cap</p>
-          {settings.heightInches == null ? (
+          <p className="text-xs font-medium text-muted uppercase tracking-wide">Weight cap / class</p>
+          {caps.length === 0 && classes.length === 0 ? (
             <p className="mt-2 text-sm text-muted">
-              Set your height in <Link href="/settings" className="text-accent underline">Settings</Link>{" "}
-              or use the <Link href="/calculator" className="text-accent underline">calculator</Link>.
-            </p>
-          ) : caps.length === 0 ? (
-            <p className="mt-2 text-sm text-muted">
-              No weight-classed division selected — weight caps apply to
-              divisions like Classic Physique.
+              {settings.heightInches == null ? (
+                <>
+                  Set your height in <Link href="/settings" className="text-accent underline">Settings</Link>{" "}
+                  or use the <Link href="/calculator" className="text-accent underline">calculator</Link>.
+                </>
+              ) : (
+                "No division selected with a sourced weight cap or class chart."
+              )}
             </p>
           ) : (
-            <div className={caps.length > 1 ? "mt-1 space-y-2" : "mt-1"}>
+            <div className={caps.length + classes.length > 1 ? "mt-1 space-y-2" : "mt-1"}>
               {caps.map(({ division, result }) => (
                 <div key={division}>
                   <p className="text-3xl font-semibold tabular-nums">
@@ -173,6 +184,18 @@ export default async function Dashboard() {
                         )}
                       </span>
                     )}
+                  </p>
+                </div>
+              ))}
+              {classes.map(({ division, result }) => (
+                <div key={division}>
+                  <p className="text-3xl font-semibold tabular-nums">
+                    {result.label}
+                  </p>
+                  <p className="text-xs text-muted">
+                    {divisionLabel(division)} weight class @ {latest!.weightLbs} lbs
+                    {result.toNextClassLbs != null &&
+                      ` · ${result.toNextClassLbs} lbs to next class`}
                   </p>
                 </div>
               ))}
