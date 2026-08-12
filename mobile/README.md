@@ -49,3 +49,54 @@ In the app:
 > Health Connect only exposes data from up to 30 days before permission was
 > first granted, and background reads require the app to have been used
 > recently. Open the app and manual-sync if background sync looks stale.
+
+## Tests
+
+```bash
+pnpm test        # unit + integration (node:test via tsx, no device needed)
+pnpm typecheck
+```
+
+The suite runs headlessly under Node — no emulator or phone required. The two
+native boundaries (`react-native-health-connect` and AsyncStorage) plus the two
+Expo background modules are swapped for in-memory fakes via `tsconfig.test.json`
+`paths`, so the real `sync.ts`, `healthConnect.ts`, `config.ts`, and
+`background.ts` execute against programmable data with `fetch` stubbed.
+
+- `test/mapper.test.ts` — pure HC-record → wire-contract mapping (no mocks).
+- `test/config.test.ts` — AsyncStorage-backed settings, cursors, status.
+- `test/healthConnect.test.ts` — `readAll` pagination + init memoization.
+- `test/sync.test.ts` — full read→map→post pipeline: windows (first 30d / 24h
+  overlap), batching, auth header, per-type failure isolation, cursor advance.
+- `test/background.test.ts` — WorkManager task result mapping + registration.
+
+`App.tsx` (the UI shell) is intentionally not unit-tested; verify it on a
+device or an Android emulator (see below).
+
+## On-device / emulator verification
+
+The logic is covered headlessly above. What still needs a real Android runtime
+is the UI shell and the actual Health Connect integration. Note Health Connect
+has **no cloud API and no emulator data provider** — the standard AVD image
+ships the Health Connect app but MyFitnessPal/Samsung Health don't run there, so
+an emulator can only exercise the UI and permission flow against an *empty* HC
+store. End-to-end sync of real MFP/Samsung data must happen on a physical
+Samsung phone.
+
+Two lanes:
+
+1. **Emulator (UI + permission flow, no real health data)** — Android Studio →
+   Device Manager → create a Pixel/API-34 AVD, then `pnpm android`. Good for
+   catching UI regressions and confirming the HC permission request renders. You
+   can seed synthetic HC rows with `adb shell` + the Health Connect toolbox, but
+   it won't reflect MFP/Samsung.
+2. **Physical Samsung (true e2e)** — the only way to validate the full
+   MFP/Samsung Health → HC → ingest path. Safe workflow:
+   - Point **Server URL** at a throwaway/dev deployment (or your Mac's LAN IP),
+     never production, so seed and real data never mix.
+   - Use a distinct `deviceId` and, if the server sets `INGEST_API_KEY`, a
+     dev-only key.
+   - The app requests **read-only** HC permissions — it never writes to Health
+     Connect, so your MFP/Samsung data is never modified.
+   - First sync backfills 30 days; watch the on-screen per-type result lines,
+     then confirm rows landed via the server dashboard.

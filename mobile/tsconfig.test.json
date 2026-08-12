@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "types": ["node"],
+    "paths": {
+      "react-native-health-connect": ["./test/mocks/react-native-health-connect.ts"],
+      "@react-native-async-storage/async-storage": ["./test/mocks/async-storage.ts"],
+      "expo-task-manager": ["./test/mocks/expo-task-manager.ts"],
+      "expo-background-task": ["./test/mocks/expo-background-task.ts"]
+    }
+  }
+}
