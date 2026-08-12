@@ -50,6 +50,104 @@ In the app:
 > first granted, and background reads require the app to have been used
 > recently. Open the app and manual-sync if background sync looks stale.
 
+## How to test on a Galaxy S25 (against the Vercel demo)
+
+End-to-end test of the real MyFitnessPal / Samsung Health → Health Connect →
+ingest path on your own phone, syncing into the deployed demo at
+**https://show-prep-gamma.vercel.app**.
+
+> ⚠️ **Shared demo database.** The Vercel deploy is the public portfolio demo,
+> seeded with sample data. Your real device data is upserted *alongside* those
+> seed rows (they never collide — seed rows use `seed-*` UIDs, yours use real
+> Health Connect UIDs), so the dashboard will show a mix. See
+> [Resetting the demo](#resetting-the-demo) to clean up afterward. The app only
+> ever requests **read-only** HC permissions, so nothing on your phone is
+> modified.
+
+### 1. Prepare the phone
+
+The Galaxy S25 already has Health Connect built in (Android 15). Once:
+
+- Open **MyFitnessPal** and **Samsung Health**, and in each app's settings
+  connect it to **Health Connect** (Samsung Health → Settings → Health Connect;
+  MFP → Settings → Steps/Apps & Devices → Health Connect).
+- Log at least a couple of days of meals/weight/water so there's data to sync.
+- Enable **Developer options** (Settings → About phone → tap *Build number* 7×)
+  and turn on **USB debugging** — only needed for the local build path (2b).
+
+### 2. Build & install the companion
+
+The companion uses a native module (`react-native-health-connect`), so it can't
+run in Expo Go — you need a real build. Two options:
+
+**2a. EAS cloud build (recommended — no Android SDK on your Mac).**
+
+```bash
+cd mobile
+npm i -g eas-cli          # or: npx eas-cli@latest
+eas login                 # free Expo account
+eas build -p android --profile preview
+```
+
+`preview` produces a standalone **APK** (see `eas.json`). When the build
+finishes, open the link on the phone (or scan the QR) and install the APK —
+Chrome will ask to allow installing unknown apps; approve for this once.
+
+**2b. Local build over USB (alternative — needs Android SDK + JDK installed).**
+
+```bash
+cd mobile
+pnpm install
+pnpm prebuild             # generates android/ with the HC permissions from app.json
+pnpm android              # builds + installs on the USB-connected S25
+```
+
+### 3. Point it at the Vercel demo
+
+Launch **Show Prep Companion** on the phone and set:
+
+- **Server URL:** `https://show-prep-gamma.vercel.app`
+  (off-LAN requires HTTPS — Vercel is HTTPS, so this is fine.)
+- **Ingest API key:** the `INGEST_API_KEY` value from the Vercel project
+  (Vercel dashboard → the `show-prep` project → Settings → Environment
+  Variables → `INGEST_API_KEY` → Reveal). The production ingest API is
+  bearer-gated, so this is required.
+
+Leave **Device ID** as the auto-generated `galaxy-…` value — it tags your rows'
+provenance so you can tell them apart from seed data.
+
+### 4. Grant permissions & sync
+
+1. Tap **Grant HC permissions** and approve all the read permissions in the
+   Health Connect sheet.
+2. Tap **Sync now**. The first sync backfills up to 30 days (HC's history
+   limit). Watch the on-screen per-type result lines — e.g. `nutrition: 24`,
+   `weight: 7` — each number is how many records the server accepted.
+
+### 5. Verify on the dashboard
+
+Open **https://show-prep-gamma.vercel.app**, click **Enter demo** (or use the
+demo password), and confirm your synced weigh-ins / meals / hydration now appear
+in the dashboard trends and the current week's compliance.
+
+> Background sync runs roughly hourly via WorkManager and only when the OS
+> allows it. If numbers look stale, just open the app and tap **Sync now** — the
+> per-type cursors re-read a 24h overlap window, so re-syncing is always safe.
+
+### Resetting the demo
+
+Re-running the seed refreshes the sample rows but **does not** remove your
+device rows (different UIDs):
+
+```bash
+# from the repo root, with the deployed DB URL:
+DATABASE_URL="<neon-pooled-url>" SEED_AI=1 pnpm seed
+```
+
+To fully clear your device data from the demo, delete the rows whose `source` is
+`myfitnesspal` / `samsung_health` with your `galaxy-…` device id (or reset the
+database and re-seed). Do this against the **deployed** DB, not a local one.
+
 ## Tests
 
 ```bash
