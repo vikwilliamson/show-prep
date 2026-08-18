@@ -1,22 +1,18 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { getCurrentAccount, SESSION_COOKIE } from "@/lib/auth";
+import { env } from "@/lib/env";
 
-// Basic single-user session gate. Active only when APP_PASSWORD is set:
-// every route except /login, /api/session and /api/ingest/* (which has its
-// own bearer-token auth) requires the session cookie.
-
-export const SESSION_COOKIE = "sp_session";
-
-function expectedToken(): string | null {
-  const password = process.env.APP_PASSWORD;
-  if (!password) return null;
-  // Not a cryptographic scheme — single-user app; the cookie just proves the
-  // password was entered once in this browser.
-  return Buffer.from(`show-prep:${password}`).toString("base64url");
-}
+// Per-account session gate. Active only when SESSION_SECRET is configured
+// (unset in local dev by default): every route except /login, /api/session
+// and /api/ingest/* (which has its own bearer-token auth) requires a valid
+// session cookie. This only reads the cookie (optimistic check, no DB call)
+// since Proxy runs on every route, including prefetches — see
+// node_modules/next/dist/docs/01-app/02-guides/authentication.md. Which
+// account_id a request belongs to still isn't wired into route queries yet;
+// this only gates "is there a valid session," not "for which client."
 
 export function proxy(req: NextRequest) {
-  const expected = expectedToken();
-  if (!expected) return NextResponse.next();
+  if (!env.sessionSecret) return NextResponse.next();
 
   const { pathname } = req.nextUrl;
   if (
@@ -27,7 +23,7 @@ export function proxy(req: NextRequest) {
     return NextResponse.next();
   }
 
-  if (req.cookies.get(SESSION_COOKIE)?.value === expected) {
+  if (getCurrentAccount(req.cookies.get(SESSION_COOKIE)?.value)) {
     return NextResponse.next();
   }
 

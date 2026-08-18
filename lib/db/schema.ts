@@ -10,6 +10,7 @@ import {
   text,
   timestamp,
   uniqueIndex,
+  uuid,
   vector,
 } from "drizzle-orm/pg-core";
 
@@ -17,11 +18,32 @@ import {
 export const EMBEDDING_DIM = 1024;
 
 // ---------------------------------------------------------------------------
+// Accounts (coach + clients). account_id below is nullable for now — this
+// pass adds the column everywhere but defers wiring query-level filtering
+// into existing routes to the phase ticket that next touches each one (see
+// specs/client-accounts.md's checklist).
+// ---------------------------------------------------------------------------
+
+export const accounts = pgTable("accounts", {
+  id: serial("id").primaryKey(),
+  referenceId: uuid("reference_id").notNull().defaultRandom().unique(),
+  name: text("name").notNull(),
+  email: text("email"),
+  role: text("role", { enum: ["coach", "client"] }).notNull(),
+  passcodeHash: text("passcode_hash").notNull(),
+  timezone: text("timezone").notNull().default("America/Los_Angeles"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+// ---------------------------------------------------------------------------
 // Documents & RAG
 // ---------------------------------------------------------------------------
 
 export const documents = pgTable("documents", {
   id: serial("id").primaryKey(),
+  accountId: integer("account_id").references(() => accounts.id),
   title: text("title").notNull(),
   // coach_protocol: macro/cardio/peak-week docs from coach
   // division_rules: NPC rules & guidelines
@@ -44,6 +66,7 @@ export const documents = pgTable("documents", {
 
 export const documentChunks = pgTable("document_chunks", {
   id: serial("id").primaryKey(),
+  accountId: integer("account_id").references(() => accounts.id),
   documentId: integer("document_id")
     .notNull()
     .references(() => documents.id, { onDelete: "cascade" }),
@@ -58,6 +81,7 @@ export const documentChunks = pgTable("document_chunks", {
 
 export const protocols = pgTable("protocols", {
   id: serial("id").primaryKey(),
+  accountId: integer("account_id").references(() => accounts.id),
   documentId: integer("document_id").references(() => documents.id, {
     onDelete: "set null",
   }),
@@ -90,6 +114,7 @@ export const nutritionEntries = pgTable(
   "nutrition_entries",
   {
     id: serial("id").primaryKey(),
+    accountId: integer("account_id").references(() => accounts.id),
     hcUid: text("hc_uid"),
     source: text("source").notNull().default("manual"), // myfitnesspal | samsung_health | csv_backfill | manual
     localDate: date("local_date").notNull(),
@@ -115,6 +140,7 @@ export const weightEntries = pgTable(
   "weight_entries",
   {
     id: serial("id").primaryKey(),
+    accountId: integer("account_id").references(() => accounts.id),
     hcUid: text("hc_uid"),
     source: text("source").notNull().default("manual"),
     measuredAt: timestamp("measured_at", { withTimezone: true }).notNull(),
@@ -129,6 +155,7 @@ export const hydrationEntries = pgTable(
   "hydration_entries",
   {
     id: serial("id").primaryKey(),
+    accountId: integer("account_id").references(() => accounts.id),
     hcUid: text("hc_uid"),
     source: text("source").notNull().default("manual"),
     localDate: date("local_date").notNull(),
@@ -141,6 +168,7 @@ export const workouts = pgTable(
   "workouts",
   {
     id: serial("id").primaryKey(),
+    accountId: integer("account_id").references(() => accounts.id),
     hcUid: text("hc_uid"),
     source: text("source").notNull().default("manual"),
     localDate: date("local_date").notNull(),
@@ -158,6 +186,7 @@ export const sleepSessions = pgTable(
   "sleep_sessions",
   {
     id: serial("id").primaryKey(),
+    accountId: integer("account_id").references(() => accounts.id),
     hcUid: text("hc_uid"),
     source: text("source").notNull().default("manual"),
     localDate: date("local_date").notNull(),
@@ -173,6 +202,7 @@ export const dailyActivity = pgTable(
   "daily_activity",
   {
     id: serial("id").primaryKey(),
+    accountId: integer("account_id").references(() => accounts.id),
     hcUid: text("hc_uid"),
     source: text("source").notNull().default("manual"),
     localDate: date("local_date").notNull(),
@@ -188,6 +218,7 @@ export const dailyActivity = pgTable(
 
 export const syncLog = pgTable("sync_log", {
   id: serial("id").primaryKey(),
+  accountId: integer("account_id").references(() => accounts.id),
   syncedAt: timestamp("synced_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -204,6 +235,7 @@ export const syncLog = pgTable("sync_log", {
 
 export const weeklyTargets = pgTable("weekly_targets", {
   id: serial("id").primaryKey(),
+  accountId: integer("account_id").references(() => accounts.id),
   waterMlMin: integer("water_ml_min").notNull().default(3000), // per day
   sleepHoursMin: real("sleep_hours_min").notNull().default(7), // per night
   workoutsPerWeekMin: integer("workouts_per_week_min").notNull().default(3),
@@ -218,6 +250,7 @@ export const checkIns = pgTable(
   "check_ins",
   {
     id: serial("id").primaryKey(),
+    accountId: integer("account_id").references(() => accounts.id),
     weekStart: date("week_start").notNull(), // Monday of the week the check-in covers
     // Subjective, manually entered answers
     waistIn: real("waist_in"),
@@ -242,11 +275,13 @@ export const checkIns = pgTable(
 );
 
 // ---------------------------------------------------------------------------
-// App settings (single row, id = 1). Includes the coach check-in template.
+// App settings. One row per account (was a hardcoded single row, id = 1,
+// before accounts existed). Includes the coach check-in template.
 // ---------------------------------------------------------------------------
 
 export const settings = pgTable("settings", {
-  id: integer("id").primaryKey().default(1),
+  id: serial("id").primaryKey(),
+  accountId: integer("account_id").references(() => accounts.id),
   showName: text("show_name"),
   showDate: date("show_date"),
   divisions: text("divisions")
@@ -267,6 +302,7 @@ export const settings = pgTable("settings", {
 
 export const chatMessages = pgTable("chat_messages", {
   id: serial("id").primaryKey(),
+  accountId: integer("account_id").references(() => accounts.id),
   role: text("role", { enum: ["user", "assistant"] }).notNull(),
   content: text("content").notNull(),
   // [{ documentId, title, chunkIndex }] for assistant messages
@@ -276,6 +312,7 @@ export const chatMessages = pgTable("chat_messages", {
     .defaultNow(),
 });
 
+export type Account = typeof accounts.$inferSelect;
 export type Document = typeof documents.$inferSelect;
 export type DocumentChunk = typeof documentChunks.$inferSelect;
 export type Protocol = typeof protocols.$inferSelect;
