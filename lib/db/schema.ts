@@ -82,7 +82,7 @@ export const protocols = pgTable("protocols", {
 });
 
 // ---------------------------------------------------------------------------
-// Ingested health data (contract per SHOW-APP-ARCHITECTURE.md)
+// Ingested health data
 // All tables carry hc_uid (Health Connect provenance, upsert key) + source.
 // ---------------------------------------------------------------------------
 

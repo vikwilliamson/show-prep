@@ -1,6 +1,6 @@
-// Day bucketing per SHOW-APP-ARCHITECTURE.md: timestamps are stored as UTC,
-// and the local calendar date (default America/Los_Angeles) is computed at
-// ingest and stored in a local_date column.
+// Day bucketing: timestamps are stored as UTC, and the local calendar date
+// (default America/Los_Angeles) is computed at ingest and stored in a
+// local_date column.
 
 export const DEFAULT_TIMEZONE = "America/Los_Angeles";
 
