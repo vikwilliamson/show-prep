@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 
 // When NEXT_PUBLIC_DEMO_PASSWORD is set, the login screen advertises the demo
 // credential and offers a one-click entry — for portfolio/reviewer access.
-// Set it equal to APP_PASSWORD in the deployment environment.
+// Set it equal to the demo account's passcode in the deployment environment.
 const DEMO_PASSWORD = process.env.NEXT_PUBLIC_DEMO_PASSWORD;
 
 export default function LoginPage() {
@@ -21,13 +21,13 @@ export default function LoginPage() {
       const res = await fetch("/api/session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: value }),
+        body: JSON.stringify({ passcode: value }),
       });
       if (res.ok) {
         router.push("/");
         router.refresh();
       } else {
-        setError("Wrong password.");
+        setError("Wrong passcode.");
       }
     } finally {
       setBusy(false);
@@ -68,7 +68,7 @@ export default function LoginPage() {
             autoFocus={!DEMO_PASSWORD}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="Password"
+            placeholder="Passcode"
             className="w-full rounded-md border border-borderc bg-background px-3 py-2 text-sm"
           />
           {error && <p className="text-sm text-bad">{error}</p>}

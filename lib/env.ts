@@ -14,6 +14,6 @@ export const env = {
   /** Voyage AI key for embeddings (voyage-4). */
   voyageApiKey: process.env.VOYAGE_API_KEY,
   voyageModel: process.env.VOYAGE_MODEL ?? "voyage-4",
-  /** Optional single-user password. When unset, no login is required. */
-  appPassword: process.env.APP_PASSWORD,
+  /** Secret used to sign per-account session cookies (see lib/auth.ts). When unset, the login gate is disabled. */
+  sessionSecret: process.env.SESSION_SECRET,
 };

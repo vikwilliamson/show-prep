@@ -63,8 +63,9 @@ same Drizzle schema/migrations either way.
    applied automatically on first boot — no manual setup.
 2. Import the repo at [vercel.com/new](https://vercel.com/new) and set env vars:
    `DATABASE_URL`, `ANTHROPIC_API_KEY`, `VOYAGE_API_KEY`, `INGEST_API_KEY`
-   (required in prod — the ingest API is public), `APP_PASSWORD`, and for a
-   public portfolio demo `NEXT_PUBLIC_DEMO_PASSWORD` (= `APP_PASSWORD`).
+   (required in prod — the ingest API is public), `SESSION_SECRET`, and for a
+   public portfolio demo `NEXT_PUBLIC_DEMO_PASSWORD` (= a specific account's
+   passcode, see `scripts/backfill-accounts.ts`).
 3. Seed the deployed database with sample data + AI content from your machine:
 
    ```bash
@@ -80,15 +81,18 @@ SQL into the serverless output.
 |---|---|
 | `pnpm dev` / `pnpm build` / `pnpm start` | Next.js |
 | `pnpm seed` | demo data (35 days, active + pending protocol) |
-| `pnpm test` | unit tests (calculator, dates, chunking) |
+| `pnpm test` | unit tests (Vitest) |
+| `pnpm test:e2e` | e2e smoke tests (Playwright) |
 | `pnpm typecheck` | `tsc --noEmit` |
 | `pnpm db:generate` | regenerate Drizzle migrations after schema changes |
+| `pnpm exec tsx scripts/backfill-accounts.ts` | one-time: create coach/client accounts, assign existing data (see the script's header comment) |
 
 ## Configuration
 
 All optional — see `.env.example`. `INGEST_API_KEY` protects the ingest API
-(the companion app sends it as a bearer token). `APP_PASSWORD` enables the
-single-user login gate; leave unset for none.
+(the companion app sends it as a bearer token). `SESSION_SECRET` enables the
+per-account login gate (each account has its own passcode, see
+`scripts/backfill-accounts.ts`); leave unset for none.
 
 Day bucketing is done in `America/Los_Angeles` (configurable in Settings):
 timestamps are stored as UTC and each row also stores its `local_date`,
