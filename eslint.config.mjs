@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Mobile workspace has its own tsconfig and lint config.
+    "mobile/**",
   ]),
 ]);
 

@@ -179,10 +179,13 @@ export async function POST(
             activeCalories: r.activeCalories ?? null,
             totalCalories: r.totalCalories ?? null,
           };
+          // The unique constraint is on local_date (one row per day), not on
+          // hc_uid. Upsert on local_date so re-syncing the same day overwrites
+          // rather than conflicting.
           await db
             .insert(dailyActivity)
             .values(values)
-            .onConflictDoUpdate({ target: dailyActivity.hcUid, set: values });
+            .onConflictDoUpdate({ target: dailyActivity.localDate, set: values });
           accepted++;
         }
         break;

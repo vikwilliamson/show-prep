@@ -15,8 +15,6 @@ Monorepo layout (pnpm workspaces):
 - **`/mobile`** — Expo (React Native) Health Connect companion for Android
   ([its README](mobile/README.md))
 
-Architecture spec: see `SHOW-APP-ARCHITECTURE.md` (Fitness Data Hub).
-
 ## Features
 
 - **Documents** — upload coach PDFs/txt or paste emails. Claude

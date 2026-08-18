@@ -1,0 +1,7 @@
+echo "Running TDD pairing check..."
+bash scripts/check-tdd-pairing.sh || exit 1
+
+echo "Running unit tests..."
+pnpm test || exit 1
+
+echo "TDD gate passed."
