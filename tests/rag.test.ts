@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { test } from "vitest";
 import { chunkText } from "../lib/rag";
 
 test("short text yields one chunk", () => {

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { test } from "vitest";
 import { BODYBUILDING_WEIGHT_CLASSES, bodybuildingWeightClass } from "../lib/bodybuilding";
 
 test("chart matches the official NPC 6-class anchors", () => {
