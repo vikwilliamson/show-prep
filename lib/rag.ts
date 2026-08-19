@@ -1,4 +1,4 @@
-import { cosineDistance, desc, eq, gt, sql } from "drizzle-orm";
+import { and, cosineDistance, desc, eq, gt, sql } from "drizzle-orm";
 import { documentChunks, documents, getDb, type Document } from "./db";
 import { embed } from "./ai/embeddings";
 import { getAnthropic, MODEL } from "./ai/client";
@@ -50,6 +50,7 @@ export async function indexDocument(doc: Document): Promise<number> {
   await db.insert(documentChunks).values(
     chunks.map((content, i) => ({
       documentId: doc.id,
+      accountId: doc.accountId,
       chunkIndex: i,
       content,
       embedding: vectors[i],
@@ -73,7 +74,11 @@ export interface RetrievedChunk {
   similarity: number;
 }
 
-export async function retrieve(query: string, k = 6): Promise<RetrievedChunk[]> {
+export async function retrieve(
+  accountId: number,
+  query: string,
+  k = 6,
+): Promise<RetrievedChunk[]> {
   const db = await getDb();
   const [queryVec] = await embed([query], "query");
   const similarity = sql<number>`1 - (${cosineDistance(
@@ -92,7 +97,7 @@ export async function retrieve(query: string, k = 6): Promise<RetrievedChunk[]> 
     })
     .from(documentChunks)
     .innerJoin(documents, eq(documents.id, documentChunks.documentId))
-    .where(gt(similarity, 0.3))
+    .where(and(eq(documentChunks.accountId, accountId), gt(similarity, 0.3)))
     .orderBy((t) => desc(t.similarity))
     .limit(k);
 }
@@ -114,8 +119,11 @@ Rules:
 /** "Right now" block: current date/time + the active protocol snapshot, so
  *  the model can answer day-relative questions without re-deriving "today"
  *  or guessing at numbers RAG retrieval might not surface. */
-async function nowContext(): Promise<string> {
-  const [settings, protocol] = await Promise.all([getSettings(), getActiveProtocol()]);
+async function nowContext(accountId: number): Promise<string> {
+  const [settings, protocol] = await Promise.all([
+    getSettings(accountId),
+    getActiveProtocol(accountId),
+  ]);
   const now = new Intl.DateTimeFormat("en-US", {
     timeZone: settings.timezone,
     weekday: "long",
@@ -136,10 +144,14 @@ async function nowContext(): Promise<string> {
 }
 
 export async function answerQuestion(
+  accountId: number,
   question: string,
   history: { role: "user" | "assistant"; content: string }[],
 ): Promise<ChatAnswer> {
-  const [chunks, now] = await Promise.all([retrieve(question), nowContext()]);
+  const [chunks, now] = await Promise.all([
+    retrieve(accountId, question),
+    nowContext(accountId),
+  ]);
   const context = chunks.length
     ? chunks
         .map(

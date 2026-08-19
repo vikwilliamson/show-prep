@@ -53,13 +53,13 @@ Add a nullable `account_id` FK (→ `accounts.id`) to every existing per-user ta
 
 ## Follow-up checklist (routes still needing `account_id` scoping)
 
-- [ ] `app/api/settings/route.ts`, `app/settings/page.tsx` — Phase 1
-- [ ] `app/page.tsx` dashboard queries — Phase 1
-- [ ] `app/api/checkins/*`, `app/check-in` — Phase 1/3
-- [ ] `app/api/documents/*`, `app/documents` — Phase 1 (or whenever documents UI is next touched)
-- [ ] `app/api/chat/route.ts`, `app/chat` — Phase 1
-- [ ] `app/api/ingest/[type]/route.ts` → `app/api/health-webhook` — Phase 2 (replaced, not patched)
-- [ ] `app/api/analysis/route.ts` — Phase 3
+- [x] `app/api/settings/route.ts`, `app/settings/page.tsx` — Phase 1 (done via `feat/phase-1-account-scoping`)
+- [x] `app/page.tsx` dashboard queries — Phase 1 (done via `feat/phase-1-account-scoping`)
+- [x] `app/api/checkins/*`, `app/check-in` — Phase 1/3 (done via `feat/phase-1-account-scoping`; also fixed `check_ins`' unique index, which was on `week_start` alone and would have collided across accounts on the same week)
+- [x] `app/api/documents/*`, `app/documents` — Phase 1 (done via `feat/phase-1-account-scoping`)
+- [x] `app/api/chat/route.ts`, `app/chat` — Phase 1 (done via `feat/phase-1-account-scoping`)
+- [ ] `app/api/ingest/[type]/route.ts` → `app/api/health-webhook` — Phase 2 (replaced, not patched). Note: as of `feat/phase-1-account-scoping`, `lib/stats.ts`'s data-access functions all require `account_id` now, so ingest was given a documented single-tenant fallback (`getPrimaryCoachAccountId()` in `lib/auth.ts`) just to keep compiling — it does NOT tag inserted rows with `account_id`. This means data synced through the old ingest path after this lands won't appear in the now-scoped dashboard until Phase 2's webhook actually sets `account_id` on write. Phase 2 must account for this, not just replace the auth mechanism.
+- [ ] `app/api/analysis/route.ts` — Phase 3. Also on `getPrimaryCoachAccountId()` fallback for now; Phase 3 should switch it to real session-based resolution (the route is always called from an already-authenticated dashboard, so this is a smaller lift than ingest's).
 
 ## Test plan (TDD — write these first)
 

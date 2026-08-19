@@ -1,13 +1,19 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
+import { NextRequest, NextResponse } from "next/server";
+import { eq } from "drizzle-orm";
 import {
   createSessionToken,
   getCurrentAccount,
+  getPrimaryCoachAccountId,
   hashPasscode,
+  requireAccount,
   requireCoach,
+  SESSION_COOKIE,
   verifyPasscode,
   verifySessionToken,
 } from "../lib/auth";
+import { accounts, getDb } from "../lib/db";
 
 test("a passcode verifies against its own hash", async () => {
   const hash = await hashPasscode("elk-basalt-7");
@@ -60,4 +66,45 @@ test("requireCoach 401s with no session", async () => {
   const res = requireCoach(undefined);
   assert.ok(res);
   assert.equal(res.status, 401);
+});
+
+test("requireAccount returns the session for a request carrying a valid cookie", () => {
+  const token = createSessionToken({ accountId: 5, role: "client" });
+  const req = new NextRequest("http://localhost/api/settings", {
+    headers: { cookie: `${SESSION_COOKIE}=${token}` },
+  });
+  assert.deepEqual(requireAccount(req), { accountId: 5, role: "client" });
+});
+
+test("requireAccount 401s a request with no session cookie", () => {
+  const req = new NextRequest("http://localhost/api/settings");
+  const result = requireAccount(req);
+  assert.ok(result instanceof NextResponse);
+  assert.equal(result.status, 401);
+});
+
+test("requireAccount 401s a request with a tampered cookie", () => {
+  const token = createSessionToken({ accountId: 5, role: "client" });
+  const req = new NextRequest("http://localhost/api/settings", {
+    headers: { cookie: `${SESSION_COOKIE}=${token}x` },
+  });
+  const result = requireAccount(req);
+  assert.ok(result instanceof NextResponse);
+  assert.equal(result.status, 401);
+});
+
+test("getPrimaryCoachAccountId resolves to an existing coach account", async () => {
+  const db = await getDb();
+  const passcodeHash = await hashPasscode("primary-coach-fallback-test");
+  const [row] = await db
+    .insert(accounts)
+    .values({ name: "Primary Coach Fallback Test", role: "coach", passcodeHash })
+    .returning();
+  try {
+    const id = await getPrimaryCoachAccountId();
+    const [resolved] = await db.select().from(accounts).where(eq(accounts.id, id));
+    assert.equal(resolved.role, "coach");
+  } finally {
+    await db.delete(accounts).where(eq(accounts.id, row.id));
+  }
 });

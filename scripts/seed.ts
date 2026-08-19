@@ -8,8 +8,9 @@
  * Idempotent: health rows upsert on deterministic seed hc_uids; documents,
  * protocols and settings are refreshed each run.
  */
-import { eq, like, inArray } from "drizzle-orm";
+import { and, eq, like, inArray } from "drizzle-orm";
 import {
+  accounts,
   checkIns,
   documents,
   getDb,
@@ -24,13 +25,33 @@ import {
 } from "../lib/db";
 import { addDays, localDateOf, mondayOf, todayLocal } from "../lib/dates";
 import { indexDocument } from "../lib/rag";
+import { hashPasscode } from "../lib/auth";
 import {
   dataAnswers,
   generateCheckinDraft,
   generateWeeklyAnalysis,
 } from "../lib/ai/analysis";
-import { getSettings, weekStats } from "../lib/stats";
+import { getSettings, getTargets, weekStats } from "../lib/stats";
 import type { CheckinQuestion } from "../lib/checkin-template";
+
+// The demo login (app/login) advertises NEXT_PUBLIC_DEMO_PASSWORD as a
+// one-click credential when set — reuse it here so seeded data is reachable
+// through that same account out of the box.
+const SEED_COACH_NAME = "Demo Coach";
+const SEED_COACH_PASSCODE = process.env.NEXT_PUBLIC_DEMO_PASSWORD || "demo-coach-passcode";
+
+/** Finds or creates the seed coach account, idempotent across runs. */
+async function findOrCreateSeedAccount(): Promise<number> {
+  const db = await getDb();
+  const [existing] = await db.select().from(accounts).where(eq(accounts.name, SEED_COACH_NAME));
+  if (existing) return existing.id;
+  const passcodeHash = await hashPasscode(SEED_COACH_PASSCODE);
+  const [row] = await db
+    .insert(accounts)
+    .values({ name: SEED_COACH_NAME, role: "coach", passcodeHash })
+    .returning();
+  return row.id;
+}
 
 const TZ = "America/Los_Angeles";
 const DAYS = 35;
@@ -106,9 +127,11 @@ async function main() {
   const db = await getDb();
   const today = todayLocal(TZ);
   const start = addDays(today, -(DAYS - 1));
-  console.log(`Seeding ${DAYS} days (${start} → ${today})…`);
+  const accountId = await findOrCreateSeedAccount();
+  console.log(`Seeding ${DAYS} days (${start} → ${today}) onto account #${accountId} (${SEED_COACH_NAME})…`);
 
   // ---- Settings & targets --------------------------------------------------
+  const seedSettings = await getSettings(accountId);
   await db
     .update(settings)
     .set({
@@ -120,20 +143,24 @@ async function main() {
       heightInches: 68,
       timezone: TZ,
     })
-    .where(eq(settings.id, 1));
+    .where(eq(settings.id, seedSettings.id));
 
-  const [t] = await db.select().from(weeklyTargets).limit(1);
+  const seedTargets = await getTargets(accountId);
   await db
     .update(weeklyTargets)
     .set({ waterMlMin: 3000, sleepHoursMin: 7, workoutsPerWeekMin: 3, cardioSessionsPerWeek: 4 })
-    .where(eq(weeklyTargets.id, t.id));
+    .where(eq(weeklyTargets.id, seedTargets.id));
 
   // ---- Documents & protocols (refresh seeded ones) --------------------------
-  await db.delete(documents).where(like(documents.title, "[seed]%"));
+  await db
+    .delete(documents)
+    .where(and(eq(documents.accountId, accountId), like(documents.title, "[seed]%")));
   const seededProtocols = await db
     .select({ id: protocols.id })
     .from(protocols)
-    .where(inArray(protocols.status, ["pending", "active", "superseded"]));
+    .where(
+      and(eq(protocols.accountId, accountId), inArray(protocols.status, ["pending", "active", "superseded"])),
+    );
   if (seededProtocols.length) {
     await db.delete(protocols).where(
       inArray(protocols.id, seededProtocols.map((p) => p.id)),
@@ -143,6 +170,7 @@ async function main() {
   const [planDoc] = await db
     .insert(documents)
     .values({
+      accountId,
       title: "[seed] Coach Dan — updated macros & cardio (July 6)",
       category: "coach_protocol",
       sourceType: "email_paste",
@@ -153,6 +181,7 @@ async function main() {
   const [finalPhaseDoc] = await db
     .insert(documents)
     .values({
+      accountId,
       title: "[seed] Coach Dan — final phase protocol (draft)",
       category: "coach_protocol",
       sourceType: "email_paste",
@@ -161,6 +190,7 @@ async function main() {
     .returning();
 
   await db.insert(documents).values({
+    accountId,
     title: "[seed] Program rules & guidelines",
     category: "program_rules",
     sourceType: "txt",
@@ -169,6 +199,7 @@ async function main() {
 
   await db.insert(protocols).values({
     documentId: planDoc.id,
+    accountId,
     status: "active",
     effectiveFrom: addDays(today, -9),
     calories: 2100,
@@ -184,6 +215,7 @@ async function main() {
   // A pending extraction so the confirmation flow is visible in the UI.
   await db.insert(protocols).values({
     documentId: finalPhaseDoc.id,
+    accountId,
     status: "pending",
     effectiveFrom: addDays(today, 68),
     calories: 1900,
@@ -212,6 +244,7 @@ async function main() {
       const w = 196 - 7.5 * progress + between(-0.9, 0.9);
       const time = at(date, 6, 45);
       weightRows.push({
+        accountId,
         hcUid: `seed-weight-${date}`,
         source: "samsung_health",
         measuredAt: new Date(time),
@@ -242,6 +275,7 @@ async function main() {
         );
         const time = at(date, mealHours[meal]);
         nutritionRows.push({
+          accountId,
           hcUid: `seed-nutrition-${date}-${meal}`,
           source: "myfitnesspal",
           localDate: localDateOf(time, TZ),
@@ -262,6 +296,7 @@ async function main() {
     ] as const) {
       const time = at(date, n === 1 ? 11 : 19);
       hydrationRows.push({
+        accountId,
         hcUid: `seed-hydration-${date}-${n}`,
         source: "samsung_health",
         localDate: localDateOf(time, TZ),
@@ -274,6 +309,7 @@ async function main() {
     const wake = at(date, 6, 15);
     const bed = new Date(new Date(wake).getTime() - hours * 3600_000);
     sleepRows.push({
+      accountId,
       hcUid: `seed-sleep-${date}`,
       source: "samsung_health",
       localDate: localDateOf(wake, TZ),
@@ -288,6 +324,7 @@ async function main() {
     if (liftDays.includes(dow) && rand() > 0.1) {
       const startT = at(date, 16, 30);
       workoutRows.push({
+        accountId,
         hcUid: `seed-lift-${date}`,
         source: "samsung_health",
         localDate: localDateOf(startT, TZ),
@@ -302,6 +339,7 @@ async function main() {
     if ([1, 3, 5, 6].includes(dow) && rand() > 0.12) {
       const startT = at(date, 6, 55);
       workoutRows.push({
+        accountId,
         hcUid: `seed-cardio-${date}`,
         source: "samsung_health",
         localDate: localDateOf(startT, TZ),
@@ -342,7 +380,7 @@ async function main() {
   // analysis, and a filled-in coach check-in draft. Requires ANTHROPIC_API_KEY
   // and VOYAGE_API_KEY. Skipped by default so local seeding stays fast/offline.
   if (process.env.SEED_AI === "1") {
-    await populateAiContent(today);
+    await populateAiContent(accountId, today);
   } else {
     console.log("(Set SEED_AI=1 to also embed docs + generate analysis/draft.)");
   }
@@ -350,13 +388,13 @@ async function main() {
   process.exit(0);
 }
 
-async function populateAiContent(today: string) {
+async function populateAiContent(accountId: number, today: string) {
   const db = await getDb();
   console.log("\nSEED_AI: generating demo AI content…");
 
   // 1) Embed every document so doc chat is ready (Voyage free-tier friendly:
   //    embeddings.ts backs off on 429s).
-  const docs = await db.select().from(documents);
+  const docs = await db.select().from(documents).where(eq(documents.accountId, accountId));
   for (const doc of docs) {
     try {
       const chunks = await indexDocument(doc);
@@ -368,7 +406,7 @@ async function populateAiContent(today: string) {
 
   // 2) Seed subjective check-in answers for the current week, then generate
   //    the analysis and the filled-in coach draft.
-  const settingsRow = await getSettings();
+  const settingsRow = await getSettings(accountId);
   const weekStart = mondayOf(today);
   const manual = {
     waistIn: 31.25,
@@ -380,14 +418,14 @@ async function populateAiContent(today: string) {
   };
   await db
     .insert(checkIns)
-    .values({ weekStart, ...manual, updatedAt: new Date() })
+    .values({ accountId, weekStart, ...manual, updatedAt: new Date() })
     .onConflictDoUpdate({
-      target: checkIns.weekStart,
+      target: [checkIns.accountId, checkIns.weekStart],
       set: { ...manual, updatedAt: new Date() },
     });
 
   try {
-    const stats = await weekStats(weekStart);
+    const stats = await weekStats(accountId, weekStart);
     const analysis = await generateWeeklyAnalysis(stats, settingsRow);
     const draft = await generateCheckinDraft({
       template: settingsRow.checkinTemplate as CheckinQuestion[],
@@ -403,7 +441,7 @@ async function populateAiContent(today: string) {
         dataAnswers: dataAnswers(stats, settingsRow),
         updatedAt: new Date(),
       })
-      .where(eq(checkIns.weekStart, weekStart));
+      .where(and(eq(checkIns.accountId, accountId), eq(checkIns.weekStart, weekStart)));
     console.log("  generated weekly analysis + check-in draft.");
   } catch (err) {
     console.warn(`  analysis/draft failed: ${err instanceof Error ? err.message : err}`);

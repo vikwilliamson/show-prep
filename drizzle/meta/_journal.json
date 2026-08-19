@@ -71,6 +71,20 @@
       "when": 1787106634313,
       "tag": "0009_absurd_harpoon",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1787110381588,
+      "tag": "0010_spotty_jigsaw",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1787110520717,
+      "tag": "0011_optimal_menace",
+      "breakpoints": true
     }
   ]
 }

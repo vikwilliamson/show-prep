@@ -1,0 +1,89 @@
+import assert from "node:assert/strict";
+import { afterEach, test } from "vitest";
+import { NextRequest } from "next/server";
+import { eq, inArray } from "drizzle-orm";
+import { accounts, getDb, settings, weeklyTargets } from "../lib/db";
+import { createSessionToken, hashPasscode, SESSION_COOKIE } from "../lib/auth";
+import { GET, PUT } from "../app/api/settings/route";
+
+const createdAccountIds: number[] = [];
+
+async function makeAccount(name: string): Promise<number> {
+  const db = await getDb();
+  const passcodeHash = await hashPasscode(`${name}-passcode`);
+  const [row] = await db
+    .insert(accounts)
+    .values({ name, role: "client", passcodeHash })
+    .returning();
+  createdAccountIds.push(row.id);
+  return row.id;
+}
+
+afterEach(async () => {
+  const db = await getDb();
+  if (createdAccountIds.length === 0) return;
+  await db.delete(settings).where(inArray(settings.accountId, createdAccountIds));
+  await db.delete(weeklyTargets).where(inArray(weeklyTargets.accountId, createdAccountIds));
+  await db.delete(accounts).where(inArray(accounts.id, createdAccountIds));
+  createdAccountIds.length = 0;
+});
+
+function requestWithSession(
+  method: "GET" | "PUT",
+  accountId: number,
+  body?: unknown,
+) {
+  const token = createSessionToken({ accountId, role: "client" });
+  return new NextRequest("http://localhost/api/settings", {
+    method,
+    headers: {
+      cookie: `${SESSION_COOKIE}=${token}`,
+      ...(body ? { "Content-Type": "application/json" } : {}),
+    },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+}
+
+test("GET /api/settings 401s with no session", async () => {
+  const res = await GET(new NextRequest("http://localhost/api/settings"));
+  assert.equal(res.status, 401);
+});
+
+test("GET /api/settings returns a default row for a brand-new account", async () => {
+  const a = await makeAccount("Settings Route Test New");
+  const res = await GET(requestWithSession("GET", a));
+  const json = await res.json();
+  assert.equal(json.settings.accountId, a);
+  assert.equal(json.targets.accountId, a);
+});
+
+test("PUT /api/settings only ever updates the caller's own row", async () => {
+  const a = await makeAccount("Settings Route Test Owner");
+  const b = await makeAccount("Settings Route Test Other");
+
+  const putRes = await PUT(
+    requestWithSession("PUT", a, { settings: { targetName: "Owner's target" } }),
+  );
+  assert.equal(putRes.status, 200);
+
+  const bRes = await GET(requestWithSession("GET", b));
+  const bJson = await bRes.json();
+  assert.equal(bJson.settings.targetName, null);
+
+  const aRes = await GET(requestWithSession("GET", a));
+  const aJson = await aRes.json();
+  assert.equal(aJson.settings.targetName, "Owner's target");
+});
+
+test("PUT /api/settings updates the caller's own weekly targets", async () => {
+  const a = await makeAccount("Settings Route Test Targets");
+  const res = await PUT(
+    requestWithSession("PUT", a, { targets: { waterMlMin: 4000 } }),
+  );
+  const json = await res.json();
+  assert.equal(json.targets.waterMlMin, 4000);
+
+  const db = await getDb();
+  const [row] = await db.select().from(weeklyTargets).where(eq(weeklyTargets.accountId, a));
+  assert.equal(row.waterMlMin, 4000);
+});

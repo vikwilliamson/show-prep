@@ -13,6 +13,7 @@ import {
 import { localDateOf } from "@/lib/dates";
 import { checkIngestAuth } from "@/lib/ingest/auth";
 import { batchSchema, isCardioType, type IngestType } from "@/lib/ingest/schemas";
+import { getPrimaryCoachAccountId } from "@/lib/auth";
 import { getSettings } from "@/lib/stats";
 
 // POST /api/ingest/{nutrition|weight|hydration|sleep|exercise|activity}
@@ -50,7 +51,14 @@ export async function POST(
 
   const { deviceId, source, records } = parsed.data;
   const db = await getDb();
-  const tz = (await getSettings()).timezone;
+  // No account concept here yet — this route authenticates by bearer token,
+  // not session, and Phase 2 replaces it wholesale with the Terra webhook
+  // (which will tag every row with its real account_id via reference_id).
+  // Until then it falls back to the sole coach account for timezone lookup
+  // only; inserted rows below still don't get account_id set, so freshly
+  // synced data won't show up in the now-account-scoped dashboard/stats
+  // until Phase 2 lands.
+  const tz = (await getSettings(await getPrimaryCoachAccountId())).timezone;
   let accepted = 0;
 
   try {

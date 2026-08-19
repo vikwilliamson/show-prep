@@ -1,7 +1,6 @@
 import { sql } from "drizzle-orm";
 import path from "node:path";
 import { env } from "../env";
-import { DEFAULT_CHECKIN_TEMPLATE } from "../checkin-template";
 import * as schema from "./schema";
 
 // Two drivers behind one interface:
@@ -57,19 +56,7 @@ async function initDb(): Promise<Db> {
     db = liteDb;
   }
 
-  await ensureDefaultRows(db);
   return db;
-}
-
-async function ensureDefaultRows(db: Db) {
-  await db
-    .insert(schema.settings)
-    .values({ id: 1, checkinTemplate: DEFAULT_CHECKIN_TEMPLATE })
-    .onConflictDoNothing();
-  const targets = await db.select().from(schema.weeklyTargets).limit(1);
-  if (targets.length === 0) {
-    await db.insert(schema.weeklyTargets).values({});
-  }
 }
 
 export function getDb(): Promise<Db> {

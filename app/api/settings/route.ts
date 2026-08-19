@@ -1,12 +1,19 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
+import { requireAccount } from "@/lib/auth";
 import { getDb, settings, weeklyTargets } from "@/lib/db";
 import { getSettings, getTargets } from "@/lib/stats";
 import { PROGRAM_TYPES } from "@/lib/program-types";
 
-export async function GET() {
-  const [s, t] = await Promise.all([getSettings(), getTargets()]);
+export async function GET(req: NextRequest) {
+  const session = requireAccount(req);
+  if (session instanceof NextResponse) return session;
+
+  const [s, t] = await Promise.all([
+    getSettings(session.accountId),
+    getTargets(session.accountId),
+  ]);
   return NextResponse.json({ settings: s, targets: t });
 }
 
@@ -33,6 +40,9 @@ const putSchema = z.object({
 });
 
 export async function PUT(req: NextRequest) {
+  const session = requireAccount(req);
+  if (session instanceof NextResponse) return session;
+
   const parsed = putSchema.safeParse(await req.json());
   if (!parsed.success) {
     return NextResponse.json(
@@ -43,16 +53,20 @@ export async function PUT(req: NextRequest) {
   const db = await getDb();
 
   if (parsed.data.settings && Object.keys(parsed.data.settings).length) {
-    await db.update(settings).set(parsed.data.settings).where(eq(settings.id, 1));
+    const current = await getSettings(session.accountId);
+    await db.update(settings).set(parsed.data.settings).where(eq(settings.id, current.id));
   }
   if (parsed.data.targets && Object.keys(parsed.data.targets).length) {
-    const current = await getTargets();
+    const current = await getTargets(session.accountId);
     await db
       .update(weeklyTargets)
       .set(parsed.data.targets)
       .where(eq(weeklyTargets.id, current.id));
   }
 
-  const [s, t] = await Promise.all([getSettings(), getTargets()]);
+  const [s, t] = await Promise.all([
+    getSettings(session.accountId),
+    getTargets(session.accountId),
+  ]);
   return NextResponse.json({ settings: s, targets: t });
 }

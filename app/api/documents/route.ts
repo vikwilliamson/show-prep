@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { desc, eq, sql } from "drizzle-orm";
+import { requireAccount } from "@/lib/auth";
 import { documentChunks, documents, getDb, protocols } from "@/lib/db";
 import { extractPrescriptions } from "@/lib/ai/extract";
 import { indexDocument } from "@/lib/rag";
@@ -9,7 +10,10 @@ import { getSettings } from "@/lib/stats";
 // Allow long-running Claude/Voyage calls on Vercel (clamped to the plan's max).
 export const maxDuration = 300;
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const session = requireAccount(req);
+  if (session instanceof NextResponse) return session;
+
   const db = await getDb();
   const rows = await db
     .select({
@@ -24,6 +28,7 @@ export async function GET() {
     })
     .from(documents)
     .leftJoin(documentChunks, eq(documentChunks.documentId, documents.id))
+    .where(eq(documents.accountId, session.accountId))
     .groupBy(documents.id)
     .orderBy(desc(documents.uploadedAt));
   return NextResponse.json(rows);
@@ -94,6 +99,9 @@ async function readUpload(req: NextRequest): Promise<{
 }
 
 export async function POST(req: NextRequest) {
+  const session = requireAccount(req);
+  if (session instanceof NextResponse) return session;
+
   let upload;
   try {
     upload = await readUpload(req);
@@ -111,14 +119,17 @@ export async function POST(req: NextRequest) {
   }
 
   const db = await getDb();
-  const [doc] = await db.insert(documents).values(upload).returning();
+  const [doc] = await db
+    .insert(documents)
+    .values({ ...upload, accountId: session.accountId })
+    .returning();
   const warnings: string[] = [];
   let createdProtocols: (typeof protocols.$inferSelect)[] = [];
 
   // Prescription extraction (coach protocols only) — best effort.
   if (doc.category === "coach_protocol") {
     try {
-      const settings = await getSettings();
+      const settings = await getSettings(session.accountId);
       const extraction = await extractPrescriptions({
         title: doc.title,
         text: doc.contentText,
@@ -130,6 +141,7 @@ export async function POST(req: NextRequest) {
           .values(
             extraction.prescriptions.map((p) => ({
               documentId: doc.id,
+              accountId: session.accountId,
               status: "pending" as const,
               effectiveFrom: p.effective_date ?? todayLocal(settings.timezone),
               calories: p.calories != null ? Math.round(p.calories) : null,

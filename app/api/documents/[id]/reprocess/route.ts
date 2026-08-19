@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { and, eq } from "drizzle-orm";
+import { requireAccount } from "@/lib/auth";
 import { documents, getDb, protocols } from "@/lib/db";
 import { extractPrescriptions } from "@/lib/ai/extract";
 import { indexDocument } from "@/lib/rag";
@@ -12,15 +13,18 @@ export const maxDuration = 300;
 // Re-runs extraction and/or embedding for an existing document — useful after
 // configuring API keys, or if the first pass failed.
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   ctx: { params: Promise<{ id: string }> },
 ) {
+  const session = requireAccount(req);
+  if (session instanceof NextResponse) return session;
+
   const { id } = await ctx.params;
   const db = await getDb();
   const [doc] = await db
     .select()
     .from(documents)
-    .where(eq(documents.id, Number(id)));
+    .where(and(eq(documents.id, Number(id)), eq(documents.accountId, session.accountId)));
   if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const warnings: string[] = [];
@@ -28,7 +32,7 @@ export async function POST(
 
   if (doc.category === "coach_protocol") {
     try {
-      const settings = await getSettings();
+      const settings = await getSettings(session.accountId);
       const extraction = await extractPrescriptions({
         title: doc.title,
         text: doc.contentText,
@@ -47,6 +51,7 @@ export async function POST(
           .values(
             extraction.prescriptions.map((p) => ({
               documentId: doc.id,
+              accountId: session.accountId,
               status: "pending" as const,
               effectiveFrom: p.effective_date ?? todayLocal(settings.timezone),
               calories: p.calories != null ? Math.round(p.calories) : null,
