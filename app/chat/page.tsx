@@ -109,8 +109,8 @@ export default function ChatPage() {
           <div className="py-12 text-center text-sm text-muted">
             <p>Ask anything grounded in your uploads, e.g.</p>
             <p className="mt-2 italic">
-              “What did coach say about peak week sodium?” · “What&apos;s the posing
-              suit rule for Classic?” · “When do my carbs drop next?”
+              “What did coach say about sodium this phase?” · “What are the
+              program rules for weigh-ins?” · “When do my carbs drop next?”
             </p>
           </div>
         )}
@@ -146,7 +146,7 @@ export default function ChatPage() {
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Ask about your protocols or division rules…"
+          placeholder="Ask about your protocols or program rules…"
           className="flex-1 rounded-md border border-borderc bg-surface px-3 py-2 text-sm"
         />
         <button

@@ -41,9 +41,9 @@ export default function LoginPage() {
           <div className="rounded-xl border border-accent/40 bg-accent/10 p-4 text-sm">
             <p className="font-medium text-accent">Portfolio demo</p>
             <p className="mt-1 text-muted">
-              This is a live demo seeded with sample contest-prep data. Click
-              below to explore the dashboard, check-in generator, document chat,
-              and weight-cap calculator.
+              This is a live demo seeded with sample coaching data. Click
+              below to explore the dashboard, check-in generator, and
+              document chat.
             </p>
             <button
               onClick={() => login(DEMO_PASSWORD)}

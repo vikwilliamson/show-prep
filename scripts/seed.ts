@@ -1,6 +1,6 @@
 /**
- * Seeds a realistic mid-prep dataset so the dashboard, check-in, and calculator
- * are demonstrable before the mobile companion has synced anything.
+ * Seeds a realistic mid-program dataset so the dashboard and check-in are
+ * demonstrable before the mobile companion has synced anything.
  *
  * Run with the dev server STOPPED (PGlite is single-process):
  *   pnpm seed
@@ -74,33 +74,33 @@ SLEEP: protect your 7 hours, this matters more from here on out.
 
 Weigh in every morning after the bathroom, before food. Waist measurement with the check-in every Sunday.
 
-We're 11 weeks out — this is where we make the show. Trust the process.
+We're 11 weeks out from your target date — this is where the work compounds. Trust the process.
 
 — Coach Dan`;
 
-const PEAK_WEEK_TEXT = `PEAK WEEK PROTOCOL — draft, we will finalize 2 weeks out.
+const FINAL_PHASE_TEXT = `FINAL PHASE ADJUSTMENTS — draft, we will finalize 2 weeks out.
 
-Mon-Wed (depletion): calories drop to 1900, carbs 90g, protein stays 210g, fat 45g. Two full-body depletion circuits Mon/Tue.
-Thu-Fri (load): carbs up to 400g, fat under 40g, sodium normal, water 6L Thursday tapering to 3L Friday.
-Sat (show day): rice cakes + honey between prejudging rounds, sips of water only.
+Mon-Wed (lower carb): calories drop to 1900, carbs 90g, protein stays 210g, fat 45g. Two full-body training sessions Mon/Tue.
+Thu-Fri (higher carb): carbs up to 400g, fat under 40g, sodium normal, water 6L Thursday tapering to 3L Friday.
+Sat (target day): keep meals light and simple, sip water rather than chugging it.
 
-No cardio after Wednesday. Posing practice daily but short.
+No cardio after Wednesday.
 
 This takes effect Monday September 21st. Do not start early.
 
 — Coach Dan`;
 
-const RULES_TEXT = `NPC CLASSIC PHYSIQUE — DIVISION RULES & GUIDELINES (excerpt)
+const PROGRAM_RULES_TEXT = `PROGRAM GUIDELINES (excerpt)
 
-Height & weight: competitors must not exceed the weight cap for their height class per the official NPC/NPC Worldwide chart (2023 update). Examples: up to 5'8" — 187 lbs; up to 5'10" — 202 lbs; up to 6'0" — 217 lbs.
+Logging: weigh and log everything daily in MyFitnessPal, even off-plan days — accuracy matters more than "looking good" on the log.
 
-Attire: competition trunks must be solid black, no logos. No board shorts (Men's Physique) or posing suits (Bodybuilding).
+Communication: flag pain, illness, or missed sessions the same day, not at the weekly check-in. Don't wait until Sunday to mention something from Tuesday.
 
-Mandatory poses: front double biceps, side chest, back double biceps, abdominals & thigh, favorite classic pose. No most muscular.
+Adjustments: don't self-adjust calories, cardio, or training volume between check-ins — bring it up and we'll adjust together if something isn't working.
 
-Judging criteria: emphasis on the classic aesthetic — small waist, V-taper, balanced proportions, stage presence and posing artistry, condition.
+Sleep & recovery: protect the prescribed minimum hours; recovery debt compounds and shows up in the numbers within a week or two.
 
-Tanning: no products that streak. Hair must be well groomed. Jewelry is not permitted on stage.`;
+Consistency over intensity: a missed session logged honestly is more useful to the plan than a skipped one that goes unmentioned.`;
 
 async function main() {
   const db = await getDb();
@@ -112,11 +112,11 @@ async function main() {
   await db
     .update(settings)
     .set({
-      showName: "NPC Iron Coast Classic",
-      showDate: addDays(today, 73), // ~10.5 weeks out
-      divisions: ["classic_physique", "mens_physique"],
-      nextCompetitionNote: "first show of the season, aiming to qualify for state",
-      targetStageWeightLbs: 187,
+      targetName: "Summer Physique Shoot",
+      targetDate: addDays(today, 73), // ~10.5 weeks out
+      programType: "physique_prep",
+      nextCompetitionNote: "first milestone of the year, building toward the next phase",
+      targetWeightLbs: 187,
       heightInches: 68,
       timezone: TZ,
     })
@@ -150,21 +150,21 @@ async function main() {
     })
     .returning();
 
-  const [peakDoc] = await db
+  const [finalPhaseDoc] = await db
     .insert(documents)
     .values({
-      title: "[seed] Coach Dan — peak week protocol (draft)",
+      title: "[seed] Coach Dan — final phase protocol (draft)",
       category: "coach_protocol",
       sourceType: "email_paste",
-      contentText: PEAK_WEEK_TEXT,
+      contentText: FINAL_PHASE_TEXT,
     })
     .returning();
 
   await db.insert(documents).values({
-    title: "[seed] NPC Classic Physique rules & guidelines",
-    category: "division_rules",
+    title: "[seed] Program rules & guidelines",
+    category: "program_rules",
     sourceType: "txt",
-    contentText: RULES_TEXT,
+    contentText: PROGRAM_RULES_TEXT,
   });
 
   await db.insert(protocols).values({
@@ -183,15 +183,15 @@ async function main() {
 
   // A pending extraction so the confirmation flow is visible in the UI.
   await db.insert(protocols).values({
-    documentId: peakDoc.id,
+    documentId: finalPhaseDoc.id,
     status: "pending",
     effectiveFrom: addDays(today, 68),
     calories: 1900,
     proteinG: 210,
     carbsG: 90,
     fatG: 45,
-    cardioPlan: "No cardio after Wednesday of peak week.",
-    notes: "Depletion Mon-Wed, carb load Thu-Fri (400g carbs), show-day rice cakes + honey.",
+    cardioPlan: "No cardio after Wednesday of the final phase.",
+    notes: "Lower carb Mon-Wed, higher carb Thu-Fri (400g carbs), keep target-day meals light.",
     extractedJson: { confidence: "medium", source_quote: "calories drop to 1900, carbs 90g, protein stays 210g, fat 45g" },
   });
 
@@ -334,8 +334,8 @@ async function main() {
   console.log(
     `Seeded: ${nutritionRows.length} meals, ${weightRows.length} weigh-ins, ${hydrationRows.length} hydration, ${sleepRows.length} sleep, ${workoutRows.length} workouts.`,
   );
-  console.log("Settings: NPC Iron Coast Classic, 73 days out, target 187 lbs @ 5'8\" (cap 187).");
-  console.log("Protocols: 1 active (2100 kcal), 1 pending peak-week extraction to review.");
+  console.log("Settings: Summer Physique Shoot, 73 days out, target 187 lbs @ 5'8\".");
+  console.log("Protocols: 1 active (2100 kcal), 1 pending final-phase extraction to review.");
 
   // SEED_AI=1 pre-populates the demo with real AI output: document embeddings
   // (so doc chat works immediately), the current week's plain-language

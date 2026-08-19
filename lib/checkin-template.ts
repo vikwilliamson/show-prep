@@ -1,6 +1,6 @@
 // The coach's weekly check-in template, stored as app config (settings.checkin_template).
 // Each question is either data-backed (pre-filled from ingested data) or manual
-// (subjective, entered by the athlete and saved on the check_ins row).
+// (subjective, entered by the client and saved on the check_ins row).
 
 export type CheckinQuestionType = "data" | "manual" | "mixed";
 
@@ -55,7 +55,7 @@ export const DEFAULT_CHECKIN_TEMPLATE: CheckinQuestion[] = [
     key: "next_competition",
     question: "What is your next competition/event/goal/date?",
     type: "data",
-    note: "Pulled from show settings.",
+    note: "Pulled from target settings.",
   },
   {
     key: "change_requests",

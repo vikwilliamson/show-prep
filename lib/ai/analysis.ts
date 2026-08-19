@@ -12,10 +12,10 @@ function statsBrief(stats: WeekStats, settings: Settings): string {
   return JSON.stringify(
     {
       week: `${stats.weekStart} to ${stats.weekEnd}`,
-      show: settings.showDate
-        ? { name: settings.showName, date: settings.showDate, divisions: settings.divisions }
+      target: settings.targetDate
+        ? { name: settings.targetName, date: settings.targetDate, programType: settings.programType }
         : null,
-      target_stage_weight_lbs: settings.targetStageWeightLbs,
+      target_weight_lbs: settings.targetWeightLbs,
       active_protocol: p
         ? {
             calories: p.calories,
@@ -47,8 +47,8 @@ export async function generateWeeklyAnalysis(
     max_tokens: 16000,
     thinking: { type: "adaptive" },
     system: [
-      "You are a knowledgeable contest-prep assistant writing a weekly analysis for a bodybuilding competitor.",
-      "Write 2-4 short paragraphs of plain language: how the week went vs the active protocol, weight trend vs stage-weight goal and time remaining, and one or two concrete focus points for next week.",
+      "You are a knowledgeable coaching assistant writing a weekly analysis for a coaching client.",
+      "Write 2-4 short paragraphs of plain language: how the week went vs the active protocol, weight trend vs target weight and time remaining, and one or two concrete focus points for next week.",
       "Only reference numbers present in the data. Note missing data (unlogged days) honestly. No headers, no bullet lists, no medical claims. Encouraging but straight.",
     ].join("\n"),
     messages: [{ role: "user", content: `Week data:\n${statsBrief(stats, settings)}` }],
@@ -112,8 +112,8 @@ export function dataAnswers(stats: WeekStats, settings: Settings) {
       ? `; cardio ${stats.training.cardioCount}/${stats.training.cardioTarget} prescribed sessions.`
       : `; ${stats.training.cardioCount} cardio session${stats.training.cardioCount === 1 ? "" : "s"}.`);
 
-  const nextCompetition = settings.showDate
-    ? `${settings.showName ?? "Show"} — ${settings.showDate}` +
+  const nextCompetition = settings.targetDate
+    ? `${settings.targetName ?? "Target"} — ${settings.targetDate}` +
       (settings.nextCompetitionNote ? ` (${settings.nextCompetitionNote})` : "")
     : (settings.nextCompetitionNote ?? "Not set.");
 
@@ -149,12 +149,12 @@ export async function generateCheckinDraft(input: {
     max_tokens: 16000,
     thinking: { type: "adaptive" },
     system: [
-      "You draft a weekly check-in message from a bodybuilding competitor to their coach.",
-      "You are given the coach's exact question list, computed data answers, and the athlete's own subjective notes.",
+      "You draft a weekly check-in message from a coaching client to their coach.",
+      "You are given the coach's exact question list, computed data answers, and the client's own subjective notes.",
       "Rules:",
       "- Answer every question in order. Repeat each question as a line starting with '> ', then the answer on the next lines.",
       "- Use the computed data answers for data-backed questions — keep every number exactly as given.",
-      "- For subjective questions use the athlete's notes in first person, cleaned up but not embellished. If a note is missing, write '[fill in]'.",
+      "- For subjective questions use the client's notes in first person, cleaned up but not embellished. If a note is missing, write '[fill in]'.",
       "- Waist: use the manually entered waist measurement with the bodyweight answer.",
       "- First person, plain text, friendly and direct. Start with a one-line greeting, end with a one-line sign-off. No markdown headers.",
     ].join("\n"),

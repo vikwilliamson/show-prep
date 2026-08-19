@@ -1,14 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { DIVISIONS, DIVISION_LABELS } from "@/lib/divisions";
+import { PROGRAM_TYPES, PROGRAM_TYPE_LABELS } from "@/lib/program-types";
 
 interface SettingsShape {
-  showName: string | null;
-  showDate: string | null;
-  divisions: string[];
+  targetName: string | null;
+  targetDate: string | null;
+  programType: string | null;
   nextCompetitionNote: string | null;
-  targetStageWeightLbs: number | null;
+  targetWeightLbs: number | null;
   heightInches: number | null;
   timezone: string;
 }
@@ -46,11 +46,11 @@ export default function SettingsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           settings: {
-            showName: s.showName,
-            showDate: s.showDate,
-            divisions: s.divisions,
+            targetName: s.targetName,
+            targetDate: s.targetDate,
+            programType: s.programType,
             nextCompetitionNote: s.nextCompetitionNote,
-            targetStageWeightLbs: s.targetStageWeightLbs,
+            targetWeightLbs: s.targetWeightLbs,
             heightInches: s.heightInches,
             timezone: s.timezone,
           },
@@ -112,48 +112,36 @@ export default function SettingsPage() {
     <form onSubmit={save} className="max-w-2xl space-y-6">
       <section className="rounded-xl border border-borderc bg-surface p-4">
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted">
-          Show
+          Target
         </h2>
         <div className="grid gap-3 sm:grid-cols-2">
-          {text("Show name", s.showName, (v) => setS({ ...s, showName: v }))}
-          {text("Show date", s.showDate, (v) => setS({ ...s, showDate: v }), {
+          {text("Target name", s.targetName, (v) => setS({ ...s, targetName: v }))}
+          {text("Target date", s.targetDate, (v) => setS({ ...s, targetDate: v }), {
             type: "date",
           })}
-          <div className="text-sm sm:col-span-2">
-            <span className="mb-1 block text-muted">
-              Divisions (cross-competing? check more than one)
-            </span>
-            <div className="flex flex-wrap gap-x-4 gap-y-2">
-              {DIVISIONS.map((d) => {
-                const checked = s.divisions.includes(d);
-                return (
-                  <label key={d} className="flex items-center gap-1.5">
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() =>
-                        setS({
-                          ...s,
-                          divisions: checked
-                            ? s.divisions.filter((x) => x !== d)
-                            : [...s.divisions, d],
-                        })
-                      }
-                    />
-                    {DIVISION_LABELS[d]}
-                  </label>
-                );
-              })}
-            </div>
-          </div>
+          <label className="block text-sm sm:col-span-2">
+            <span className="mb-1 block text-muted">Program type</span>
+            <select
+              value={s.programType ?? ""}
+              onChange={(e) => setS({ ...s, programType: e.target.value || null })}
+              className="w-full rounded-md border border-borderc bg-background px-3 py-1.5"
+            >
+              <option value="">Select a program type…</option>
+              {PROGRAM_TYPES.map((p) => (
+                <option key={p} value={p}>
+                  {PROGRAM_TYPE_LABELS[p]}
+                </option>
+              ))}
+            </select>
+          </label>
           {text(
             "Next competition note (shown in check-ins)",
             s.nextCompetitionNote,
             (v) => setS({ ...s, nextCompetitionNote: v }),
           )}
-          {num("Target stage weight (lbs)", s.targetStageWeightLbs, (v) =>
-            setS({ ...s, targetStageWeightLbs: v }), 0.5)}
-          {num("Height (inches — for the weight cap)", s.heightInches, (v) =>
+          {num("Target weight (lbs)", s.targetWeightLbs, (v) =>
+            setS({ ...s, targetWeightLbs: v }), 0.5)}
+          {num("Height (inches)", s.heightInches, (v) =>
             setS({ ...s, heightInches: v }), 0.5)}
           {text("Timezone (day bucketing)", s.timezone, (v) =>
             setS({ ...s, timezone: v ?? "America/Los_Angeles" }))}
@@ -178,7 +166,7 @@ export default function SettingsPage() {
 
       <div className="flex items-center gap-3">
         <button
-          disabled={busy || s.divisions.length === 0}
+          disabled={busy || !s.programType}
           className="rounded-md bg-accent px-4 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
         >
           {busy ? "Saving…" : "Save settings"}

@@ -3,9 +3,7 @@ import { eq } from "drizzle-orm";
 import { checkIns, getDb } from "@/lib/db";
 import { mondayOf, todayLocal } from "@/lib/dates";
 import { dashboardData, weekStats } from "@/lib/stats";
-import { formatHeight, type WeightCapResult } from "@/lib/classic-physique";
-import type { WeightClassResult } from "@/lib/bodybuilding";
-import { DIVISION_WEIGHT_CAPS, DIVISION_WEIGHT_CLASSES, divisionLabel } from "@/lib/divisions";
+import { programTypeLabel } from "@/lib/program-types";
 import { WeightChart } from "@/components/WeightChart";
 import { ComplianceChart } from "@/components/ComplianceChart";
 import { WeeklyAnalysis } from "@/components/WeeklyAnalysis";
@@ -47,61 +45,38 @@ export default async function Dashboard() {
     .from(checkIns)
     .where(eq(checkIns.weekStart, weekStart));
 
-  const caps: { division: string; result: WeightCapResult }[] =
-    settings.heightInches != null
-      ? settings.divisions
-          .map((d) => {
-            const fn = DIVISION_WEIGHT_CAPS[d as keyof typeof DIVISION_WEIGHT_CAPS];
-            return fn ? { division: d, result: fn(settings.heightInches!) } : null;
-          })
-          .filter((c): c is { division: string; result: WeightCapResult } => c != null)
-      : [];
   const latest = data.latestWeight;
-  const classes: { division: string; result: WeightClassResult }[] =
-    latest != null
-      ? settings.divisions
-          .map((d) => {
-            const fn = DIVISION_WEIGHT_CLASSES[d as keyof typeof DIVISION_WEIGHT_CLASSES];
-            return fn ? { division: d, result: fn(latest.weightLbs) } : null;
-          })
-          .filter((c): c is { division: string; result: WeightClassResult } => c != null)
-      : [];
   const toTarget =
-    latest && settings.targetStageWeightLbs != null
-      ? Math.round((latest.weightLbs - settings.targetStageWeightLbs) * 10) / 10
+    latest && settings.targetWeightLbs != null
+      ? Math.round((latest.weightLbs - settings.targetWeightLbs) * 10) / 10
       : null;
 
   return (
     <div className="space-y-4">
       {/* Stat tiles */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Card>
           <p className="text-xs font-medium text-muted uppercase tracking-wide">
-            {settings.showName ?? "Show day"}
+            {settings.targetName ?? "Target date"}
           </p>
-          {data.daysToShow != null ? (
+          {data.daysToTarget != null ? (
             <>
               <p className="mt-1 text-3xl font-semibold tabular-nums">
-                {data.daysToShow > 0 ? data.daysToShow : 0}
+                {data.daysToTarget > 0 ? data.daysToTarget : 0}
                 <span className="ml-1 text-base font-normal text-muted">days out</span>
               </p>
-              <p className="mt-1 text-xs text-muted">{settings.showDate}</p>
-              {settings.divisions.length > 0 && (
+              <p className="mt-1 text-xs text-muted">{settings.targetDate}</p>
+              {settings.programType && (
                 <div className="mt-1.5 flex flex-wrap gap-1">
-                  {settings.divisions.map((d) => (
-                    <span
-                      key={d}
-                      className="rounded-full bg-accent/10 px-2 py-0.5 text-[11px] font-medium text-accent"
-                    >
-                      {divisionLabel(d)}
-                    </span>
-                  ))}
+                  <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[11px] font-medium text-accent">
+                    {programTypeLabel(settings.programType)}
+                  </span>
                 </div>
               )}
             </>
           ) : (
             <p className="mt-2 text-sm text-muted">
-              Set your show date in <Link href="/settings" className="text-accent underline">Settings</Link>.
+              Set your target date in <Link href="/settings" className="text-accent underline">Settings</Link>.
             </p>
           )}
         </Card>
@@ -121,7 +96,7 @@ export default async function Dashboard() {
                     {data.weeklyChangeLbs} lbs/wk
                   </span>
                 )}
-                {toTarget != null && ` · ${Math.abs(toTarget)} lbs ${toTarget > 0 ? "above" : "under"} stage target`}
+                {toTarget != null && ` · ${Math.abs(toTarget)} lbs ${toTarget > 0 ? "above" : "under"} target`}
               </p>
             </>
           ) : (
@@ -150,58 +125,6 @@ export default async function Dashboard() {
             </p>
           )}
         </Card>
-
-        <Card>
-          <p className="text-xs font-medium text-muted uppercase tracking-wide">Weight cap / class</p>
-          {caps.length === 0 && classes.length === 0 ? (
-            <p className="mt-2 text-sm text-muted">
-              {settings.heightInches == null ? (
-                <>
-                  Set your height in <Link href="/settings" className="text-accent underline">Settings</Link>{" "}
-                  or use the <Link href="/calculator" className="text-accent underline">calculator</Link>.
-                </>
-              ) : (
-                "No division selected with a sourced weight cap or class chart."
-              )}
-            </p>
-          ) : (
-            <div className={caps.length + classes.length > 1 ? "mt-1 space-y-2" : "mt-1"}>
-              {caps.map(({ division, result }) => (
-                <div key={division}>
-                  <p className="text-3xl font-semibold tabular-nums">
-                    {result.maxWeightLbs}
-                    <span className="ml-1 text-base font-normal text-muted">lbs max</span>
-                  </p>
-                  <p className="text-xs text-muted">
-                    {divisionLabel(division)} @ {formatHeight(settings.heightInches!)}
-                    {latest && (
-                      <span>
-                        {" · "}
-                        {latest.weightLbs <= result.maxWeightLbs ? (
-                          <span className="text-good">under by {Math.round((result.maxWeightLbs - latest.weightLbs) * 10) / 10}</span>
-                        ) : (
-                          <span className="text-bad">over by {Math.round((latest.weightLbs - result.maxWeightLbs) * 10) / 10}</span>
-                        )}
-                      </span>
-                    )}
-                  </p>
-                </div>
-              ))}
-              {classes.map(({ division, result }) => (
-                <div key={division}>
-                  <p className="text-3xl font-semibold tabular-nums">
-                    {result.label}
-                  </p>
-                  <p className="text-xs text-muted">
-                    {divisionLabel(division)} weight class @ {latest!.weightLbs} lbs
-                    {result.toNextClassLbs != null &&
-                      ` · ${result.toNextClassLbs} lbs to next class`}
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -209,7 +132,7 @@ export default async function Dashboard() {
           <WeightChart
             series={data.weightSeries}
             trend={data.weightTrend}
-            targetLbs={settings.targetStageWeightLbs}
+            targetLbs={settings.targetWeightLbs}
           />
         </Card>
 

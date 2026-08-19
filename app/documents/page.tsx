@@ -31,7 +31,7 @@ interface ProtocolRow {
 
 const CATEGORY_LABELS: Record<string, string> = {
   coach_protocol: "Coach protocol",
-  division_rules: "Division rules",
+  program_rules: "Program rules",
   other: "Other",
 };
 
@@ -147,7 +147,7 @@ export default function DocumentsPage() {
               className="rounded-md border border-borderc bg-background px-3 py-1.5 text-sm"
             >
               <option value="coach_protocol">Coach protocol</option>
-              <option value="division_rules">Division rules / guidelines</option>
+              <option value="program_rules">Program rules / guidelines</option>
               <option value="other">Other</option>
             </select>
             <div className="flex items-center gap-2 text-sm">
@@ -253,8 +253,8 @@ export default function DocumentsPage() {
         </h2>
         {docs.length === 0 ? (
           <p className="text-sm text-muted">
-            Nothing yet. Upload your coach&apos;s macro plan, peak-week protocol, or the
-            NPC division rules to get started.
+            Nothing yet. Upload your coach&apos;s macro plan, training protocol, or
+            program rules to get started.
           </p>
         ) : (
           <table className="w-full text-left text-sm">

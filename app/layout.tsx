@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Show Prep",
-  description: "NPC bodybuilding contest-prep management",
+  description: "Coaching client management",
 };
 
 export default function RootLayout({
@@ -35,7 +35,7 @@ export default function RootLayout({
               <span className="text-lg font-semibold tracking-tight">
                 Show Prep
               </span>
-              <span className="text-xs text-muted">contest-prep HQ</span>
+              <span className="text-xs text-muted">coaching HQ</span>
             </div>
             <NavLinks />
           </div>

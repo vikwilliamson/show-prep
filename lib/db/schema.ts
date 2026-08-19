@@ -1,4 +1,3 @@
-import { sql } from "drizzle-orm";
 import {
   boolean,
   date,
@@ -45,11 +44,11 @@ export const documents = pgTable("documents", {
   id: serial("id").primaryKey(),
   accountId: integer("account_id").references(() => accounts.id),
   title: text("title").notNull(),
-  // coach_protocol: macro/cardio/peak-week docs from coach
-  // division_rules: NPC rules & guidelines
+  // coach_protocol: macro/cardio/training docs from coach
+  // program_rules: reference rules & guidelines for the client's program
   // other: anything else worth chatting with
   category: text("category", {
-    enum: ["coach_protocol", "division_rules", "other"],
+    enum: ["coach_protocol", "program_rules", "other"],
   })
     .notNull()
     .default("coach_protocol"),
@@ -282,15 +281,15 @@ export const checkIns = pgTable(
 export const settings = pgTable("settings", {
   id: serial("id").primaryKey(),
   accountId: integer("account_id").references(() => accounts.id),
-  showName: text("show_name"),
-  showDate: date("show_date"),
-  divisions: text("divisions")
-    .array()
-    .notNull()
-    .default(sql`ARRAY['classic_physique']::text[]`),
+  targetName: text("target_name"),
+  targetDate: date("target_date"),
+  // Single selection now — see specs/phase-0-terminology.md. "physique_prep"
+  // is the generalized umbrella for what used to be the six specific
+  // bodybuilding divisions.
+  programType: text("program_type"),
   nextCompetitionNote: text("next_competition_note"),
-  targetStageWeightLbs: real("target_stage_weight_lbs"),
-  heightInches: real("height_inches"), // for Classic Physique weight-cap calc
+  targetWeightLbs: real("target_weight_lbs"),
+  heightInches: real("height_inches"),
   timezone: text("timezone").notNull().default("America/Los_Angeles"),
   // Coach's check-in template: array of { key, question, type: "data" | "manual" }
   checkinTemplate: jsonb("checkin_template").notNull(),

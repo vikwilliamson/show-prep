@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { getDb, settings, weeklyTargets } from "@/lib/db";
 import { getSettings, getTargets } from "@/lib/stats";
+import { PROGRAM_TYPES } from "@/lib/program-types";
 
 export async function GET() {
   const [s, t] = await Promise.all([getSettings(), getTargets()]);
@@ -12,11 +13,11 @@ export async function GET() {
 const putSchema = z.object({
   settings: z
     .object({
-      showName: z.string().nullable().optional(),
-      showDate: z.iso.date().nullable().optional(),
-      divisions: z.array(z.string()).min(1).optional(),
+      targetName: z.string().nullable().optional(),
+      targetDate: z.iso.date().nullable().optional(),
+      programType: z.enum(PROGRAM_TYPES).nullable().optional(),
       nextCompetitionNote: z.string().nullable().optional(),
-      targetStageWeightLbs: z.number().positive().nullable().optional(),
+      targetWeightLbs: z.number().positive().nullable().optional(),
       heightInches: z.number().positive().nullable().optional(),
       timezone: z.string().optional(),
     })
