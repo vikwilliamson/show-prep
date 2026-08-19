@@ -232,14 +232,18 @@ export const syncLog = pgTable("sync_log", {
 // Weekly targets (configurable thresholds for check-in questions)
 // ---------------------------------------------------------------------------
 
-export const weeklyTargets = pgTable("weekly_targets", {
-  id: serial("id").primaryKey(),
-  accountId: integer("account_id").references(() => accounts.id),
-  waterMlMin: integer("water_ml_min").notNull().default(3000), // per day
-  sleepHoursMin: real("sleep_hours_min").notNull().default(7), // per night
-  workoutsPerWeekMin: integer("workouts_per_week_min").notNull().default(3),
-  cardioSessionsPerWeek: integer("cardio_sessions_per_week").notNull().default(0), // 0 = not prescribed
-});
+export const weeklyTargets = pgTable(
+  "weekly_targets",
+  {
+    id: serial("id").primaryKey(),
+    accountId: integer("account_id").references(() => accounts.id),
+    waterMlMin: integer("water_ml_min").notNull().default(3000), // per day
+    sleepHoursMin: real("sleep_hours_min").notNull().default(7), // per night
+    workoutsPerWeekMin: integer("workouts_per_week_min").notNull().default(3),
+    cardioSessionsPerWeek: integer("cardio_sessions_per_week").notNull().default(0), // 0 = not prescribed
+  },
+  (t) => [uniqueIndex("weekly_targets_account_idx").on(t.accountId)],
+);
 
 // ---------------------------------------------------------------------------
 // Check-ins
@@ -270,7 +274,7 @@ export const checkIns = pgTable(
       .defaultNow(),
     sentAt: timestamp("sent_at", { withTimezone: true }),
   },
-  (t) => [uniqueIndex("checkin_week_idx").on(t.weekStart)],
+  (t) => [uniqueIndex("checkin_account_week_idx").on(t.accountId, t.weekStart)],
 );
 
 // ---------------------------------------------------------------------------
@@ -278,22 +282,26 @@ export const checkIns = pgTable(
 // before accounts existed). Includes the coach check-in template.
 // ---------------------------------------------------------------------------
 
-export const settings = pgTable("settings", {
-  id: serial("id").primaryKey(),
-  accountId: integer("account_id").references(() => accounts.id),
-  targetName: text("target_name"),
-  targetDate: date("target_date"),
-  // Single selection now — see specs/phase-0-terminology.md. "physique_prep"
-  // is the generalized umbrella for what used to be the six specific
-  // bodybuilding divisions.
-  programType: text("program_type"),
-  targetNote: text("target_note"),
-  targetWeightLbs: real("target_weight_lbs"),
-  heightInches: real("height_inches"),
-  timezone: text("timezone").notNull().default("America/Los_Angeles"),
-  // Coach's check-in template: array of { key, question, type: "data" | "manual" }
-  checkinTemplate: jsonb("checkin_template").notNull(),
-});
+export const settings = pgTable(
+  "settings",
+  {
+    id: serial("id").primaryKey(),
+    accountId: integer("account_id").references(() => accounts.id),
+    targetName: text("target_name"),
+    targetDate: date("target_date"),
+    // Single selection now — see specs/phase-0-terminology.md. "physique_prep"
+    // is the generalized umbrella for what used to be the six specific
+    // bodybuilding divisions.
+    programType: text("program_type"),
+    targetNote: text("target_note"),
+    targetWeightLbs: real("target_weight_lbs"),
+    heightInches: real("height_inches"),
+    timezone: text("timezone").notNull().default("America/Los_Angeles"),
+    // Coach's check-in template: array of { key, question, type: "data" | "manual" }
+    checkinTemplate: jsonb("checkin_template").notNull(),
+  },
+  (t) => [uniqueIndex("settings_account_idx").on(t.accountId)],
+);
 
 // ---------------------------------------------------------------------------
 // Chat (RAG over documents)

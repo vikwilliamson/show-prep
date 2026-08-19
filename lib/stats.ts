@@ -14,27 +14,40 @@ import {
   type WeeklyTargets,
   type Workout,
 } from "./db";
+import { DEFAULT_CHECKIN_TEMPLATE } from "./checkin-template";
 import { addDays, daysBetween, todayLocal, weekDates } from "./dates";
 
-export async function getSettings(): Promise<Settings> {
+/** Returns the account's settings row, creating a default one on first access. */
+export async function getSettings(accountId: number): Promise<Settings> {
   const db = await getDb();
-  const [row] = await db.select().from(settings).where(eq(settings.id, 1));
-  return row;
+  const [row] = await db.select().from(settings).where(eq(settings.accountId, accountId));
+  if (row) return row;
+  const [created] = await db
+    .insert(settings)
+    .values({ accountId, checkinTemplate: DEFAULT_CHECKIN_TEMPLATE })
+    .returning();
+  return created;
 }
 
-export async function getTargets(): Promise<WeeklyTargets> {
+/** Returns the account's weekly targets row, creating a default one on first access. */
+export async function getTargets(accountId: number): Promise<WeeklyTargets> {
   const db = await getDb();
-  const [row] = await db.select().from(weeklyTargets).limit(1);
-  return row;
+  const [row] = await db
+    .select()
+    .from(weeklyTargets)
+    .where(eq(weeklyTargets.accountId, accountId));
+  if (row) return row;
+  const [created] = await db.insert(weeklyTargets).values({ accountId }).returning();
+  return created;
 }
 
 /** The protocol currently in effect (confirmed, most recent effective date). */
-export async function getActiveProtocol(): Promise<Protocol | null> {
+export async function getActiveProtocol(accountId: number): Promise<Protocol | null> {
   const db = await getDb();
   const [row] = await db
     .select()
     .from(protocols)
-    .where(eq(protocols.status, "active"))
+    .where(and(eq(protocols.accountId, accountId), eq(protocols.status, "active")))
     .orderBy(desc(protocols.effectiveFrom), desc(protocols.id))
     .limit(1);
   return row ?? null;
@@ -51,6 +64,7 @@ export interface DayMacros {
 
 /** Per-day macro totals from meal-summary rows, inclusive date range. */
 export async function dailyMacros(
+  accountId: number,
   from: string,
   to: string,
 ): Promise<DayMacros[]> {
@@ -67,6 +81,7 @@ export async function dailyMacros(
     .from(nutritionEntries)
     .where(
       and(
+        eq(nutritionEntries.accountId, accountId),
         gte(nutritionEntries.localDate, from),
         lte(nutritionEntries.localDate, to),
       ),
@@ -83,6 +98,7 @@ export interface WeightPoint {
 
 /** One weight per day (average of that day's readings), ascending. */
 export async function dailyWeights(
+  accountId: number,
   from: string,
   to: string,
 ): Promise<WeightPoint[]> {
@@ -95,7 +111,11 @@ export async function dailyWeights(
     })
     .from(weightEntries)
     .where(
-      and(gte(weightEntries.localDate, from), lte(weightEntries.localDate, to)),
+      and(
+        eq(weightEntries.accountId, accountId),
+        gte(weightEntries.localDate, from),
+        lte(weightEntries.localDate, to),
+      ),
     )
     .groupBy(weightEntries.localDate)
     .orderBy(asc(weightEntries.localDate));
@@ -155,7 +175,7 @@ export interface WeekStats {
 }
 
 /** Everything the dashboard/check-in needs for one Monday-start week. */
-export async function weekStats(weekStart: string): Promise<WeekStats> {
+export async function weekStats(accountId: number, weekStart: string): Promise<WeekStats> {
   const db = await getDb();
   const dates = weekDates(weekStart);
   const weekEnd = dates[6];
@@ -163,10 +183,10 @@ export async function weekStats(weekStart: string): Promise<WeekStats> {
 
   const [protocol, targets, nutritionDays, weightsTwoWeeks, waterRows, sleepRows, workoutRows] =
     await Promise.all([
-      getActiveProtocol(),
-      getTargets(),
-      dailyMacros(weekStart, weekEnd),
-      dailyWeights(prevWeekStart, weekEnd),
+      getActiveProtocol(accountId),
+      getTargets(accountId),
+      dailyMacros(accountId, weekStart, weekEnd),
+      dailyWeights(accountId, prevWeekStart, weekEnd),
       db
         .select({
           date: hydrationEntries.localDate,
@@ -175,6 +195,7 @@ export async function weekStats(weekStart: string): Promise<WeekStats> {
         .from(hydrationEntries)
         .where(
           and(
+            eq(hydrationEntries.accountId, accountId),
             gte(hydrationEntries.localDate, weekStart),
             lte(hydrationEntries.localDate, weekEnd),
           ),
@@ -189,6 +210,7 @@ export async function weekStats(weekStart: string): Promise<WeekStats> {
         .from(sleepSessions)
         .where(
           and(
+            eq(sleepSessions.accountId, accountId),
             gte(sleepSessions.localDate, weekStart),
             lte(sleepSessions.localDate, weekEnd),
           ),
@@ -199,7 +221,11 @@ export async function weekStats(weekStart: string): Promise<WeekStats> {
         .select()
         .from(workouts)
         .where(
-          and(gte(workouts.localDate, weekStart), lte(workouts.localDate, weekEnd)),
+          and(
+            eq(workouts.accountId, accountId),
+            gte(workouts.localDate, weekStart),
+            lte(workouts.localDate, weekEnd),
+          ),
         )
         .orderBy(asc(workouts.localDate)),
     ]);
@@ -312,13 +338,13 @@ export interface DashboardData {
   weeklyChangeLbs: number | null;
 }
 
-export async function dashboardData(): Promise<DashboardData> {
-  const s = await getSettings();
+export async function dashboardData(accountId: number): Promise<DashboardData> {
+  const s = await getSettings(accountId);
   const today = todayLocal(s.timezone);
   const [protocol, weights, compliance] = await Promise.all([
-    getActiveProtocol(),
-    dailyWeights(addDays(today, -90), today),
-    dailyMacros(addDays(today, -13), today),
+    getActiveProtocol(accountId),
+    dailyWeights(accountId, addDays(today, -90), today),
+    dailyMacros(accountId, addDays(today, -13), today),
   ]);
 
   const last7 = weights.filter((w) => w.date > addDays(today, -7));

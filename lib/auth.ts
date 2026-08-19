@@ -5,8 +5,10 @@ import {
   timingSafeEqual,
 } from "node:crypto";
 import { promisify } from "node:util";
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
+import { asc, eq } from "drizzle-orm";
 import { env } from "./env";
+import { accounts, getDb } from "./db";
 
 export const SESSION_COOKIE = "gamma_session";
 
@@ -86,4 +88,37 @@ export function requireCoach(cookieValue: string | undefined): NextResponse | nu
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   return null;
+}
+
+/** Reads + verifies the session cookie off an API route's request. Route
+ *  handlers do `const session = requireAccount(req); if (session instanceof
+ *  NextResponse) return session;` to get a typed SessionPayload past that
+ *  point. */
+export function requireAccount(req: NextRequest): SessionPayload | NextResponse {
+  const session = getCurrentAccount(req.cookies.get(SESSION_COOKIE)?.value);
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  return session;
+}
+
+/** Single-tenant fallback for the two routes not yet migrated to
+ *  session-based account resolution: /api/ingest (Phase 2 replaces its whole
+ *  auth path with Terra) and /api/analysis (Phase 3). Resolves to the
+ *  earliest-created coach account, mirroring today's de facto behavior where
+ *  there's exactly one coach and everything implicitly belongs to them. */
+export async function getPrimaryCoachAccountId(): Promise<number> {
+  const db = await getDb();
+  const [row] = await db
+    .select({ id: accounts.id })
+    .from(accounts)
+    .where(eq(accounts.role, "coach"))
+    .orderBy(asc(accounts.id))
+    .limit(1);
+  if (!row) {
+    throw new Error(
+      "No coach account exists yet — run scripts/backfill-accounts.ts first.",
+    );
+  }
+  return row.id;
 }

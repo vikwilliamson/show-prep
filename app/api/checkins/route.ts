@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
+import { requireAccount } from "@/lib/auth";
 import { checkIns, getDb } from "@/lib/db";
 import { dataAnswers } from "@/lib/ai/analysis";
 import { mondayOf, todayLocal } from "@/lib/dates";
@@ -11,7 +12,10 @@ import type { CheckinQuestion } from "@/lib/checkin-template";
 // Returns everything the check-in page needs for one week: the saved row (if
 // any), computed week stats, deterministic data answers, and the template.
 export async function GET(req: NextRequest) {
-  const settings = await getSettings();
+  const session = requireAccount(req);
+  if (session instanceof NextResponse) return session;
+
+  const settings = await getSettings(session.accountId);
   const weekStart =
     req.nextUrl.searchParams.get("weekStart") ??
     mondayOf(todayLocal(settings.timezone));
@@ -20,8 +24,8 @@ export async function GET(req: NextRequest) {
   const [row] = await db
     .select()
     .from(checkIns)
-    .where(eq(checkIns.weekStart, weekStart));
-  const stats = await weekStats(weekStart);
+    .where(and(eq(checkIns.accountId, session.accountId), eq(checkIns.weekStart, weekStart)));
+  const stats = await weekStats(session.accountId, weekStart);
 
   return NextResponse.json({
     weekStart,
@@ -44,6 +48,9 @@ const putSchema = z.object({
 
 // PUT /api/checkins — upsert the manual (subjective) answers for a week.
 export async function PUT(req: NextRequest) {
+  const session = requireAccount(req);
+  if (session instanceof NextResponse) return session;
+
   const parsed = putSchema.safeParse(await req.json());
   if (!parsed.success) {
     return NextResponse.json(
@@ -55,6 +62,7 @@ export async function PUT(req: NextRequest) {
   const db = await getDb();
 
   const values = {
+    accountId: session.accountId,
     weekStart,
     ...fields,
     ...(sent !== undefined ? { sentAt: sent ? new Date() : null } : {}),
@@ -63,7 +71,7 @@ export async function PUT(req: NextRequest) {
   const [row] = await db
     .insert(checkIns)
     .values(values)
-    .onConflictDoUpdate({ target: checkIns.weekStart, set: values })
+    .onConflictDoUpdate({ target: [checkIns.accountId, checkIns.weekStart], set: values })
     .returning();
   return NextResponse.json(row);
 }

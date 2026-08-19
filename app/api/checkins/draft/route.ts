@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
+import { requireAccount } from "@/lib/auth";
 import { checkIns, getDb } from "@/lib/db";
 import { dataAnswers, generateCheckinDraft } from "@/lib/ai/analysis";
 import { getSettings, weekStats } from "@/lib/stats";
@@ -14,6 +15,9 @@ const schema = z.object({ weekStart: z.iso.date() });
 // POST /api/checkins/draft — generate the filled-in coach template for a week
 // (manual answers should be saved via PUT /api/checkins first).
 export async function POST(req: NextRequest) {
+  const session = requireAccount(req);
+  if (session instanceof NextResponse) return session;
+
   const parsed = schema.safeParse(await req.json());
   if (!parsed.success) {
     return NextResponse.json({ error: "weekStart required" }, { status: 422 });
@@ -21,12 +25,12 @@ export async function POST(req: NextRequest) {
   const { weekStart } = parsed.data;
 
   const db = await getDb();
-  const settings = await getSettings();
-  const stats = await weekStats(weekStart);
+  const settings = await getSettings(session.accountId);
+  const stats = await weekStats(session.accountId, weekStart);
   const [existing] = await db
     .select()
     .from(checkIns)
-    .where(eq(checkIns.weekStart, weekStart));
+    .where(and(eq(checkIns.accountId, session.accountId), eq(checkIns.weekStart, weekStart)));
 
   try {
     const draft = await generateCheckinDraft({
@@ -44,6 +48,7 @@ export async function POST(req: NextRequest) {
 
     const snapshot = dataAnswers(stats, settings);
     const values = {
+      accountId: session.accountId,
       weekStart,
       generatedDraft: draft,
       dataAnswers: snapshot,
@@ -52,7 +57,7 @@ export async function POST(req: NextRequest) {
     const [row] = await db
       .insert(checkIns)
       .values(values)
-      .onConflictDoUpdate({ target: checkIns.weekStart, set: values })
+      .onConflictDoUpdate({ target: [checkIns.accountId, checkIns.weekStart], set: values })
       .returning();
     return NextResponse.json(row);
   } catch (err) {

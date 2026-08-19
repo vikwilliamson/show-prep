@@ -1,5 +1,8 @@
 import Link from "next/link";
-import { eq } from "drizzle-orm";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import { and, eq } from "drizzle-orm";
+import { getCurrentAccount, SESSION_COOKIE } from "@/lib/auth";
 import { checkIns, getDb } from "@/lib/db";
 import { mondayOf, todayLocal } from "@/lib/dates";
 import { dashboardData, weekStats } from "@/lib/stats";
@@ -34,16 +37,20 @@ function Card({
 }
 
 export default async function Dashboard() {
-  const data = await dashboardData();
+  const jar = await cookies();
+  const session = getCurrentAccount(jar.get(SESSION_COOKIE)?.value);
+  if (!session) redirect("/login");
+
+  const data = await dashboardData(session.accountId);
   const { settings, protocol } = data;
   const weekStart = mondayOf(todayLocal(settings.timezone));
-  const stats = await weekStats(weekStart);
+  const stats = await weekStats(session.accountId, weekStart);
 
   const db = await getDb();
   const [weekCheckIn] = await db
     .select()
     .from(checkIns)
-    .where(eq(checkIns.weekStart, weekStart));
+    .where(and(eq(checkIns.accountId, session.accountId), eq(checkIns.weekStart, weekStart)));
 
   const latest = data.latestWeight;
   const toTarget =
