@@ -1,5 +1,10 @@
 @AGENTS.md
 
+## Start here if picking up V3 work
+- Read `HANDOFF.md` at the repo root first — it's the continuity doc for
+  where the V3 rewrite (`specs/v3-build-spec.md`) currently stands, what's
+  merged, and what the next step is. Keep it updated as you go.
+
 ## Effort
 - Default `high` for this repo.
 - Bump to `xhigh` for anything touching the data model or schema (the V3
