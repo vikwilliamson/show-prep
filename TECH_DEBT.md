@@ -14,6 +14,24 @@ eventually, no urgency). Items already tracked elsewhere (`HANDOFF.md`,
 
 ---
 
+## Aggregator-pivot note (added 2026-08-19, after the audit below) — read before triaging mobile findings
+
+Several findings below (§1.6, §1.7, §2.2, §2.6, §4.10, §6.1, §6.3, §6.4) are
+about `mobile/src/mapper.ts`, `healthConnect.ts`, `sync.ts`, `background.ts`,
+`config.ts` — the hand-rolled Android-only Health-Connect sync engine. Per
+`HANDOFF.md`'s "Phase 2 status," that code is being **replaced**, not
+extended: Phase 2 now adopts the Open Wearables React Native SDK for both
+iOS and Android, self-hosted, instead of either Terra or a hand-rolled
+second (HealthKit) integration next to this one. Don't spend time fixing
+these findings first — they're about code on its way out. §6.2 and §3.7
+touch `App.tsx`, which will likely change substantially too but isn't
+guaranteed to be fully replaced — worth a fresh look once the new mobile
+code exists, not an assumption of moot. §3.6 (mobile has zero static
+analysis) is **not** moot — it's about the workspace's tooling setup, which
+applies regardless of which SDK the code inside it uses.
+
+---
+
 ## 1. Security / data isolation
 
 These are the highest-priority items — several are direct continuations of
@@ -61,7 +79,10 @@ ingest tables, because ingest itself doesn't tag rows with `accountId` yet
 (tracked as a known Phase 2 gap in `HANDOFF.md`). Once Phase 2 starts
 writing real `account_id` values here, two accounts syncing data for the
 same date/device will collide on upsert. Worth fixing as part of Phase 2's
-ingest rewrite, not deferred further.
+ingest rewrite, not deferred further. (Phase 2's ingest rewrite is now
+planned around a self-hosted Open Wearables integration rather than Terra —
+see `HANDOFF.md`'s "Phase 2 status" — but this finding applies regardless of
+vendor.)
 
 ### 1.4 Auth gates silently fail open when misconfigured, with no production guard — `high`
 - `proxy.ts:17` — the whole session gate no-ops when `SESSION_SECRET` is
