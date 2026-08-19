@@ -1,9 +1,9 @@
 # Handoff — where the V3 rewrite stands
 
 Read this first, before touching anything. It's the continuity doc for
-picking up the V3 generalization + Terra rewrite (`specs/v3-build-spec.md`)
-where the last session left off. Update it as you go — this is meant to
-stay current, not a one-time snapshot.
+picking up the V3 generalization rewrite (`specs/v3-build-spec.md`) where
+the last session left off. Update it as you go — this is meant to stay
+current, not a one-time snapshot.
 
 **Last updated:** 2026-08-19 (updated again same day — see "Phase 2 status"
 below). `feat/phase-1-account-scoping` merged (PR #4) into `v3-generalized`;
@@ -53,9 +53,9 @@ pivot, don't confuse the two "2.5"-adjacent threads) → **Phase 3** (AI coach
 brief, per `specs/v3-build-spec.md`, now depends on 2.5) → **Phase 4** (AI
 transparency pass, unchanged).
 
-None of Phase 1's follow-ups or Phase 2.5 depend on Terra credentials —
-either is fair game to pick up in parallel with the Terra spike/webhook
-work if that's what's next.
+None of Phase 1's follow-ups or Phase 2.5 depend on the Open Wearables
+spike — either is fair game to pick up in parallel with the aggregator
+spike/webhook work if that's what's next.
 
 ## Phase 2 status — Terra deprioritized, pivoted to self-hosted Open Wearables (updated 2026-08-19)
 
@@ -277,8 +277,10 @@ which is now up to date.
    extended to run on `v3-generalized` too, not just `main`; the Neon
    per-PR database branching workflow.
 
-Not yet started: Phase 2 (Terra), Phase 3 (AI weekly brief), Phase 4 (AI
-transparency pass) — see `specs/v3-build-spec.md` for what each covers.
+Not yet started: Phase 2 (health-data aggregation, now Open Wearables — see
+"Phase 2 status" above), Phase 2.5 (coach dashboard), Phase 3 (AI weekly
+brief), Phase 4 (AI transparency pass) — see `specs/v3-build-spec.md` for
+what each covers.
 Phase 1 (Goals/Settings config layer + the account_id wiring it depended on)
 is done pending `feat/phase-1-account-scoping`'s PR + merge.
 
@@ -310,10 +312,13 @@ they have the full reasoning. Summary of what's locked in:
   default; ask whether the data is real first. (This does NOT apply to the
   `accounts` table itself going forward — real people will actually sign up
   once Phase 1 lands.)
-- **Terra Mobile SDK compatibility with the Expo companion app is
-  unverified** — do a small time-boxed spike confirming it works with this
-  app's `expo prebuild` setup before committing to the full Phase 2 mobile
-  ticket plan.
+- **Superseded 2026-08-19:** this bullet used to say Terra Mobile SDK
+  compatibility needed a spike before committing to Phase 2's mobile plan.
+  Terra is no longer the plan (see "Phase 2 status" above) — Open Wearables'
+  React Native SDK is confirmed Expo-Module-API-compatible on paper, but
+  still needs its own hands-on spike (the 4 steps in "Phase 2 status")
+  before committing to the full mobile rewrite. Same caution, different
+  vendor.
 
 ## Process notes for whoever picks this up
 
