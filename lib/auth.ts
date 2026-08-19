@@ -8,7 +8,7 @@ import { promisify } from "node:util";
 import { NextResponse } from "next/server";
 import { env } from "./env";
 
-export const SESSION_COOKIE = "sp_session";
+export const SESSION_COOKIE = "gamma_session";
 
 const scrypt = promisify(scryptCallback);
 const KEY_LENGTH = 64;

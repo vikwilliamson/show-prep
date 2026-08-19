@@ -82,7 +82,7 @@ export default function App() {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <StatusBar style="light" />
-      <Text style={styles.title}>Show Prep Companion</Text>
+      <Text style={styles.title}>Gamma Companion</Text>
       <Text style={styles.subtitle}>
         Reads MyFitnessPal + Samsung Health data from Health Connect and syncs
         it to your prep server. Background sync runs roughly hourly; use Sync

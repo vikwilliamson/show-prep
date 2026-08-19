@@ -14,6 +14,7 @@
   the "Branching & PRs" section in AGENTS.md to make it a required check.
 
 ## Reminders specific to this repo
-- This is a rewrite of a bodybuilding-specific app (Show Prep) into a
-  generalized coaching platform. When in doubt about whether something is
-  "generic enough," check AGENTS.md's "what not to do" list first.
+- This is a rewrite of a bodybuilding-specific app (formerly "Show Prep",
+  now "Gamma") into a generalized coaching platform. When in doubt about
+  whether something is "generic enough," check AGENTS.md's "what not to
+  do" list first.

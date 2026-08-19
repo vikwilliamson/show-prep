@@ -62,7 +62,7 @@ export default function LoginPage() {
           }}
           className="space-y-3 rounded-xl border border-borderc bg-surface p-6"
         >
-          <h1 className="text-lg font-semibold">Show Prep</h1>
+          <h1 className="text-lg font-semibold">Gamma</h1>
           <input
             type="password"
             autoFocus={!DEMO_PASSWORD}

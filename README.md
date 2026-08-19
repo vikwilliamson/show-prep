@@ -1,4 +1,4 @@
-# Show Prep
+# Gamma
 
 Coaching client management. A Next.js app that turns coach documents into a
 confirmed "active protocol", ingests real nutrition/health data from Health

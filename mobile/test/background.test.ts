@@ -14,7 +14,7 @@ import { __getTask } from "./mocks/expo-task-manager";
 
 // Importing ../src/background above ran TaskManager.defineTask at module load,
 // so the sync task body is now retrievable from the task-manager mock.
-const TASK_NAME = "show-prep-hc-sync";
+const TASK_NAME = "gamma-hc-sync";
 const runTask = () => __getTask(TASK_NAME)!();
 
 const recent = () => new Date(Date.now() - 3_600_000).toISOString();
