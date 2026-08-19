@@ -29,11 +29,11 @@ export async function GET() {
   return NextResponse.json(rows);
 }
 
-const CATEGORIES = new Set(["coach_protocol", "division_rules", "other"]);
+const CATEGORIES = new Set(["coach_protocol", "program_rules", "other"]);
 
 async function readUpload(req: NextRequest): Promise<{
   title: string;
-  category: "coach_protocol" | "division_rules" | "other";
+  category: "coach_protocol" | "program_rules" | "other";
   sourceType: "pdf" | "txt" | "email_paste";
   originalFilename: string | null;
   contentText: string;

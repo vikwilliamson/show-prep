@@ -1,13 +1,12 @@
-# Show Prep
+# Gamma
 
-NPC bodybuilding contest-prep management. A Next.js app that turns coach
-documents into a confirmed "active protocol", ingests real nutrition/health
-data from Health Connect via an Android companion app, and closes the loop
-with a compliance dashboard, an AI weekly analysis, and a generated coach
-check-in.
+Coaching client management. A Next.js app that turns coach documents into a
+confirmed "active protocol", ingests real nutrition/health data from Health
+Connect via an Android companion app, and closes the loop with a compliance
+dashboard, an AI weekly analysis, and a generated coach check-in.
 
 > **Live demo:** https://show-prep-gamma.vercel.app — the login page has a
-> one-click "Enter demo" button; it's seeded with sample contest-prep data.
+> one-click "Enter demo" button; it's seeded with sample coaching data.
 
 Monorepo layout (pnpm workspaces):
 
@@ -20,10 +19,10 @@ Monorepo layout (pnpm workspaces):
 - **Documents** — upload coach PDFs/txt or paste emails. Claude
   (`claude-opus-4-8`) extracts structured prescriptions (calories, P/C/F,
   effective date, cardio plan); you review and **confirm** before one becomes
-  the active protocol. Division rules/guidelines are just another document
+  the active protocol. Program rules/guidelines are just another document
   category.
-- **Dashboard** — countdown to show date, current weight vs target stage
-  weight with a 7-day trend, daily macro compliance vs the active protocol,
+- **Dashboard** — countdown to target date, current weight vs target weight
+  with a 7-day trend, daily macro compliance vs the active protocol,
   and an AI-written plain-language weekly analysis.
 - **Check-in** — answers your coach's exact template (stored as app config):
   data-backed questions (macro adherence, bodyweight, water ≥3L, sleep ≥7h,
@@ -33,8 +32,6 @@ Monorepo layout (pnpm workspaces):
   table (Settings page). Output: a copyable/mailable filled-in template.
 - **Doc chat** — RAG over your uploads (Voyage AI `voyage-4` embeddings,
   1024-dim, pgvector), with source citations.
-- **Weight-cap calculator** — deterministic NPC Classic Physique
-  height-to-weight-cap lookup (official 2023 chart), no AI.
 - **Ingest API** — `/api/ingest/{nutrition|weight|hydration|sleep|exercise|activity}`,
   Zod-validated, bearer-token-gated, idempotent (upserts on Health Connect
   record UIDs).

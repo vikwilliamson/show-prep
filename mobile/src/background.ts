@@ -5,7 +5,7 @@ import { runSync } from "./sync";
 // Periodic background sync (Android WorkManager under the hood). The OS
 // decides exact timing; 15 min is the floor, real cadence is usually coarser.
 
-const TASK_NAME = "show-prep-hc-sync";
+const TASK_NAME = "gamma-hc-sync";
 
 TaskManager.defineTask(TASK_NAME, async () => {
   try {

@@ -304,7 +304,7 @@ export async function weekStats(weekStart: string): Promise<WeekStats> {
 export interface DashboardData {
   settings: Settings;
   protocol: Protocol | null;
-  daysToShow: number | null;
+  daysToTarget: number | null;
   latestWeight: WeightPoint | null;
   weightSeries: WeightPoint[];
   weightTrend: WeightPoint[];
@@ -333,7 +333,7 @@ export async function dashboardData(): Promise<DashboardData> {
   return {
     settings: s,
     protocol,
-    daysToShow: s.showDate ? daysBetween(today, s.showDate) : null,
+    daysToTarget: s.targetDate ? daysBetween(today, s.targetDate) : null,
     latestWeight: weights.at(-1) ?? null,
     weightSeries: weights,
     weightTrend: rollingAvg(weights),

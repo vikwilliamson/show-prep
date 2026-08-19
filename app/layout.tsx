@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Show Prep",
-  description: "NPC bodybuilding contest-prep management",
+  title: "Gamma",
+  description: "Coaching client management",
 };
 
 export default function RootLayout({
@@ -33,9 +33,9 @@ export default function RootLayout({
           <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 px-4 py-3">
             <div className="flex items-baseline gap-2">
               <span className="text-lg font-semibold tracking-tight">
-                Show Prep
+                Gamma
               </span>
-              <span className="text-xs text-muted">contest-prep HQ</span>
+              <span className="text-xs text-muted">Coaching HQ</span>
             </div>
             <NavLinks />
           </div>

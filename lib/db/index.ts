@@ -17,7 +17,7 @@ export type Db =
   | PgliteDatabase<typeof schema>
   | PostgresJsDatabase<typeof schema>;
 
-const globalForDb = globalThis as unknown as { __showPrepDb?: Promise<Db> };
+const globalForDb = globalThis as unknown as { __gammaDb?: Promise<Db> };
 
 async function initDb(): Promise<Db> {
   const migrationsFolder = path.join(process.cwd(), "drizzle");
@@ -73,14 +73,14 @@ async function ensureDefaultRows(db: Db) {
 }
 
 export function getDb(): Promise<Db> {
-  if (!globalForDb.__showPrepDb) {
-    globalForDb.__showPrepDb = initDb().catch((err) => {
+  if (!globalForDb.__gammaDb) {
+    globalForDb.__gammaDb = initDb().catch((err) => {
       // Don't cache a failed init (e.g. transient PGlite lock during HMR).
-      globalForDb.__showPrepDb = undefined;
+      globalForDb.__gammaDb = undefined;
       throw err;
     });
   }
-  return globalForDb.__showPrepDb;
+  return globalForDb.__gammaDb;
 }
 
 export * from "./schema";

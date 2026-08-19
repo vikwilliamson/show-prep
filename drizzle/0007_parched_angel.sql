@@ -1,0 +1,1 @@
+ALTER TABLE "settings" DROP COLUMN "target_stage_weight_lbs";

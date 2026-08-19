@@ -27,7 +27,7 @@ export const ExtractedPrescription = z.object({
     .string()
     .nullable()
     .describe(
-      "Other actionable instructions: refeeds, peak week steps, water/sodium manipulation, supplements, posing.",
+      "Other actionable instructions: refeeds, final-phase adjustments, water/sodium manipulation, supplements.",
     ),
   source_quote: z
     .string()
@@ -44,7 +44,7 @@ export const ExtractionResult = z.object({
   prescriptions: z
     .array(ExtractedPrescription)
     .describe(
-      "One entry per distinct prescription phase (e.g. 'weeks 1-4' and 'peak week' are separate entries). Empty if none.",
+      "One entry per distinct prescription phase (e.g. 'weeks 1-4' and 'final phase' are separate entries). Empty if none.",
     ),
 });
 
@@ -61,12 +61,12 @@ export async function extractPrescriptions(input: {
     max_tokens: 16000,
     thinking: { type: "adaptive" },
     system: [
-      "You extract structured nutrition/cardio prescriptions from bodybuilding-coach documents (emails, PDFs, check-in replies).",
+      "You extract structured nutrition/cardio prescriptions from coach documents (emails, PDFs, check-in replies).",
       "Rules:",
       "- Only report numbers actually present in the document; never invent targets.",
       "- If macros are given per-meal, sum them into daily totals and say so in notes.",
       `- Resolve relative dates ('starting Monday', 'next week') against the upload date ${input.uploadedAtLocalDate}.`,
-      "- Peak-week or multi-phase plans become separate prescription entries.",
+      "- Multi-phase plans become separate prescription entries.",
     ].join("\n"),
     messages: [
       {

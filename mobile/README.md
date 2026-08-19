@@ -1,7 +1,7 @@
-# Show Prep Companion (Android)
+# Gamma Companion (Android)
 
 React Native (Expo) app that reads MyFitnessPal + Samsung Health data from
-**Health Connect** on-device and syncs it to the Show Prep server's
+**Health Connect** on-device and syncs it to the Gamma server's
 `/api/ingest/*` endpoints. It is the only component that touches Health
 Connect — HC has no cloud API.
 
@@ -104,7 +104,7 @@ pnpm android              # builds + installs on the USB-connected S25
 
 ### 3. Point it at the Vercel demo
 
-Launch **Show Prep Companion** on the phone and set:
+Launch **Gamma Companion** on the phone and set:
 
 - **Server URL:** `https://show-prep-gamma.vercel.app`
   (off-LAN requires HTTPS — Vercel is HTTPS, so this is fine.)

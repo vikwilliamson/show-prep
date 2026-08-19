@@ -1,12 +1,12 @@
 {
   "expo": {
-    "name": "Show Prep Companion",
-    "slug": "show-prep-companion",
+    "name": "Gamma Companion",
+    "slug": "gamma-companion",
     "version": "0.1.0",
     "orientation": "portrait",
     "platforms": ["android"],
     "android": {
-      "package": "com.showprep.companion",
+      "package": "com.gamma.companion",
       "permissions": [
         "android.permission.health.READ_NUTRITION",
         "android.permission.health.READ_WEIGHT",

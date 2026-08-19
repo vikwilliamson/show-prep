@@ -8,7 +8,6 @@ const LINKS = [
   { href: "/documents", label: "Documents" },
   { href: "/check-in", label: "Check-In" },
   { href: "/chat", label: "Doc Chat" },
-  { href: "/calculator", label: "Weight Cap" },
   { href: "/settings", label: "Settings" },
 ];
 

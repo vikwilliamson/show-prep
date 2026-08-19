@@ -41,9 +41,9 @@ export default function LoginPage() {
           <div className="rounded-xl border border-accent/40 bg-accent/10 p-4 text-sm">
             <p className="font-medium text-accent">Portfolio demo</p>
             <p className="mt-1 text-muted">
-              This is a live demo seeded with sample contest-prep data. Click
-              below to explore the dashboard, check-in generator, document chat,
-              and weight-cap calculator.
+              This is a live demo seeded with sample coaching data. Click
+              below to explore the dashboard, check-in generator, and
+              document chat.
             </p>
             <button
               onClick={() => login(DEMO_PASSWORD)}
@@ -62,7 +62,7 @@ export default function LoginPage() {
           }}
           className="space-y-3 rounded-xl border border-borderc bg-surface p-6"
         >
-          <h1 className="text-lg font-semibold">Show Prep</h1>
+          <h1 className="text-lg font-semibold">Gamma</h1>
           <input
             type="password"
             autoFocus={!DEMO_PASSWORD}
