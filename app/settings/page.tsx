@@ -7,7 +7,7 @@ interface SettingsShape {
   targetName: string | null;
   targetDate: string | null;
   programType: string | null;
-  nextCompetitionNote: string | null;
+  targetNote: string | null;
   targetWeightLbs: number | null;
   heightInches: number | null;
   timezone: string;
@@ -49,7 +49,7 @@ export default function SettingsPage() {
             targetName: s.targetName,
             targetDate: s.targetDate,
             programType: s.programType,
-            nextCompetitionNote: s.nextCompetitionNote,
+            targetNote: s.targetNote,
             targetWeightLbs: s.targetWeightLbs,
             heightInches: s.heightInches,
             timezone: s.timezone,
@@ -135,9 +135,9 @@ export default function SettingsPage() {
             </select>
           </label>
           {text(
-            "Next competition note (shown in check-ins)",
-            s.nextCompetitionNote,
-            (v) => setS({ ...s, nextCompetitionNote: v }),
+            "Target note (shown in check-ins)",
+            s.targetNote,
+            (v) => setS({ ...s, targetNote: v }),
           )}
           {num("Target weight (lbs)", s.targetWeightLbs, (v) =>
             setS({ ...s, targetWeightLbs: v }), 0.5)}

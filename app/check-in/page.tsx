@@ -23,7 +23,7 @@ const DATA_ANSWER_KEYS: Record<string, string> = {
   water: "water",
   sleep: "sleep",
   workouts_cardio: "workouts_cardio",
-  next_competition: "next_competition",
+  next_target: "next_target",
 };
 
 function shiftWeek(weekStart: string, weeks: number): string {

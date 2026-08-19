@@ -16,7 +16,7 @@ const putSchema = z.object({
       targetName: z.string().nullable().optional(),
       targetDate: z.iso.date().nullable().optional(),
       programType: z.enum(PROGRAM_TYPES).nullable().optional(),
-      nextCompetitionNote: z.string().nullable().optional(),
+      targetNote: z.string().nullable().optional(),
       targetWeightLbs: z.number().positive().nullable().optional(),
       heightInches: z.number().positive().nullable().optional(),
       timezone: z.string().optional(),

@@ -287,7 +287,7 @@ export const settings = pgTable("settings", {
   // is the generalized umbrella for what used to be the six specific
   // bodybuilding divisions.
   programType: text("program_type"),
-  nextCompetitionNote: text("next_competition_note"),
+  targetNote: text("target_note"),
   targetWeightLbs: real("target_weight_lbs"),
   heightInches: real("height_inches"),
   timezone: text("timezone").notNull().default("America/Los_Angeles"),

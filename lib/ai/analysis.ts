@@ -112,10 +112,10 @@ export function dataAnswers(stats: WeekStats, settings: Settings) {
       ? `; cardio ${stats.training.cardioCount}/${stats.training.cardioTarget} prescribed sessions.`
       : `; ${stats.training.cardioCount} cardio session${stats.training.cardioCount === 1 ? "" : "s"}.`);
 
-  const nextCompetition = settings.targetDate
+  const nextTarget = settings.targetDate
     ? `${settings.targetName ?? "Target"} — ${settings.targetDate}` +
-      (settings.nextCompetitionNote ? ` (${settings.nextCompetitionNote})` : "")
-    : (settings.nextCompetitionNote ?? "Not set.");
+      (settings.targetNote ? ` (${settings.targetNote})` : "")
+    : (settings.targetNote ?? "Not set.");
 
   return {
     macro_adherence: macroAdherence,
@@ -123,7 +123,7 @@ export function dataAnswers(stats: WeekStats, settings: Settings) {
     water,
     sleep,
     workouts_cardio: workouts,
-    next_competition: nextCompetition,
+    next_target: nextTarget,
   };
 }
 

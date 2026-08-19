@@ -51,11 +51,13 @@ renamed — that lookup functionality goes away with Weight Cap.
 field) — just update its stale `// for Classic Physique weight-cap calc`
 comment.
 
-Not renamed this pass, flagged only: `settings.nextCompetitionNote` — still
-faintly competition-flavored ("competition") but not on `AGENTS.md`'s
-explicit banned-terms list (`division`, `weight cap`, `peak week`,
-`posing`). Leave as-is; revisit only if it starts to read oddly next to
-`targetName`/`targetDate`.
+**Update, 2026-08-19**: `settings.nextCompetitionNote` → `targetNote` after
+all, per Vik — it did start to read oddly next to `targetName`/`targetDate`.
+Same treatment downstream: the `lib/ai/analysis.ts` local variable and the
+`checkin-template.ts`/`dataAnswers()` question key both went from
+`nextCompetition`/`next_competition` to `nextTarget`/`next_target`, and the
+check-in question itself was reworded from "What is your next competition/
+event/goal/date?" to "What is your next goal or target date?".
 
 ## File-by-file checklist (from an exhaustive `grep`, not a sample)
 
@@ -169,5 +171,4 @@ three-step add/backfill/drop sequence):
 
 ## Out of scope for this pass
 
-- `settings.nextCompetitionNote` rename (flagged above, not required)
 - Any Phase 1/2/3/4 work

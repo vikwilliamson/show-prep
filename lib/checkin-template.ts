@@ -52,8 +52,8 @@ export const DEFAULT_CHECKIN_TEMPLATE: CheckinQuestion[] = [
     type: "manual",
   },
   {
-    key: "next_competition",
-    question: "What is your next competition/event/goal/date?",
+    key: "next_target",
+    question: "What is your next goal or target date?",
     type: "data",
     note: "Pulled from target settings.",
   },

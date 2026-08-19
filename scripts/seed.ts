@@ -115,7 +115,7 @@ async function main() {
       targetName: "Summer Physique Shoot",
       targetDate: addDays(today, 73), // ~10.5 weeks out
       programType: "physique_prep",
-      nextCompetitionNote: "first milestone of the year, building toward the next phase",
+      targetNote: "first milestone of the year, building toward the next phase",
       targetWeightLbs: 187,
       heightInches: 68,
       timezone: TZ,
