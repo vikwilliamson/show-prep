@@ -1,4 +1,19 @@
-# Handoff — where the V3 rewrite stands
+# Handoff — where the V3 rewrite stood (superseded 2026-08-19)
+
+**Retired as a "what's next" doc — kept as a dated historical record.**
+Work moved to **Linear** (team `VIK`, project `Gamma`): milestones for the
+phase sequence, issues for what to build next. Process/gotcha knowledge
+that used to live in this file's "Process notes" section is now the
+"Engineering Notes" Linear Document, kept current going forward. See
+`AGENTS.md`'s "Specs & tickets" for the discipline this replaced —
+specifically, why decisions now have to land in a spec file, not just a
+ticket comment or (as this file shows) a continuity doc nobody's
+structurally required to keep updating.
+
+Everything below this line is a snapshot as of 2026-08-19 and will not be
+updated further.
+
+---
 
 Read this first, before touching anything. It's the continuity doc for
 picking up the V3 generalization rewrite (`specs/v3-build-spec.md`) where
