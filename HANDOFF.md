@@ -122,8 +122,20 @@ existing Health-Connect one. Reasoning:
   information for a future decision, not a reason to wait.
 
 **Recommended next step — a local spike, not a full build:**
-1. Stand up Open Wearables locally via `docker compose up -d`
-   ([repo](https://github.com/the-momentum/open-wearables)).
+1. Clone [Open Wearables](https://github.com/the-momentum/open-wearables)
+   into its own separate location — **not** inside this repo — and run
+   `docker compose up -d` there. Reasoning: it's a different toolchain
+   entirely (FastAPI/Python/Postgres/Redis/Celery vs. this repo's pnpm
+   workspace), it's vendor source you're not modifying (not a fork), and
+   the real target architecture already has it running as its own deployed
+   service — Railway/Fly, talking to Gamma over HTTP, not in-process —
+   so developing it separately from day one avoids detangling it later. A
+   sibling directory next to this checkout (e.g.
+   `~/Development/open-wearables-spike/`) is the simplest choice. Fully
+   disposable either way: `rm -rf` it if the spike doesn't pan out, no
+   repo cleanup needed here. If it graduates past the spike, decide its
+   permanent home (own repo, deployment config, etc.) then, with real
+   requirements in hand — don't build that now.
 2. Confirm nutrition/dietary data actually flows through **both**
    connectors — HealthKit's Dietary Energy/macros (MyFitnessPal writes
    these out on iOS: confirmed two-way sync, batched 5-15 min, iPhone-app-
