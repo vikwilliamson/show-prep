@@ -75,6 +75,25 @@ test("PUT /api/settings only ever updates the caller's own row", async () => {
   assert.equal(aJson.settings.targetName, "Owner's target");
 });
 
+test("PUT /api/settings accepts and persists the four manual macro target fields, scoped to the caller's account", async () => {
+  const a = await makeAccount("Settings Route Test Macros");
+  const putRes = await PUT(
+    requestWithSession("PUT", a, {
+      settings: { targetCalories: 2200, targetProteinG: 180, targetCarbsG: 220, targetFatG: 70 },
+    }),
+  );
+  assert.equal(putRes.status, 200);
+  const putJson = await putRes.json();
+  assert.equal(putJson.settings.targetCalories, 2200);
+  assert.equal(putJson.settings.targetProteinG, 180);
+  assert.equal(putJson.settings.targetCarbsG, 220);
+  assert.equal(putJson.settings.targetFatG, 70);
+
+  const db = await getDb();
+  const [row] = await db.select().from(settings).where(eq(settings.accountId, a));
+  assert.equal(row.targetCalories, 2200);
+});
+
 test("PUT /api/settings updates the caller's own weekly targets", async () => {
   const a = await makeAccount("Settings Route Test Targets");
   const res = await PUT(

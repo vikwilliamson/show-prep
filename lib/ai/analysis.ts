@@ -1,6 +1,6 @@
 import type { CheckinQuestion } from "../checkin-template";
 import type { Settings } from "../db/schema";
-import type { WeekStats } from "../stats";
+import { effectiveMacroTargets, type WeekStats } from "../stats";
 import { getAnthropic, MODEL } from "./client";
 
 // Plain-language weekly analysis + coach check-in draft. Both are grounded in
@@ -75,6 +75,7 @@ export function dataAnswers(stats: WeekStats, settings: Settings) {
   const n = stats.nutrition;
   const w = stats.weight;
 
+  const macroTargets = effectiveMacroTargets(settings, stats.protocol);
   const macroAdherence = !n.daysLogged
     ? "No nutrition data logged this week."
     : [
@@ -82,10 +83,10 @@ export function dataAnswers(stats: WeekStats, settings: Settings) {
         n.avg
           ? `Averages: ${n.avg.calories} kcal, ${n.avg.proteinG}P / ${n.avg.carbsG}C / ${n.avg.fatG}F.`
           : "",
-        stats.protocol?.calories
-          ? `Plan: ${stats.protocol.calories} kcal (${stats.protocol.proteinG ?? "?"}P / ${stats.protocol.carbsG ?? "?"}C / ${stats.protocol.fatG ?? "?"}F). ` +
-            `Avg calories ${n.avgCaloriesDeltaPct! >= 0 ? "+" : ""}${n.avgCaloriesDeltaPct}% vs plan; ${n.onTargetDays}/${n.daysLogged} logged days on target.`
-          : "No active protocol to compare against.",
+        macroTargets.calories != null && n.avgCaloriesDeltaPct != null
+          ? `Plan: ${macroTargets.calories} kcal (${macroTargets.proteinG ?? "?"}P / ${macroTargets.carbsG ?? "?"}C / ${macroTargets.fatG ?? "?"}F). ` +
+            `Avg calories ${n.avgCaloriesDeltaPct >= 0 ? "+" : ""}${n.avgCaloriesDeltaPct}% vs plan; ${n.onTargetDays}/${n.daysLogged} logged days on target.`
+          : "No target set to compare against.",
       ]
         .filter(Boolean)
         .join(" ");

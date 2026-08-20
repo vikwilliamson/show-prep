@@ -296,6 +296,12 @@ export const settings = pgTable(
     targetNote: text("target_note"),
     targetWeightLbs: real("target_weight_lbs"),
     heightInches: real("height_inches"),
+    // Manual nutrition target — the default when there's no active (confirmed)
+    // protocol prescribing macros. See lib/stats.ts's effectiveMacroTargets().
+    targetCalories: integer("target_calories"),
+    targetProteinG: integer("target_protein_g"),
+    targetCarbsG: integer("target_carbs_g"),
+    targetFatG: integer("target_fat_g"),
     timezone: text("timezone").notNull().default("America/Los_Angeles"),
     // Coach's check-in template: array of { key, question, type: "data" | "manual" }
     checkinTemplate: jsonb("checkin_template").notNull(),
