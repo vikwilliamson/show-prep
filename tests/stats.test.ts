@@ -14,6 +14,7 @@ import { hashPasscode } from "../lib/auth";
 import {
   dailyMacros,
   dailyWeights,
+  effectiveMacroTargets,
   getActiveProtocol,
   getSettings,
   getTargets,
@@ -166,4 +167,53 @@ test("getActiveProtocol only returns the requesting account's active protocol", 
   const protocolB = await getActiveProtocol(b);
   assert.equal(protocolA?.calories, 2100);
   assert.equal(protocolB?.calories, 1800);
+});
+
+test("effectiveMacroTargets returns the active protocol's macros when one exists", async () => {
+  const db = await getDb();
+  const a = await makeAccount("Stats Test EffectiveMacros Protocol");
+  const s = await getSettings(a);
+  await db
+    .update(settings)
+    .set({ targetCalories: 1900, targetProteinG: 140, targetCarbsG: 190, targetFatG: 55 })
+    .where(eq(settings.id, s.id));
+  const updatedSettings = await getSettings(a);
+
+  const [protocol] = await db
+    .insert(protocols)
+    .values({
+      accountId: a,
+      status: "active",
+      effectiveFrom: "2026-01-01",
+      calories: 2200,
+      proteinG: 180,
+      carbsG: 220,
+      fatG: 70,
+    })
+    .returning();
+
+  const result = effectiveMacroTargets(updatedSettings, protocol);
+  assert.deepEqual(result, { calories: 2200, proteinG: 180, carbsG: 220, fatG: 70 });
+});
+
+test("effectiveMacroTargets falls back to settings' manual fields when there's no active protocol", async () => {
+  const db = await getDb();
+  const a = await makeAccount("Stats Test EffectiveMacros Fallback");
+  const s = await getSettings(a);
+  await db
+    .update(settings)
+    .set({ targetCalories: 2000, targetProteinG: 150, targetCarbsG: 200, targetFatG: 60 })
+    .where(eq(settings.id, s.id));
+  const updatedSettings = await getSettings(a);
+
+  const result = effectiveMacroTargets(updatedSettings, null);
+  assert.deepEqual(result, { calories: 2000, proteinG: 150, carbsG: 200, fatG: 60 });
+});
+
+test("effectiveMacroTargets returns nulls when neither protocol nor manual settings are set", async () => {
+  const a = await makeAccount("Stats Test EffectiveMacros Neither");
+  const s = await getSettings(a);
+
+  const result = effectiveMacroTargets(s, null);
+  assert.deepEqual(result, { calories: null, proteinG: null, carbsG: null, fatG: null });
 });

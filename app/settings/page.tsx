@@ -10,6 +10,10 @@ interface SettingsShape {
   targetNote: string | null;
   targetWeightLbs: number | null;
   heightInches: number | null;
+  targetCalories: number | null;
+  targetProteinG: number | null;
+  targetCarbsG: number | null;
+  targetFatG: number | null;
   timezone: string;
 }
 
@@ -52,6 +56,10 @@ export default function SettingsPage() {
             targetNote: s.targetNote,
             targetWeightLbs: s.targetWeightLbs,
             heightInches: s.heightInches,
+            targetCalories: s.targetCalories,
+            targetProteinG: s.targetProteinG,
+            targetCarbsG: s.targetCarbsG,
+            targetFatG: s.targetFatG,
             timezone: s.timezone,
           },
           targets: t,
@@ -145,6 +153,26 @@ export default function SettingsPage() {
             setS({ ...s, heightInches: v }), 0.5)}
           {text("Timezone (day bucketing)", s.timezone, (v) =>
             setS({ ...s, timezone: v ?? "America/Los_Angeles" }))}
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-borderc bg-surface p-4">
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted">
+          Nutrition target
+        </h2>
+        <p className="mb-3 text-xs text-muted">
+          Used when there&apos;s no active coach protocol. An active protocol
+          overrides these once one exists.
+        </p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {num("Calories (kcal/day)", s.targetCalories, (v) =>
+            setS({ ...s, targetCalories: v }), 50)}
+          {num("Protein (g/day)", s.targetProteinG, (v) =>
+            setS({ ...s, targetProteinG: v }))}
+          {num("Carbs (g/day)", s.targetCarbsG, (v) =>
+            setS({ ...s, targetCarbsG: v }))}
+          {num("Fat (g/day)", s.targetFatG, (v) =>
+            setS({ ...s, targetFatG: v }))}
         </div>
       </section>
 

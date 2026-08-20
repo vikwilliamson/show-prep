@@ -53,6 +53,37 @@ export async function getActiveProtocol(accountId: number): Promise<Protocol | n
   return row ?? null;
 }
 
+export interface MacroTargets {
+  calories: number | null;
+  proteinG: number | null;
+  carbsG: number | null;
+  fatG: number | null;
+}
+
+/**
+ * The nutrition target in effect: an active (confirmed) protocol's macros
+ * when one exists, otherwise the account's manual Settings target.
+ */
+export function effectiveMacroTargets(
+  settings: Settings,
+  protocol: Protocol | null,
+): MacroTargets {
+  if (protocol?.calories != null) {
+    return {
+      calories: protocol.calories,
+      proteinG: protocol.proteinG,
+      carbsG: protocol.carbsG,
+      fatG: protocol.fatG,
+    };
+  }
+  return {
+    calories: settings.targetCalories,
+    proteinG: settings.targetProteinG,
+    carbsG: settings.targetCarbsG,
+    fatG: settings.targetFatG,
+  };
+}
+
 export interface DayMacros {
   date: string;
   calories: number;
@@ -181,56 +212,67 @@ export async function weekStats(accountId: number, weekStart: string): Promise<W
   const weekEnd = dates[6];
   const prevWeekStart = addDays(weekStart, -7);
 
-  const [protocol, targets, nutritionDays, weightsTwoWeeks, waterRows, sleepRows, workoutRows] =
-    await Promise.all([
-      getActiveProtocol(accountId),
-      getTargets(accountId),
-      dailyMacros(accountId, weekStart, weekEnd),
-      dailyWeights(accountId, prevWeekStart, weekEnd),
-      db
-        .select({
-          date: hydrationEntries.localDate,
-          volumeMl: sql<number>`sum(${hydrationEntries.volumeMl})`.mapWith(Number),
-        })
-        .from(hydrationEntries)
-        .where(
-          and(
-            eq(hydrationEntries.accountId, accountId),
-            gte(hydrationEntries.localDate, weekStart),
-            lte(hydrationEntries.localDate, weekEnd),
-          ),
-        )
-        .groupBy(hydrationEntries.localDate)
-        .orderBy(asc(hydrationEntries.localDate)),
-      db
-        .select({
-          date: sleepSessions.localDate,
-          minutes: sql<number>`sum(${sleepSessions.durationMin})`.mapWith(Number),
-        })
-        .from(sleepSessions)
-        .where(
-          and(
-            eq(sleepSessions.accountId, accountId),
-            gte(sleepSessions.localDate, weekStart),
-            lte(sleepSessions.localDate, weekEnd),
-          ),
-        )
-        .groupBy(sleepSessions.localDate)
-        .orderBy(asc(sleepSessions.localDate)),
-      db
-        .select()
-        .from(workouts)
-        .where(
-          and(
-            eq(workouts.accountId, accountId),
-            gte(workouts.localDate, weekStart),
-            lte(workouts.localDate, weekEnd),
-          ),
-        )
-        .orderBy(asc(workouts.localDate)),
-    ]);
+  const [
+    protocol,
+    targets,
+    accountSettings,
+    nutritionDays,
+    weightsTwoWeeks,
+    waterRows,
+    sleepRows,
+    workoutRows,
+  ] = await Promise.all([
+    getActiveProtocol(accountId),
+    getTargets(accountId),
+    getSettings(accountId),
+    dailyMacros(accountId, weekStart, weekEnd),
+    dailyWeights(accountId, prevWeekStart, weekEnd),
+    db
+      .select({
+        date: hydrationEntries.localDate,
+        volumeMl: sql<number>`sum(${hydrationEntries.volumeMl})`.mapWith(Number),
+      })
+      .from(hydrationEntries)
+      .where(
+        and(
+          eq(hydrationEntries.accountId, accountId),
+          gte(hydrationEntries.localDate, weekStart),
+          lte(hydrationEntries.localDate, weekEnd),
+        ),
+      )
+      .groupBy(hydrationEntries.localDate)
+      .orderBy(asc(hydrationEntries.localDate)),
+    db
+      .select({
+        date: sleepSessions.localDate,
+        minutes: sql<number>`sum(${sleepSessions.durationMin})`.mapWith(Number),
+      })
+      .from(sleepSessions)
+      .where(
+        and(
+          eq(sleepSessions.accountId, accountId),
+          gte(sleepSessions.localDate, weekStart),
+          lte(sleepSessions.localDate, weekEnd),
+        ),
+      )
+      .groupBy(sleepSessions.localDate)
+      .orderBy(asc(sleepSessions.localDate)),
+    db
+      .select()
+      .from(workouts)
+      .where(
+        and(
+          eq(workouts.accountId, accountId),
+          gte(workouts.localDate, weekStart),
+          lte(workouts.localDate, weekEnd),
+        ),
+      )
+      .orderBy(asc(workouts.localDate)),
+  ]);
 
-  // Nutrition adherence vs the active protocol.
+  // Nutrition adherence vs the effective target (active protocol, else the
+  // account's manual Settings target).
+  const macroTargets = effectiveMacroTargets(accountSettings, protocol);
   const daysLogged = nutritionDays.length;
   let avg = null;
   let onTargetDays: number | null = null;
@@ -248,15 +290,15 @@ export async function weekStats(accountId: number, weekStart: string): Promise<W
       ),
       fatG: Math.round(nutritionDays.reduce((s, d) => s + d.fatG, 0) / daysLogged),
     };
-    if (protocol?.calories) {
+    if (macroTargets.calories) {
       avgCaloriesDeltaPct = round1(
-        ((avg.calories - protocol.calories) / protocol.calories) * 100,
+        ((avg.calories - macroTargets.calories) / macroTargets.calories) * 100,
       );
       onTargetDays = nutritionDays.filter((d) => {
         const calOk =
-          Math.abs(d.calories - protocol.calories!) / protocol.calories! <= 0.05;
+          Math.abs(d.calories - macroTargets.calories!) / macroTargets.calories! <= 0.05;
         const proteinOk =
-          protocol.proteinG == null || d.proteinG >= protocol.proteinG - 10;
+          macroTargets.proteinG == null || d.proteinG >= macroTargets.proteinG - 10;
         return calOk && proteinOk;
       }).length;
     }
