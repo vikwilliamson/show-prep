@@ -1,5 +1,5 @@
 {
-  "id": "e70f5685-2ba1-4a8f-a558-0370042b3c25",
+  "id": "06cff783-1aa1-412e-b06f-8f5230035904",
   "prevId": "c807b273-11ed-482f-af10-c9ddbc39ddad",
   "version": "7",
   "dialect": "postgresql",
@@ -726,12 +726,6 @@
           "name": "nutrition_hc_uid_idx",
           "columns": [
             {
-              "expression": "account_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
               "expression": "hc_uid",
               "isExpression": false,
               "asc": true,
@@ -940,6 +934,30 @@
         "height_inches": {
           "name": "height_inches",
           "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "target_calories": {
+          "name": "target_calories",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "target_protein_g": {
+          "name": "target_protein_g",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "target_carbs_g": {
+          "name": "target_carbs_g",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "target_fat_g": {
+          "name": "target_fat_g",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false
         },

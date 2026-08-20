@@ -5,7 +5,7 @@ import { and, eq } from "drizzle-orm";
 import { getCurrentAccount, SESSION_COOKIE } from "@/lib/auth";
 import { checkIns, getDb } from "@/lib/db";
 import { mondayOf, todayLocal } from "@/lib/dates";
-import { dashboardData, weekStats } from "@/lib/stats";
+import { dashboardData, effectiveMacroTargets, weekStats } from "@/lib/stats";
 import { programTypeLabel } from "@/lib/program-types";
 import { WeightChart } from "@/components/WeightChart";
 import { ComplianceChart } from "@/components/ComplianceChart";
@@ -43,6 +43,7 @@ export default async function Dashboard() {
 
   const data = await dashboardData(session.accountId);
   const { settings, protocol } = data;
+  const macroTargets = effectiveMacroTargets(settings, protocol);
   const weekStart = mondayOf(todayLocal(settings.timezone));
   const stats = await weekStats(session.accountId, weekStart);
 
@@ -112,7 +113,9 @@ export default async function Dashboard() {
         </Card>
 
         <Card>
-          <p className="text-xs font-medium text-muted uppercase tracking-wide">Active protocol</p>
+          <p className="text-xs font-medium text-muted uppercase tracking-wide">
+            {protocol ? "Active protocol" : "Nutrition target"}
+          </p>
           {protocol ? (
             <>
               <p className="mt-1 text-3xl font-semibold tabular-nums">
@@ -125,10 +128,23 @@ export default async function Dashboard() {
                 {protocol.effectiveFrom}
               </p>
             </>
+          ) : macroTargets.calories != null ? (
+            <>
+              <p className="mt-1 text-3xl font-semibold tabular-nums">
+                {macroTargets.calories}
+                <span className="ml-1 text-base font-normal text-muted">kcal</span>
+              </p>
+              <p className="mt-1 text-xs text-muted">
+                {macroTargets.proteinG ?? "?"}P / {macroTargets.carbsG ?? "?"}C /{" "}
+                {macroTargets.fatG ?? "?"}F · manual target, no active coach protocol
+              </p>
+            </>
           ) : (
             <p className="mt-2 text-sm text-muted">
               No active protocol — upload a coach doc in{" "}
-              <Link href="/documents" className="text-accent underline">Documents</Link>.
+              <Link href="/documents" className="text-accent underline">Documents</Link>, or set
+              a manual target in{" "}
+              <Link href="/settings" className="text-accent underline">Settings</Link>.
             </p>
           )}
         </Card>
@@ -146,16 +162,7 @@ export default async function Dashboard() {
         <Card title="Macro compliance — last 14 days">
           <ComplianceChart
             days={data.compliance}
-            targets={
-              protocol
-                ? {
-                    calories: protocol.calories,
-                    proteinG: protocol.proteinG,
-                    carbsG: protocol.carbsG,
-                    fatG: protocol.fatG,
-                  }
-                : null
-            }
+            targets={macroTargets.calories != null ? macroTargets : null}
           />
           {stats.nutrition.avg && (
             <p className="mt-2 text-xs text-muted">
