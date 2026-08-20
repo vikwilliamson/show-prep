@@ -106,7 +106,7 @@ export function ComplianceChart({
             stroke="var(--muted)"
             strokeDasharray="6 4"
             label={{
-              value: `plan ${targets.calories} kcal`,
+              value: `target ${targets.calories} kcal`,
               position: "insideTopRight",
               fill: "var(--muted)",
               fontSize: 11,

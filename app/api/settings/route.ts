@@ -26,6 +26,10 @@ const putSchema = z.object({
       targetNote: z.string().nullable().optional(),
       targetWeightLbs: z.number().positive().nullable().optional(),
       heightInches: z.number().positive().nullable().optional(),
+      targetCalories: z.number().int().positive().nullable().optional(),
+      targetProteinG: z.number().int().nonnegative().nullable().optional(),
+      targetCarbsG: z.number().int().nonnegative().nullable().optional(),
+      targetFatG: z.number().int().nonnegative().nullable().optional(),
       timezone: z.string().optional(),
     })
     .optional(),
