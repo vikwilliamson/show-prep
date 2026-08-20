@@ -1,9 +1,15 @@
 @AGENTS.md
 
 ## Start here if picking up V3 work
-- Read `HANDOFF.md` at the repo root first — it's the continuity doc for
-  where the V3 rewrite (`specs/v3-build-spec.md`) currently stands, what's
-  merged, and what the next step is. Keep it updated as you go.
+- Check **Linear** first (team `VIK`, project `Gamma`) for what to work on
+  and its current status — that's the live source now, not this repo. Read
+  every spec/doc a ticket links to before starting it (see AGENTS.md's
+  "Specs & tickets").
+- `HANDOFF.md` is retired as a "what's next" doc — kept in the repo as a
+  dated historical record of the pre-Linear V3 rewrite, not something to
+  update going forward. Its process/gotcha notes (drizzle-kit quirks,
+  PGlite behavior, auth footguns, etc.) now live in the "Engineering Notes"
+  Linear Document.
 
 ## Effort
 - Default `high` for this repo.
