@@ -56,10 +56,18 @@ list currently there.
 **Status: shipped** (`feat/nutrition-ingest-account-scoping`, PR into
 `v3-generalized`). Summary of what landed, for reference:
 
-- **§1.3 — `nutrition_hc_uid_idx` account-scoping.** Migrated from
-  `uniqueIndex(t.hcUid)` to a composite `(accountId, hcUid)` index
-  (`drizzle/0012`), same pattern already used for
-  `check_ins`/`settings`/`weekly_targets` in `drizzle/0010`-`0011`.
+- **§1.3 — every ingest table's unique index account-scoped, in full.**
+  Migrated `nutrition_hc_uid_idx` from `uniqueIndex(t.hcUid)` to a composite
+  `(accountId, hcUid)` index (`drizzle/0012`), same pattern already used for
+  `check_ins`/`settings`/`weekly_targets` in `drizzle/0010`-`0011` — then,
+  since the migration mechanism was already in hand, batched in the
+  identical fix for the other five ingest tables in a follow-up commit
+  (`drizzle/0013`): `weight_hc_uid_idx`, `hydration_hc_uid_idx`,
+  `workout_hc_uid_idx`, `sleep_hc_uid_idx` → `(accountId, hcUid)`;
+  `activity_hc_uid_idx` → `(accountId, hcUid)` and `activity_local_date_idx`
+  → `(accountId, localDate)` (previously one activity row per day *globally*,
+  the worst instance of this bug). `TECH_DEBT.md` §1.3 is now fully closed,
+  not just the nutrition slice.
 - **`app/api/ingest/[type]/route.ts` now resolves a real `accountId`.**
   Design landed: reuse `accounts.referenceId` (already exists, unique,
   originally added for Terra's pseudonymous-ID need — free to reuse since
@@ -80,15 +88,6 @@ list currently there.
   now have upper bounds (`TECH_DEBT.md` §2.7 — calories ≤ 20,000, gram
   fields ≤ 2,000, sodium ≤ 50,000mg), and `lib/ingest/auth.ts`'s bearer
   comparison is now constant-time (`TECH_DEBT.md` §1.5).
-- **Deliberately not fixed here:** the other five ingest tables
-  (`weight_hc_uid_idx`, `hydration_hc_uid_idx`, `workout_hc_uid_idx`,
-  `sleep_hc_uid_idx`, `activity_hc_uid_idx`/`activity_local_date_idx`) have
-  the identical `TECH_DEBT.md` §1.3 bug and are still unfixed — out of
-  scope for a nutrition-only pass. Their rows now at least get a correct
-  `accountId` (the route-wide fix above covers them too), but their
-  `onConflictDoUpdate` targets are still the old single-column ones. Worth
-  batching into one migration whenever those types actually get revived
-  (Android narrowing below, or Open Wearables).
 
 ## 2. Android — validate and narrow the existing pipeline
 
@@ -219,6 +218,9 @@ build ticket.
   upsert (exercises the new composite index)~~ — done, same file.
 - ~~`nutritionRecord`'s new upper bounds reject an absurd value (e.g.
   `calories: 1e12`) with a 422~~ — done, same file.
+- ~~Two accounts syncing weight/hydration/sleep/exercise/activity with the
+  same hcUid (or, for activity, the same local date) don't collide~~ —
+  done, same file, one test per type.
 - Android: existing `mapper.test.ts` coverage for `mapNutrition()` stays
   green after narrowing; add a test that `sync.ts`'s trimmed `plans` array
   only contains the nutrition entry.

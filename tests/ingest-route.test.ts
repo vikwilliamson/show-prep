@@ -4,10 +4,15 @@ import { NextRequest } from "next/server";
 import { eq, inArray } from "drizzle-orm";
 import {
   accounts,
+  dailyActivity,
   getDb,
+  hydrationEntries,
   nutritionEntries,
   settings,
+  sleepSessions,
   syncLog,
+  weightEntries,
+  workouts,
 } from "../lib/db";
 import { hashPasscode } from "../lib/auth";
 import { POST } from "../app/api/ingest/[type]/route";
@@ -31,22 +36,35 @@ afterEach(async () => {
   // Children first — accounts.id has no ON DELETE CASCADE. The ingest route
   // lazily creates a settings row per account (for the timezone lookup).
   await db.delete(nutritionEntries).where(inArray(nutritionEntries.accountId, createdAccountIds));
+  await db.delete(weightEntries).where(inArray(weightEntries.accountId, createdAccountIds));
+  await db.delete(hydrationEntries).where(inArray(hydrationEntries.accountId, createdAccountIds));
+  await db.delete(sleepSessions).where(inArray(sleepSessions.accountId, createdAccountIds));
+  await db.delete(workouts).where(inArray(workouts.accountId, createdAccountIds));
+  await db.delete(dailyActivity).where(inArray(dailyActivity.accountId, createdAccountIds));
   await db.delete(syncLog).where(inArray(syncLog.accountId, createdAccountIds));
   await db.delete(settings).where(inArray(settings.accountId, createdAccountIds));
   await db.delete(accounts).where(inArray(accounts.id, createdAccountIds));
   createdAccountIds.length = 0;
 });
 
-function nutritionRequest(body: unknown) {
-  return new NextRequest("http://localhost/api/ingest/nutrition", {
+function ingestRequest(type: string, body: unknown) {
+  return new NextRequest(`http://localhost/api/ingest/${type}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
 }
 
+function nutritionRequest(body: unknown) {
+  return ingestRequest("nutrition", body);
+}
+
 function nutritionBatch(referenceId: string, records: unknown[]) {
   return { deviceId: "test-device", referenceId, source: "myfitnesspal", records };
+}
+
+function batch(referenceId: string, source: string, records: unknown[]) {
+  return { deviceId: "test-device", referenceId, source, records };
 }
 
 const oneMeal = (hcUid: string) => ({
@@ -157,4 +175,119 @@ test("an absurd calorie value is rejected with a 422, not silently accepted", as
     .from(nutritionEntries)
     .where(eq(nutritionEntries.hcUid, "bounds-1"));
   assert.equal(row, undefined);
+});
+
+test("two accounts syncing weight with the same hcUid don't collide", async () => {
+  const a = await makeAccount("Ingest Route Test Weight A");
+  const b = await makeAccount("Ingest Route Test Weight B");
+  const record = { hcUid: "shared-weight-uid", time: "2026-08-19T12:00:00.000Z", weightKg: 80 };
+
+  const resA = await POST(ingestRequest("weight", batch(a.referenceId, "samsung_health", [record])), {
+    params: Promise.resolve({ type: "weight" }),
+  });
+  const resB = await POST(ingestRequest("weight", batch(b.referenceId, "samsung_health", [record])), {
+    params: Promise.resolve({ type: "weight" }),
+  });
+  assert.equal(resA.status, 200);
+  assert.equal(resB.status, 200);
+
+  const db = await getDb();
+  const rows = await db.select().from(weightEntries).where(eq(weightEntries.hcUid, "shared-weight-uid"));
+  assert.equal(rows.length, 2);
+  assert.deepEqual(rows.map((r) => r.accountId).sort(), [a.id, b.id].sort());
+});
+
+test("two accounts syncing hydration with the same hcUid don't collide", async () => {
+  const a = await makeAccount("Ingest Route Test Hydration A");
+  const b = await makeAccount("Ingest Route Test Hydration B");
+  const record = { hcUid: "shared-hydration-uid", startTime: "2026-08-19T12:00:00.000Z", volumeMl: 500 };
+
+  const resA = await POST(
+    ingestRequest("hydration", batch(a.referenceId, "samsung_health", [record])),
+    { params: Promise.resolve({ type: "hydration" }) },
+  );
+  const resB = await POST(
+    ingestRequest("hydration", batch(b.referenceId, "samsung_health", [record])),
+    { params: Promise.resolve({ type: "hydration" }) },
+  );
+  assert.equal(resA.status, 200);
+  assert.equal(resB.status, 200);
+
+  const db = await getDb();
+  const rows = await db
+    .select()
+    .from(hydrationEntries)
+    .where(eq(hydrationEntries.hcUid, "shared-hydration-uid"));
+  assert.equal(rows.length, 2);
+  assert.deepEqual(rows.map((r) => r.accountId).sort(), [a.id, b.id].sort());
+});
+
+test("two accounts syncing sleep with the same hcUid don't collide", async () => {
+  const a = await makeAccount("Ingest Route Test Sleep A");
+  const b = await makeAccount("Ingest Route Test Sleep B");
+  const record = {
+    hcUid: "shared-sleep-uid",
+    startTime: "2026-08-19T02:00:00.000Z",
+    endTime: "2026-08-19T10:00:00.000Z",
+  };
+
+  const resA = await POST(ingestRequest("sleep", batch(a.referenceId, "samsung_health", [record])), {
+    params: Promise.resolve({ type: "sleep" }),
+  });
+  const resB = await POST(ingestRequest("sleep", batch(b.referenceId, "samsung_health", [record])), {
+    params: Promise.resolve({ type: "sleep" }),
+  });
+  assert.equal(resA.status, 200);
+  assert.equal(resB.status, 200);
+
+  const db = await getDb();
+  const rows = await db.select().from(sleepSessions).where(eq(sleepSessions.hcUid, "shared-sleep-uid"));
+  assert.equal(rows.length, 2);
+  assert.deepEqual(rows.map((r) => r.accountId).sort(), [a.id, b.id].sort());
+});
+
+test("two accounts syncing an exercise session with the same hcUid don't collide", async () => {
+  const a = await makeAccount("Ingest Route Test Exercise A");
+  const b = await makeAccount("Ingest Route Test Exercise B");
+  const record = { hcUid: "shared-exercise-uid", startTime: "2026-08-19T12:00:00.000Z" };
+
+  const resA = await POST(
+    ingestRequest("exercise", batch(a.referenceId, "samsung_health", [record])),
+    { params: Promise.resolve({ type: "exercise" }) },
+  );
+  const resB = await POST(
+    ingestRequest("exercise", batch(b.referenceId, "samsung_health", [record])),
+    { params: Promise.resolve({ type: "exercise" }) },
+  );
+  assert.equal(resA.status, 200);
+  assert.equal(resB.status, 200);
+
+  const db = await getDb();
+  const rows = await db.select().from(workouts).where(eq(workouts.hcUid, "shared-exercise-uid"));
+  assert.equal(rows.length, 2);
+  assert.deepEqual(rows.map((r) => r.accountId).sort(), [a.id, b.id].sort());
+});
+
+test("two accounts syncing activity for the same local date don't collide", async () => {
+  const a = await makeAccount("Ingest Route Test Activity A");
+  const b = await makeAccount("Ingest Route Test Activity B");
+  const record = { hcUid: "activity-2026-08-19", date: "2026-08-19", steps: 8000 };
+
+  const resA = await POST(
+    ingestRequest("activity", batch(a.referenceId, "samsung_health", [record])),
+    { params: Promise.resolve({ type: "activity" }) },
+  );
+  const resB = await POST(
+    ingestRequest("activity", batch(b.referenceId, "samsung_health", [{ ...record, steps: 5000 }])),
+    { params: Promise.resolve({ type: "activity" }) },
+  );
+  assert.equal(resA.status, 200);
+  assert.equal(resB.status, 200);
+
+  const db = await getDb();
+  const rows = await db.select().from(dailyActivity).where(eq(dailyActivity.localDate, "2026-08-19"));
+  assert.equal(rows.length, 2);
+  const byAccount = Object.fromEntries(rows.map((r) => [r.accountId, r.steps]));
+  assert.equal(byAccount[a.id], 8000);
+  assert.equal(byAccount[b.id], 5000);
 });

@@ -113,7 +113,10 @@ export async function POST(
           await db
             .insert(weightEntries)
             .values(values)
-            .onConflictDoUpdate({ target: weightEntries.hcUid, set: values });
+            .onConflictDoUpdate({
+              target: [weightEntries.accountId, weightEntries.hcUid],
+              set: values,
+            });
           accepted++;
         }
         break;
@@ -130,7 +133,10 @@ export async function POST(
           await db
             .insert(hydrationEntries)
             .values(values)
-            .onConflictDoUpdate({ target: hydrationEntries.hcUid, set: values });
+            .onConflictDoUpdate({
+              target: [hydrationEntries.accountId, hydrationEntries.hcUid],
+              set: values,
+            });
           accepted++;
         }
         break;
@@ -153,7 +159,10 @@ export async function POST(
           await db
             .insert(sleepSessions)
             .values(values)
-            .onConflictDoUpdate({ target: sleepSessions.hcUid, set: values });
+            .onConflictDoUpdate({
+              target: [sleepSessions.accountId, sleepSessions.hcUid],
+              set: values,
+            });
           accepted++;
         }
         break;
@@ -175,7 +184,10 @@ export async function POST(
           await db
             .insert(workouts)
             .values(values)
-            .onConflictDoUpdate({ target: workouts.hcUid, set: values });
+            .onConflictDoUpdate({
+              target: [workouts.accountId, workouts.hcUid],
+              set: values,
+            });
           accepted++;
         }
         break;
@@ -191,13 +203,16 @@ export async function POST(
             activeCalories: r.activeCalories ?? null,
             totalCalories: r.totalCalories ?? null,
           };
-          // The unique constraint is on local_date (one row per day), not on
-          // hc_uid. Upsert on local_date so re-syncing the same day overwrites
-          // rather than conflicting.
+          // The unique constraint is on (account_id, local_date) — one row per
+          // account per day, not on hc_uid. Upsert on that composite so
+          // re-syncing the same day overwrites rather than conflicting.
           await db
             .insert(dailyActivity)
             .values(values)
-            .onConflictDoUpdate({ target: dailyActivity.localDate, set: values });
+            .onConflictDoUpdate({
+              target: [dailyActivity.accountId, dailyActivity.localDate],
+              set: values,
+            });
           accepted++;
         }
         break;
