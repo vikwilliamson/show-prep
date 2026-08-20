@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import {
   createSessionToken,
+  getAccountByReferenceId,
   getCurrentAccount,
   getPrimaryCoachAccountId,
   hashPasscode,
@@ -91,6 +92,26 @@ test("requireAccount 401s a request with a tampered cookie", () => {
   const result = requireAccount(req);
   assert.ok(result instanceof NextResponse);
   assert.equal(result.status, 401);
+});
+
+test("getAccountByReferenceId resolves a known account's referenceId to its accountId", async () => {
+  const db = await getDb();
+  const passcodeHash = await hashPasscode("reference-id-lookup-test");
+  const [row] = await db
+    .insert(accounts)
+    .values({ name: "Reference Id Lookup Test", role: "client", passcodeHash })
+    .returning();
+  try {
+    const resolved = await getAccountByReferenceId(row.referenceId);
+    assert.equal(resolved, row.id);
+  } finally {
+    await db.delete(accounts).where(eq(accounts.id, row.id));
+  }
+});
+
+test("getAccountByReferenceId returns null for an unknown referenceId", async () => {
+  const resolved = await getAccountByReferenceId("00000000-0000-0000-0000-000000000000");
+  assert.equal(resolved, null);
 });
 
 test("getPrimaryCoachAccountId resolves to an existing coach account", async () => {

@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { env } from "../env";
 
@@ -9,7 +10,9 @@ export function checkIngestAuth(req: NextRequest): NextResponse | null {
   if (!env.ingestApiKey) return null;
   const header = req.headers.get("authorization") ?? "";
   const token = header.startsWith("Bearer ") ? header.slice(7) : null;
-  if (token !== env.ingestApiKey) {
+  const a = Buffer.from(token ?? "");
+  const b = Buffer.from(env.ingestApiKey);
+  if (a.length !== b.length || !timingSafeEqual(a, b)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   return null;

@@ -132,7 +132,7 @@ export const nutritionEntries = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (t) => [uniqueIndex("nutrition_hc_uid_idx").on(t.hcUid)],
+  (t) => [uniqueIndex("nutrition_hc_uid_idx").on(t.accountId, t.hcUid)],
 );
 
 export const weightEntries = pgTable(

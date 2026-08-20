@@ -13,7 +13,7 @@ import {
 import { localDateOf } from "@/lib/dates";
 import { checkIngestAuth } from "@/lib/ingest/auth";
 import { batchSchema, isCardioType, type IngestType } from "@/lib/ingest/schemas";
-import { getPrimaryCoachAccountId } from "@/lib/auth";
+import { getAccountByReferenceId } from "@/lib/auth";
 import { getSettings } from "@/lib/stats";
 
 // POST /api/ingest/{nutrition|weight|hydration|sleep|exercise|activity}
@@ -49,16 +49,14 @@ export async function POST(
     );
   }
 
-  const { deviceId, source, records } = parsed.data;
+  const { deviceId, referenceId, source, records } = parsed.data;
+  const accountId = await getAccountByReferenceId(referenceId);
+  if (accountId === null) {
+    return NextResponse.json({ error: "Unknown referenceId" }, { status: 401 });
+  }
+
   const db = await getDb();
-  // No account concept here yet — this route authenticates by bearer token,
-  // not session, and Phase 2 replaces it wholesale with the Terra webhook
-  // (which will tag every row with its real account_id via reference_id).
-  // Until then it falls back to the sole coach account for timezone lookup
-  // only; inserted rows below still don't get account_id set, so freshly
-  // synced data won't show up in the now-account-scoped dashboard/stats
-  // until Phase 2 lands.
-  const tz = (await getSettings(await getPrimaryCoachAccountId())).timezone;
+  const tz = (await getSettings(accountId)).timezone;
   let accepted = 0;
 
   try {
@@ -68,6 +66,7 @@ export async function POST(
           await db
             .insert(nutritionEntries)
             .values({
+              accountId,
               hcUid: r.hcUid,
               source,
               localDate: localDateOf(r.startTime, tz),
@@ -82,7 +81,7 @@ export async function POST(
               saturatedFatG: r.saturatedFatG ?? null,
             })
             .onConflictDoUpdate({
-              target: nutritionEntries.hcUid,
+              target: [nutritionEntries.accountId, nutritionEntries.hcUid],
               set: {
                 localDate: localDateOf(r.startTime, tz),
                 mealType: r.mealType,
@@ -103,6 +102,7 @@ export async function POST(
       case "weight": {
         for (const r of records as z.infer<ReturnType<typeof batchSchema<"weight">>>["records"]) {
           const values = {
+            accountId,
             hcUid: r.hcUid,
             source,
             measuredAt: new Date(r.time),
@@ -121,6 +121,7 @@ export async function POST(
       case "hydration": {
         for (const r of records as z.infer<ReturnType<typeof batchSchema<"hydration">>>["records"]) {
           const values = {
+            accountId,
             hcUid: r.hcUid,
             source,
             localDate: localDateOf(r.startTime, tz),
@@ -139,6 +140,7 @@ export async function POST(
           const start = new Date(r.startTime);
           const end = new Date(r.endTime);
           const values = {
+            accountId,
             hcUid: r.hcUid,
             source,
             // A night's sleep is attributed to the wake-up date.
@@ -159,6 +161,7 @@ export async function POST(
       case "exercise": {
         for (const r of records as z.infer<ReturnType<typeof batchSchema<"exercise">>>["records"]) {
           const values = {
+            accountId,
             hcUid: r.hcUid,
             source,
             localDate: localDateOf(r.startTime, tz),
@@ -180,6 +183,7 @@ export async function POST(
       case "activity": {
         for (const r of records as z.infer<ReturnType<typeof batchSchema<"activity">>>["records"]) {
           const values = {
+            accountId,
             hcUid: r.hcUid,
             source,
             localDate: r.date,
@@ -201,6 +205,7 @@ export async function POST(
     }
 
     await db.insert(syncLog).values({
+      accountId,
       deviceId,
       recordCount: records.length,
       acceptedCount: accepted,
@@ -213,6 +218,7 @@ export async function POST(
     await db
       .insert(syncLog)
       .values({
+        accountId,
         deviceId,
         recordCount: records.length,
         acceptedCount: accepted,

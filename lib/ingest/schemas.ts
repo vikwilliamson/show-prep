@@ -10,14 +10,14 @@ export const nutritionRecord = z.object({
   hcUid: z.string().min(1),
   startTime: isoInstant,
   mealType: z.enum(["breakfast", "lunch", "dinner", "snack", "other"]),
-  calories: z.number().nonnegative(),
-  proteinG: z.number().nonnegative().default(0),
-  carbsG: z.number().nonnegative().default(0),
-  fatG: z.number().nonnegative().default(0),
-  fiberG: z.number().nonnegative().nullish(),
-  sugarG: z.number().nonnegative().nullish(),
-  sodiumMg: z.number().nonnegative().nullish(),
-  saturatedFatG: z.number().nonnegative().nullish(),
+  calories: z.number().nonnegative().max(20_000),
+  proteinG: z.number().nonnegative().max(2_000).default(0),
+  carbsG: z.number().nonnegative().max(2_000).default(0),
+  fatG: z.number().nonnegative().max(2_000).default(0),
+  fiberG: z.number().nonnegative().max(2_000).nullish(),
+  sugarG: z.number().nonnegative().max(2_000).nullish(),
+  sodiumMg: z.number().nonnegative().max(50_000).nullish(),
+  saturatedFatG: z.number().nonnegative().max(2_000).nullish(),
 });
 
 export const weightRecord = z.object({
@@ -76,6 +76,9 @@ export type IngestType = keyof typeof recordSchemas;
 export function batchSchema<T extends IngestType>(type: T) {
   return z.object({
     deviceId: z.string().min(1),
+    // The account this batch belongs to — resolved server-side via
+    // getAccountByReferenceId(), never trusted as an accountId directly.
+    referenceId: z.string().uuid(),
     source: z.enum(["myfitnesspal", "samsung_health", "health_connect", "manual"]).default("health_connect"),
     records: z.array(recordSchemas[type]).max(2000),
   });
