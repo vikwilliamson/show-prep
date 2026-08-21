@@ -102,11 +102,27 @@ export function requireAccount(req: NextRequest): SessionPayload | NextResponse 
   return session;
 }
 
-/** Single-tenant fallback for the two routes not yet migrated to
- *  session-based account resolution: /api/ingest (Phase 2 replaces its whole
- *  auth path with Terra) and /api/analysis (Phase 3). Resolves to the
- *  earliest-created coach account, mirroring today's de facto behavior where
- *  there's exactly one coach and everything implicitly belongs to them. */
+/** Resolves an account's opaque referenceId to its internal accountId — the
+ *  mobile ingest route's identity mechanism (the shared bearer token proves
+ *  "this is a legitimate companion client"; referenceId says whose data it
+ *  is). Returns null for an unknown referenceId; callers must reject rather
+ *  than fall back to a default account. */
+export async function getAccountByReferenceId(referenceId: string): Promise<number | null> {
+  const db = await getDb();
+  const [row] = await db
+    .select({ id: accounts.id })
+    .from(accounts)
+    .where(eq(accounts.referenceId, referenceId))
+    .limit(1);
+  return row?.id ?? null;
+}
+
+/** Single-tenant fallback for /api/analysis, the one route not yet migrated
+ *  to real account resolution (Phase 3 wires this properly — it's always
+ *  called from an already-authenticated dashboard, so there's no
+ *  ingest-style auth-mechanism blocker). Resolves to the earliest-created
+ *  coach account, mirroring today's de facto behavior where there's exactly
+ *  one coach and everything implicitly belongs to them. */
 export async function getPrimaryCoachAccountId(): Promise<number> {
   const db = await getDb();
   const [row] = await db

@@ -132,7 +132,7 @@ export const nutritionEntries = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (t) => [uniqueIndex("nutrition_hc_uid_idx").on(t.hcUid)],
+  (t) => [uniqueIndex("nutrition_hc_uid_idx").on(t.accountId, t.hcUid)],
 );
 
 export const weightEntries = pgTable(
@@ -147,7 +147,7 @@ export const weightEntries = pgTable(
     weightLbs: real("weight_lbs").notNull(),
     bodyFatPct: real("body_fat_pct"),
   },
-  (t) => [uniqueIndex("weight_hc_uid_idx").on(t.hcUid)],
+  (t) => [uniqueIndex("weight_hc_uid_idx").on(t.accountId, t.hcUid)],
 );
 
 export const hydrationEntries = pgTable(
@@ -160,7 +160,7 @@ export const hydrationEntries = pgTable(
     localDate: date("local_date").notNull(),
     volumeMl: real("volume_ml").notNull(),
   },
-  (t) => [uniqueIndex("hydration_hc_uid_idx").on(t.hcUid)],
+  (t) => [uniqueIndex("hydration_hc_uid_idx").on(t.accountId, t.hcUid)],
 );
 
 export const workouts = pgTable(
@@ -178,7 +178,7 @@ export const workouts = pgTable(
     caloriesBurned: real("calories_burned"),
     title: text("title"),
   },
-  (t) => [uniqueIndex("workout_hc_uid_idx").on(t.hcUid)],
+  (t) => [uniqueIndex("workout_hc_uid_idx").on(t.accountId, t.hcUid)],
 );
 
 export const sleepSessions = pgTable(
@@ -194,7 +194,7 @@ export const sleepSessions = pgTable(
     durationMin: real("duration_min").notNull(),
     stages: jsonb("stages"),
   },
-  (t) => [uniqueIndex("sleep_hc_uid_idx").on(t.hcUid)],
+  (t) => [uniqueIndex("sleep_hc_uid_idx").on(t.accountId, t.hcUid)],
 );
 
 export const dailyActivity = pgTable(
@@ -210,8 +210,8 @@ export const dailyActivity = pgTable(
     totalCalories: real("total_calories"),
   },
   (t) => [
-    uniqueIndex("activity_hc_uid_idx").on(t.hcUid),
-    uniqueIndex("activity_local_date_idx").on(t.localDate),
+    uniqueIndex("activity_hc_uid_idx").on(t.accountId, t.hcUid),
+    uniqueIndex("activity_local_date_idx").on(t.accountId, t.localDate),
   ],
 );
 
