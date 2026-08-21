@@ -1,8 +1,14 @@
 import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
-import { ensureInitialized, readAll } from "../src/healthConnect";
+import {
+  ensureInitialized,
+  readAll,
+  RECORD_TYPES,
+  requestAllPermissions,
+} from "../src/healthConnect";
 import {
   __initializeCalls,
+  __permissionCalls,
   __readCalls,
   __reset,
   __setPages,
@@ -16,6 +22,17 @@ test("ensureInitialized calls initialize once and memoizes", async () => {
   assert.equal(await ensureInitialized(), true);
   assert.equal(await ensureInitialized(), true);
   assert.equal(__initializeCalls(), 1);
+});
+
+test("RECORD_TYPES is narrowed to Nutrition only", () => {
+  assert.deepEqual(RECORD_TYPES, ["Nutrition"]);
+});
+
+test("requestAllPermissions requests read access to Nutrition only", async () => {
+  await requestAllPermissions();
+  assert.deepEqual(__permissionCalls().at(-1), [
+    { accessType: "read", recordType: "Nutrition" },
+  ]);
 });
 
 test("readAll follows pageTokens and concatenates every page", async () => {
@@ -38,9 +55,9 @@ test("readAll follows pageTokens and concatenates every page", async () => {
 });
 
 test("readAll forwards the requested time range", async () => {
-  __setRecords("Weight", []);
-  await readAll("Weight", "2026-08-05T00:00:00Z", "2026-08-11T00:00:00Z");
-  const call = __readCalls.find((c) => c.recordType === "Weight");
+  __setRecords("Nutrition", []);
+  await readAll("Nutrition", "2026-08-05T00:00:00Z", "2026-08-11T00:00:00Z");
+  const call = __readCalls.find((c) => c.recordType === "Nutrition");
   assert.ok(call);
   assert.deepEqual(call.options.timeRangeFilter, {
     operator: "between",
@@ -50,6 +67,6 @@ test("readAll forwards the requested time range", async () => {
 });
 
 test("readAll returns [] when a type has no records", async () => {
-  __setRecords("SleepSession", []);
-  assert.deepEqual(await readAll("SleepSession", "a", "z"), []);
+  __setRecords("Nutrition", []);
+  assert.deepEqual(await readAll("Nutrition", "a", "z"), []);
 });
