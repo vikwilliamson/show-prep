@@ -9,7 +9,10 @@ This version has breaking changes — APIs, conventions, and file structure may 
 ## Stack
 - Next.js (App Router) + TypeScript, hosted on Vercel
 - Package manager: pnpm (this is a pnpm workspace — `mobile/` is a separate
-  workspace package with its own toolchain, not covered by the rules below)
+  workspace package with its own toolchain, not covered by the rules below.
+  Its typecheck + unit tests do run in CI as their own steps — see
+  "Commands" — but it has no lint script and isn't subject to the
+  TDD-pairing hook, which only checks `app/`, `lib/`, `components/`)
 - Unit tests: Vitest
 - E2E tests: Playwright
 - Health data: a self-hosted health-data aggregator (currently Open
@@ -25,6 +28,8 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - Lint: `pnpm lint`
 - Typecheck: `pnpm typecheck`
 - Build: `pnpm build`
+- Mobile typecheck: `pnpm --filter gamma-companion typecheck`
+- Mobile unit tests: `pnpm --filter gamma-companion test`
 
 ## TDD — hard requirement, not a suggestion
 - Write or update a failing test BEFORE writing the implementation, for
