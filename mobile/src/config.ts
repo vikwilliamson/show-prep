@@ -5,6 +5,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 export interface CompanionConfig {
   serverUrl: string; // e.g. https://prep.example.com or http://192.168.1.10:3210
   apiKey: string; // INGEST_API_KEY on the server ("" if the server is open)
+  referenceId: string; // pairing ID from the server's Settings page — says whose account this is
   deviceId: string;
 }
 
@@ -17,6 +18,7 @@ export async function loadConfig(): Promise<CompanionConfig> {
   return {
     serverUrl: "",
     apiKey: "",
+    referenceId: "",
     deviceId: `galaxy-${Math.random().toString(36).slice(2, 8)}`,
   };
 }

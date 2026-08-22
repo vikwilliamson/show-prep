@@ -51,6 +51,7 @@ async function post(
         },
         body: JSON.stringify({
           deviceId: config.deviceId,
+          referenceId: config.referenceId,
           source,
           records: batch,
         }),
@@ -75,6 +76,9 @@ export async function runSync(): Promise<SyncResult> {
   const config = await loadConfig();
   if (!config.serverUrl) {
     return { ok: false, detail: "Server URL not configured." };
+  }
+  if (!config.referenceId) {
+    return { ok: false, detail: "Pairing ID not configured." };
   }
 
   const now = new Date();

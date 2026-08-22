@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import {
   createSessionToken,
   getAccountByReferenceId,
+  getAccountReferenceId,
   getCurrentAccount,
   getPrimaryCoachAccountId,
   hashPasscode,
@@ -112,6 +113,24 @@ test("getAccountByReferenceId resolves a known account's referenceId to its acco
 test("getAccountByReferenceId returns null for an unknown referenceId", async () => {
   const resolved = await getAccountByReferenceId("00000000-0000-0000-0000-000000000000");
   assert.equal(resolved, null);
+});
+
+test("getAccountReferenceId returns a known account's referenceId", async () => {
+  const db = await getDb();
+  const passcodeHash = await hashPasscode("get-reference-id-test");
+  const [row] = await db
+    .insert(accounts)
+    .values({ name: "Get Reference Id Test", role: "client", passcodeHash })
+    .returning();
+  try {
+    assert.equal(await getAccountReferenceId(row.id), row.referenceId);
+  } finally {
+    await db.delete(accounts).where(eq(accounts.id, row.id));
+  }
+});
+
+test("getAccountReferenceId returns null for an unknown accountId", async () => {
+  assert.equal(await getAccountReferenceId(-1), null);
 });
 
 test("getPrimaryCoachAccountId resolves to an existing coach account", async () => {

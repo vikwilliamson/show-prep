@@ -43,8 +43,12 @@ In the app:
 1. Set **Server URL** (e.g. `http://<your-mac-ip>:3210` on the same Wi-Fi, or
    your deployed URL — must be HTTPS off-LAN).
 2. Set the **Ingest API key** if the server has `INGEST_API_KEY` configured.
-3. Tap **Grant HC permissions**, approve all read permissions.
-4. Tap **Sync now**.
+3. Set **Pairing ID** — copy it from the web app's **Settings** page
+   ("Companion pairing ID" section, top of the page). This is how the
+   server knows which account your synced data belongs to; syncing without
+   it fails immediately with "Pairing ID not configured."
+4. Tap **Grant HC permissions**, approve all read permissions.
+5. Tap **Sync now**.
 
 > Health Connect only exposes data from up to 30 days before permission was
 > first granted, and background reads require the app to have been used
@@ -112,6 +116,10 @@ Launch **Gamma Companion** on the phone and set:
   (Vercel dashboard → the `show-prep` project → Settings → Environment
   Variables → `INGEST_API_KEY` → Reveal). The production ingest API is
   bearer-gated, so this is required.
+- **Pairing ID:** on **show-prep-gamma.vercel.app**, sign in and open
+  **Settings** — copy the "Companion pairing ID" value at the top of the
+  page and paste it in. This says whose account your synced rows belong to;
+  sync fails immediately without it.
 
 Leave **Device ID** as the auto-generated `galaxy-…` value — it tags your rows'
 provenance so you can tell them apart from seed data.

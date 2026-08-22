@@ -7,12 +7,13 @@ import { __readCalls, __reset as resetHc, __setRecords } from "./mocks/react-nat
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const recent = () => new Date(Date.now() - 3_600_000).toISOString();
+const REFERENCE_ID = "80971019-5064-4009-b9e9-1b34f94e1284";
 
 interface FetchCall {
   url: string;
   method: string;
   headers: Record<string, string>;
-  body: { deviceId: string; source: string; records: unknown[] };
+  body: { deviceId: string; referenceId: string; source: string; records: unknown[] };
 }
 
 type Responder = (url: string, body: FetchCall["body"]) => {
@@ -88,8 +89,26 @@ test("refuses to sync when the server URL is unset", async () => {
   assert.equal(calls.length, 0);
 });
 
+test("refuses to sync when the pairing ID (referenceId) is unset", async () => {
+  await saveConfig({
+    serverUrl: "https://prep.example.com",
+    apiKey: "",
+    referenceId: "",
+    deviceId: "d",
+  });
+  const calls = installFetch();
+  const result = await runSync();
+  assert.deepEqual(result, { ok: false, detail: "Pairing ID not configured." });
+  assert.equal(calls.length, 0);
+});
+
 test("the sync plan is narrowed to nutrition only", async () => {
-  await saveConfig({ serverUrl: "https://prep.example.com", apiKey: "k", deviceId: "galaxy-x" });
+  await saveConfig({
+    serverUrl: "https://prep.example.com",
+    apiKey: "k",
+    referenceId: REFERENCE_ID,
+    deviceId: "galaxy-x",
+  });
   seedNutrition();
   // Data is present for the old five types too — the narrowed plan must
   // never read or post any of it.
@@ -111,7 +130,12 @@ test("the sync plan is narrowed to nutrition only", async () => {
 });
 
 test("happy path posts nutrition and records status + cursor", async () => {
-  await saveConfig({ serverUrl: "https://prep.example.com", apiKey: "k", deviceId: "galaxy-x" });
+  await saveConfig({
+    serverUrl: "https://prep.example.com",
+    apiKey: "k",
+    referenceId: REFERENCE_ID,
+    deviceId: "galaxy-x",
+  });
   seedNutrition();
   const calls = installFetch();
 
@@ -126,6 +150,7 @@ test("happy path posts nutrition and records status + cursor", async () => {
   assert.equal(nutrition.headers.Authorization, "Bearer k");
   assert.equal(nutrition.headers["Content-Type"], "application/json");
   assert.equal(nutrition.body.deviceId, "galaxy-x");
+  assert.equal(nutrition.body.referenceId, REFERENCE_ID);
   assert.equal(nutrition.body.source, "myfitnesspal");
 
   const status = await loadStatus();
@@ -135,7 +160,12 @@ test("happy path posts nutrition and records status + cursor", async () => {
 });
 
 test("omits the Authorization header when no API key is set", async () => {
-  await saveConfig({ serverUrl: "https://prep.example.com", apiKey: "", deviceId: "galaxy-x" });
+  await saveConfig({
+    serverUrl: "https://prep.example.com",
+    apiKey: "",
+    referenceId: REFERENCE_ID,
+    deviceId: "galaxy-x",
+  });
   seedNutrition();
   const calls = installFetch();
   await runSync();
@@ -143,7 +173,12 @@ test("omits the Authorization header when no API key is set", async () => {
 });
 
 test("trims a trailing slash from the server URL", async () => {
-  await saveConfig({ serverUrl: "https://prep.example.com/", apiKey: "", deviceId: "d" });
+  await saveConfig({
+    serverUrl: "https://prep.example.com/",
+    apiKey: "",
+    referenceId: REFERENCE_ID,
+    deviceId: "d",
+  });
   seedNutrition();
   const calls = installFetch();
   await runSync();
@@ -152,7 +187,12 @@ test("trims a trailing slash from the server URL", async () => {
 });
 
 test("first sync reaches back 30 days", async () => {
-  await saveConfig({ serverUrl: "https://prep.example.com", apiKey: "", deviceId: "d" });
+  await saveConfig({
+    serverUrl: "https://prep.example.com",
+    apiKey: "",
+    referenceId: REFERENCE_ID,
+    deviceId: "d",
+  });
   seedNutrition();
   installFetch();
 
@@ -168,7 +208,12 @@ test("first sync reaches back 30 days", async () => {
 });
 
 test("later syncs re-read a 24h overlap before the last cursor", async () => {
-  await saveConfig({ serverUrl: "https://prep.example.com", apiKey: "", deviceId: "d" });
+  await saveConfig({
+    serverUrl: "https://prep.example.com",
+    apiKey: "",
+    referenceId: REFERENCE_ID,
+    deviceId: "d",
+  });
   seedNutrition();
   const cursorIso = new Date(Date.now() - 5 * DAY_MS).toISOString();
   await setCursor("nutrition", cursorIso);
@@ -182,7 +227,12 @@ test("later syncs re-read a 24h overlap before the last cursor", async () => {
 });
 
 test("a sync failure is reported and the cursor is not advanced", async () => {
-  await saveConfig({ serverUrl: "https://prep.example.com", apiKey: "", deviceId: "d" });
+  await saveConfig({
+    serverUrl: "https://prep.example.com",
+    apiKey: "",
+    referenceId: REFERENCE_ID,
+    deviceId: "d",
+  });
   seedNutrition();
   installFetch(() => ({ ok: false, status: 500 }));
 
@@ -194,7 +244,12 @@ test("a sync failure is reported and the cursor is not advanced", async () => {
 });
 
 test("batches posts over 500 records and sums accepted counts", async () => {
-  await saveConfig({ serverUrl: "https://prep.example.com", apiKey: "", deviceId: "d" });
+  await saveConfig({
+    serverUrl: "https://prep.example.com",
+    apiKey: "",
+    referenceId: REFERENCE_ID,
+    deviceId: "d",
+  });
   const many = Array.from({ length: 501 }, (_, i) => ({
     metadata: { id: `n${i}` },
     startTime: recent(),
@@ -214,7 +269,12 @@ test("batches posts over 500 records and sums accepted counts", async () => {
 });
 
 test("no records makes no request but still advances the cursor", async () => {
-  await saveConfig({ serverUrl: "https://prep.example.com", apiKey: "", deviceId: "d" });
+  await saveConfig({
+    serverUrl: "https://prep.example.com",
+    apiKey: "",
+    referenceId: REFERENCE_ID,
+    deviceId: "d",
+  });
   __setRecords("Nutrition", []);
   const calls = installFetch();
 

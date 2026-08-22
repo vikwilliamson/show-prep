@@ -117,6 +117,20 @@ export async function getAccountByReferenceId(referenceId: string): Promise<numb
   return row?.id ?? null;
 }
 
+/** Inverse of getAccountByReferenceId — looks up the referenceId a signed-in
+ *  account should paste into the mobile companion app to pair it. Safe to
+ *  expose to the account's own authenticated session (Settings page); it's
+ *  an opaque UUID, not a secret credential. */
+export async function getAccountReferenceId(accountId: number): Promise<string | null> {
+  const db = await getDb();
+  const [row] = await db
+    .select({ referenceId: accounts.referenceId })
+    .from(accounts)
+    .where(eq(accounts.id, accountId))
+    .limit(1);
+  return row?.referenceId ?? null;
+}
+
 /** Single-tenant fallback for /api/analysis, the one route not yet migrated
  *  to real account resolution (Phase 3 wires this properly — it's always
  *  called from an already-authenticated dashboard, so there's no
