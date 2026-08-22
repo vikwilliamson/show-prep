@@ -51,7 +51,12 @@ test("defineTask registered the sync task at module load", () => {
 });
 
 test("task returns Success when the sync succeeds", async () => {
-  await saveConfig({ serverUrl: "https://prep.example.com", apiKey: "", deviceId: "d" });
+  await saveConfig({
+    serverUrl: "https://prep.example.com",
+    apiKey: "",
+    referenceId: "80971019-5064-4009-b9e9-1b34f94e1284",
+    deviceId: "d",
+  });
   __setRecords("Nutrition", [
     { metadata: { id: "n1" }, startTime: recent(), mealType: 1, energy: { inKilocalories: 500 } },
   ]);
@@ -66,7 +71,12 @@ test("task returns Failed when the sync reports failure", async () => {
 });
 
 test("task returns Failed (does not throw) when runSync itself throws", async () => {
-  await saveConfig({ serverUrl: "https://prep.example.com", apiKey: "", deviceId: "d" });
+  await saveConfig({
+    serverUrl: "https://prep.example.com",
+    apiKey: "",
+    referenceId: "80971019-5064-4009-b9e9-1b34f94e1284",
+    deviceId: "d",
+  });
   __failGets(true); // loadConfig's getItem throws inside runSync
   assert.equal(await runTask(), BackgroundTaskResult.Failed);
 });

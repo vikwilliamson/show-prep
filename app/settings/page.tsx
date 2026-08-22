@@ -27,8 +27,10 @@ interface TargetsShape {
 export default function SettingsPage() {
   const [s, setS] = useState<SettingsShape | null>(null);
   const [t, setT] = useState<TargetsShape | null>(null);
+  const [referenceId, setReferenceId] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     fetch("/api/settings")
@@ -36,8 +38,23 @@ export default function SettingsPage() {
       .then((json) => {
         setS(json.settings);
         setT(json.targets);
+        setReferenceId(json.referenceId);
       });
   }, []);
+
+  async function copyReferenceId() {
+    if (!referenceId) return;
+    try {
+      await navigator.clipboard.writeText(referenceId);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard permission denied (some browsers require a user-initiated
+      // event they don't consider this to be, or block it outright) — the
+      // field is still selectable, so fall back to select-then-Cmd/Ctrl+C.
+      setNote("Couldn't copy automatically — select the ID above and copy it manually.");
+    }
+  }
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -118,6 +135,31 @@ export default function SettingsPage() {
 
   return (
     <form onSubmit={save} className="max-w-2xl space-y-6">
+      <section className="rounded-xl border border-borderc bg-surface p-4">
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted">
+          Companion pairing ID
+        </h2>
+        <p className="mb-3 text-xs text-muted">
+          Paste this into the mobile companion app&apos;s Pairing ID field so
+          it knows which account to sync your Health Connect data to.
+        </p>
+        <div className="flex items-center gap-2">
+          <input
+            readOnly
+            value={referenceId ?? ""}
+            onFocus={(e) => e.target.select()}
+            className="w-full rounded-md border border-borderc bg-background px-3 py-1.5 font-mono text-sm"
+          />
+          <button
+            type="button"
+            onClick={copyReferenceId}
+            className="shrink-0 rounded-md border border-borderc px-3 py-1.5 text-sm hover:bg-background"
+          >
+            {copied ? "Copied" : "Copy"}
+          </button>
+        </div>
+      </section>
+
       <section className="rounded-xl border border-borderc bg-surface p-4">
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted">
           Target

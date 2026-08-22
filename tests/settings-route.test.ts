@@ -57,6 +57,17 @@ test("GET /api/settings returns a default row for a brand-new account", async ()
   assert.equal(json.targets.accountId, a);
 });
 
+test("GET /api/settings returns the caller's own companion referenceId", async () => {
+  const a = await makeAccount("Settings Route Test ReferenceId");
+  const db = await getDb();
+  const [row] = await db.select().from(accounts).where(eq(accounts.id, a));
+
+  const res = await GET(requestWithSession("GET", a));
+  const json = await res.json();
+
+  assert.equal(json.referenceId, row.referenceId);
+});
+
 test("PUT /api/settings only ever updates the caller's own row", async () => {
   const a = await makeAccount("Settings Route Test Owner");
   const b = await makeAccount("Settings Route Test Other");

@@ -16,6 +16,7 @@ test("loadConfig returns empty defaults with a generated deviceId", async () => 
   const config = await loadConfig();
   assert.equal(config.serverUrl, "");
   assert.equal(config.apiKey, "");
+  assert.equal(config.referenceId, "");
   assert.match(config.deviceId, /^galaxy-[a-z0-9]{1,6}$/);
 });
 
@@ -23,12 +24,14 @@ test("saveConfig round-trips through storage", async () => {
   await saveConfig({
     serverUrl: "https://prep.example.com",
     apiKey: "secret",
+    referenceId: "80971019-5064-4009-b9e9-1b34f94e1284",
     deviceId: "galaxy-abc123",
   });
   const config = await loadConfig();
   assert.deepEqual(config, {
     serverUrl: "https://prep.example.com",
     apiKey: "secret",
+    referenceId: "80971019-5064-4009-b9e9-1b34f94e1284",
     deviceId: "galaxy-abc123",
   });
 });

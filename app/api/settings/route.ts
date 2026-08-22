@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { requireAccount } from "@/lib/auth";
+import { getAccountReferenceId, requireAccount } from "@/lib/auth";
 import { getDb, settings, weeklyTargets } from "@/lib/db";
 import { getSettings, getTargets } from "@/lib/stats";
 import { PROGRAM_TYPES } from "@/lib/program-types";
@@ -10,11 +10,12 @@ export async function GET(req: NextRequest) {
   const session = requireAccount(req);
   if (session instanceof NextResponse) return session;
 
-  const [s, t] = await Promise.all([
+  const [s, t, referenceId] = await Promise.all([
     getSettings(session.accountId),
     getTargets(session.accountId),
+    getAccountReferenceId(session.accountId),
   ]);
-  return NextResponse.json({ settings: s, targets: t });
+  return NextResponse.json({ settings: s, targets: t, referenceId });
 }
 
 const putSchema = z.object({

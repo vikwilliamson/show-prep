@@ -111,6 +111,16 @@ export default function App() {
         secureTextEntry
       />
 
+      <Text style={styles.label}>Pairing ID</Text>
+      <TextInput
+        style={styles.input}
+        value={config.referenceId}
+        onChangeText={(v) => update({ referenceId: v })}
+        placeholder="Copy from the server's Settings page"
+        placeholderTextColor="#666"
+        autoCapitalize="none"
+      />
+
       <Text style={styles.label}>Device ID</Text>
       <TextInput
         style={styles.input}

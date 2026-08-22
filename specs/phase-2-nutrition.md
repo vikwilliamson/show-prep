@@ -89,6 +89,23 @@ list currently there.
   fields ≤ 2,000, sodium ≤ 50,000mg), and `lib/ingest/auth.ts`'s bearer
   comparison is now constant-time (`TECH_DEBT.md` §1.5).
 
+### 2026-08-22 — companion pairing ID gap (VIK-19)
+
+Discovered prepping VIK-16's real-device validation: §1's `referenceId`
+requirement (a UUID, resolved server-side to an `accountId`, rejected with
+401/422 if missing or unresolvable) was landed backend-only. Neither the
+mobile companion (`config.ts`/`sync.ts`) nor the web app ever surfaced a
+`referenceId` for a user to send — a fresh install 422s on the first sync,
+full stop. Not scoped to §1 (backend) or §2 below (Android narrowing); it's
+the gap between them.
+
+Fixed as VIK-19: `getAccountReferenceId()` in `lib/auth.ts`, surfaced as a
+read-only, copyable "Companion pairing ID" on the web Settings page
+(`app/settings/page.tsx`), and a new `referenceId` field in the mobile
+app's config screen sent on every sync. This is also the answer to "how
+does a new tester get paired to their account" for product-testing
+onboarding — copy the ID from Settings, paste it into the app once.
+
 ## 2. Android — validate and narrow the existing pipeline
 
 Already built, never run against real hardware (`HANDOFF.md`). This pass:

@@ -7,12 +7,13 @@ import { __readCalls, __reset as resetHc, __setRecords } from "./mocks/react-nat
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const recent = () => new Date(Date.now() - 3_600_000).toISOString();
+const REFERENCE_ID = "80971019-5064-4009-b9e9-1b34f94e1284";
 
 interface FetchCall {
   url: string;
   method: string;
   headers: Record<string, string>;
-  body: { deviceId: string; source: string; records: unknown[] };
+  body: { deviceId: string; referenceId: string; source: string; records: unknown[] };
 }
 
 type Responder = (url: string, body: FetchCall["body"]) => {
@@ -76,8 +77,26 @@ test("refuses to sync when the server URL is unset", async () => {
   assert.equal(calls.length, 0);
 });
 
+test("refuses to sync when the pairing ID (referenceId) is unset", async () => {
+  await saveConfig({
+    serverUrl: "https://prep.example.com",
+    apiKey: "",
+    referenceId: "",
+    deviceId: "d",
+  });
+  const calls = installFetch();
+  const result = await runSync();
+  assert.deepEqual(result, { ok: false, detail: "Pairing ID not configured." });
+  assert.equal(calls.length, 0);
+});
+
 test("happy path posts every type and records status + cursors", async () => {
-  await saveConfig({ serverUrl: "https://prep.example.com", apiKey: "k", deviceId: "galaxy-x" });
+  await saveConfig({
+    serverUrl: "https://prep.example.com",
+    apiKey: "k",
+    referenceId: REFERENCE_ID,
+    deviceId: "galaxy-x",
+  });
   seedAllTypes();
   const calls = installFetch();
 
@@ -101,8 +120,10 @@ test("happy path posts every type and records status + cursors", async () => {
   assert.equal(nutrition.headers.Authorization, "Bearer k");
   assert.equal(nutrition.headers["Content-Type"], "application/json");
   assert.equal(nutrition.body.deviceId, "galaxy-x");
+  assert.equal(nutrition.body.referenceId, REFERENCE_ID);
   assert.equal(nutrition.body.source, "myfitnesspal");
   assert.equal(calls.find((c) => c.url.endsWith("/weight"))!.body.source, "samsung_health");
+  assert.ok(calls.every((c) => c.body.referenceId === REFERENCE_ID));
 
   // Status persisted and cursors advanced for every type.
   const status = await loadStatus();
@@ -114,7 +135,12 @@ test("happy path posts every type and records status + cursors", async () => {
 });
 
 test("omits the Authorization header when no API key is set", async () => {
-  await saveConfig({ serverUrl: "https://prep.example.com", apiKey: "", deviceId: "galaxy-x" });
+  await saveConfig({
+    serverUrl: "https://prep.example.com",
+    apiKey: "",
+    referenceId: REFERENCE_ID,
+    deviceId: "galaxy-x",
+  });
   seedAllTypes();
   const calls = installFetch();
   await runSync();
@@ -122,7 +148,12 @@ test("omits the Authorization header when no API key is set", async () => {
 });
 
 test("trims a trailing slash from the server URL", async () => {
-  await saveConfig({ serverUrl: "https://prep.example.com/", apiKey: "", deviceId: "d" });
+  await saveConfig({
+    serverUrl: "https://prep.example.com/",
+    apiKey: "",
+    referenceId: REFERENCE_ID,
+    deviceId: "d",
+  });
   seedAllTypes();
   const calls = installFetch();
   await runSync();
@@ -131,7 +162,12 @@ test("trims a trailing slash from the server URL", async () => {
 });
 
 test("first sync reaches back 30 days; later syncs re-read a 24h overlap", async () => {
-  await saveConfig({ serverUrl: "https://prep.example.com", apiKey: "", deviceId: "d" });
+  await saveConfig({
+    serverUrl: "https://prep.example.com",
+    apiKey: "",
+    referenceId: REFERENCE_ID,
+    deviceId: "d",
+  });
   seedAllTypes();
   // weight already has a cursor -> incremental; nutrition has none -> first sync.
   const cursorIso = new Date(Date.now() - 5 * DAY_MS).toISOString();
@@ -154,7 +190,12 @@ test("first sync reaches back 30 days; later syncs re-read a 24h overlap", async
 });
 
 test("a failing type is isolated: others still sync and its cursor is not advanced", async () => {
-  await saveConfig({ serverUrl: "https://prep.example.com", apiKey: "", deviceId: "d" });
+  await saveConfig({
+    serverUrl: "https://prep.example.com",
+    apiKey: "",
+    referenceId: REFERENCE_ID,
+    deviceId: "d",
+  });
   seedAllTypes();
   installFetch((url) => ({ ok: !url.endsWith("/nutrition"), status: 500 }));
 
@@ -172,7 +213,12 @@ test("a failing type is isolated: others still sync and its cursor is not advanc
 });
 
 test("batches posts over 500 records and sums accepted counts", async () => {
-  await saveConfig({ serverUrl: "https://prep.example.com", apiKey: "", deviceId: "d" });
+  await saveConfig({
+    serverUrl: "https://prep.example.com",
+    apiKey: "",
+    referenceId: REFERENCE_ID,
+    deviceId: "d",
+  });
   const many = Array.from({ length: 501 }, (_, i) => ({
     metadata: { id: `n${i}` },
     startTime: recent(),
@@ -192,7 +238,12 @@ test("batches posts over 500 records and sums accepted counts", async () => {
 });
 
 test("a type with no records makes no request but still advances its cursor", async () => {
-  await saveConfig({ serverUrl: "https://prep.example.com", apiKey: "", deviceId: "d" });
+  await saveConfig({
+    serverUrl: "https://prep.example.com",
+    apiKey: "",
+    referenceId: REFERENCE_ID,
+    deviceId: "d",
+  });
   // Only nutrition has data; everything else is empty.
   __setRecords("Nutrition", [
     { metadata: { id: "n1" }, startTime: recent(), mealType: 1, energy: { inKilocalories: 500 } },
