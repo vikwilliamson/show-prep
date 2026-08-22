@@ -29,8 +29,16 @@ export async function initialize(): Promise<boolean> {
   return true;
 }
 
-export async function requestPermission(perms: unknown): Promise<unknown> {
+const permissionCalls: unknown[][] = [];
+
+export async function requestPermission(perms: unknown[]): Promise<unknown> {
+  permissionCalls.push(perms);
   return perms;
+}
+
+/** Test helper: every permissions array passed to requestPermission. */
+export function __permissionCalls(): unknown[][] {
+  return permissionCalls;
 }
 
 export async function readRecords(
@@ -85,6 +93,7 @@ export function __reset(): void {
   pagedData.clear();
   pageCursor.clear();
   __readCalls.length = 0;
+  permissionCalls.length = 0;
 }
 
 /** Test helper: how many times initialize() has been called. */

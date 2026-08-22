@@ -45,12 +45,24 @@ function installFetch(responder: Responder = () => ({ ok: true })): FetchCall[] 
   return calls;
 }
 
-/** Populate one plausible record for every HC type the sync reads. */
-function seedAllTypes() {
-  const t = recent();
+function seedNutrition() {
   __setRecords("Nutrition", [
-    { metadata: { id: "n1" }, startTime: t, mealType: 1, energy: { inKilocalories: 500 } },
+    {
+      metadata: { id: "n1" },
+      startTime: recent(),
+      mealType: 1,
+      energy: { inKilocalories: 500 },
+    },
   ]);
+}
+
+/**
+ * Populate every legacy HC record type the old six-type pipeline used to
+ * read, including the five now-dropped ones. Used to prove the sync plan is
+ * narrowed to nutrition only — not just that nutrition still works.
+ */
+function seedLegacyNonNutritionTypes() {
+  const t = recent();
   __setRecords("Weight", [{ metadata: { id: "w1" }, time: t, weight: { inKilograms: 88 } }]);
   __setRecords("Hydration", [{ metadata: { id: "h1" }, startTime: t, volume: { inLiters: 0.5 } }]);
   __setRecords("SleepSession", [{ metadata: { id: "s1" }, startTime: t, endTime: t }]);
@@ -90,48 +102,61 @@ test("refuses to sync when the pairing ID (referenceId) is unset", async () => {
   assert.equal(calls.length, 0);
 });
 
-test("happy path posts every type and records status + cursors", async () => {
+test("the sync plan is narrowed to nutrition only", async () => {
   await saveConfig({
     serverUrl: "https://prep.example.com",
     apiKey: "k",
     referenceId: REFERENCE_ID,
     deviceId: "galaxy-x",
   });
-  seedAllTypes();
+  seedNutrition();
+  // Data is present for the old five types too — the narrowed plan must
+  // never read or post any of it.
+  seedLegacyNonNutritionTypes();
+  const calls = installFetch();
+
+  const result = await runSync();
+
+  assert.equal(result.detail, "nutrition: 1");
+  assert.equal(calls.length, 1);
+  assert.ok(calls[0].url.endsWith("/api/ingest/nutrition"));
+
+  const readTypes = new Set(__readCalls.map((c) => c.recordType));
+  assert.deepEqual([...readTypes], ["Nutrition"]);
+
+  for (const type of ["weight", "hydration", "sleep", "exercise", "activity"]) {
+    assert.equal(await getCursor(type), null, `${type} cursor should never be set`);
+  }
+});
+
+test("happy path posts nutrition and records status + cursor", async () => {
+  await saveConfig({
+    serverUrl: "https://prep.example.com",
+    apiKey: "k",
+    referenceId: REFERENCE_ID,
+    deviceId: "galaxy-x",
+  });
+  seedNutrition();
   const calls = installFetch();
 
   const result = await runSync();
 
   assert.equal(result.ok, true);
-  // One accepted line per ingest type, in plan order.
-  assert.deepEqual(result.detail.split("\n"), [
-    "nutrition: 1",
-    "weight: 1",
-    "hydration: 1",
-    "sleep: 1",
-    "exercise: 1",
-    "activity: 1",
-  ]);
+  assert.equal(result.detail, "nutrition: 1");
 
-  // Every type posted exactly once.
-  assert.equal(calls.length, 6);
-  const nutrition = calls.find((c) => c.url.endsWith("/api/ingest/nutrition"))!;
+  assert.equal(calls.length, 1);
+  const nutrition = calls[0];
   assert.equal(nutrition.method, "POST");
   assert.equal(nutrition.headers.Authorization, "Bearer k");
   assert.equal(nutrition.headers["Content-Type"], "application/json");
   assert.equal(nutrition.body.deviceId, "galaxy-x");
   assert.equal(nutrition.body.referenceId, REFERENCE_ID);
   assert.equal(nutrition.body.source, "myfitnesspal");
-  assert.equal(calls.find((c) => c.url.endsWith("/weight"))!.body.source, "samsung_health");
-  assert.ok(calls.every((c) => c.body.referenceId === REFERENCE_ID));
 
-  // Status persisted and cursors advanced for every type.
   const status = await loadStatus();
   assert.ok(status.lastRunAt);
   assert.equal(status.lastResult, result.detail);
-  for (const type of ["nutrition", "weight", "hydration", "sleep", "exercise", "activity"]) {
-    assert.ok(await getCursor(type), `${type} cursor should be set`);
-  }
+  assert.ok(await getCursor("nutrition"));
 });
 
 test("omits the Authorization header when no API key is set", async () => {
@@ -141,7 +166,7 @@ test("omits the Authorization header when no API key is set", async () => {
     referenceId: REFERENCE_ID,
     deviceId: "galaxy-x",
   });
-  seedAllTypes();
+  seedNutrition();
   const calls = installFetch();
   await runSync();
   assert.equal(calls[0].headers.Authorization, undefined);
@@ -154,24 +179,21 @@ test("trims a trailing slash from the server URL", async () => {
     referenceId: REFERENCE_ID,
     deviceId: "d",
   });
-  seedAllTypes();
+  seedNutrition();
   const calls = installFetch();
   await runSync();
   assert.ok(calls.every((c) => !c.url.includes("//api/")));
   assert.ok(calls.some((c) => c.url === "https://prep.example.com/api/ingest/nutrition"));
 });
 
-test("first sync reaches back 30 days; later syncs re-read a 24h overlap", async () => {
+test("first sync reaches back 30 days", async () => {
   await saveConfig({
     serverUrl: "https://prep.example.com",
     apiKey: "",
     referenceId: REFERENCE_ID,
     deviceId: "d",
   });
-  seedAllTypes();
-  // weight already has a cursor -> incremental; nutrition has none -> first sync.
-  const cursorIso = new Date(Date.now() - 5 * DAY_MS).toISOString();
-  await setCursor("weight", cursorIso);
+  seedNutrition();
   installFetch();
 
   const before = Date.now();
@@ -183,33 +205,42 @@ test("first sync reaches back 30 days; later syncs re-read a 24h overlap", async
   ).getTime();
   const expectedFirst = before - 30 * DAY_MS;
   assert.ok(Math.abs(nutritionStart - expectedFirst) < after - before + 2000);
-
-  const weightStart = __readCalls.find((c) => c.recordType === "Weight")!.options.timeRangeFilter!
-    .startTime;
-  assert.equal(weightStart, new Date(new Date(cursorIso).getTime() - DAY_MS).toISOString());
 });
 
-test("a failing type is isolated: others still sync and its cursor is not advanced", async () => {
+test("later syncs re-read a 24h overlap before the last cursor", async () => {
   await saveConfig({
     serverUrl: "https://prep.example.com",
     apiKey: "",
     referenceId: REFERENCE_ID,
     deviceId: "d",
   });
-  seedAllTypes();
-  installFetch((url) => ({ ok: !url.endsWith("/nutrition"), status: 500 }));
+  seedNutrition();
+  const cursorIso = new Date(Date.now() - 5 * DAY_MS).toISOString();
+  await setCursor("nutrition", cursorIso);
+  installFetch();
+
+  await runSync();
+
+  const nutritionStart = __readCalls.find((c) => c.recordType === "Nutrition")!.options
+    .timeRangeFilter!.startTime;
+  assert.equal(nutritionStart, new Date(new Date(cursorIso).getTime() - DAY_MS).toISOString());
+});
+
+test("a sync failure is reported and the cursor is not advanced", async () => {
+  await saveConfig({
+    serverUrl: "https://prep.example.com",
+    apiKey: "",
+    referenceId: REFERENCE_ID,
+    deviceId: "d",
+  });
+  seedNutrition();
+  installFetch(() => ({ ok: false, status: 500 }));
 
   const result = await runSync();
 
   assert.equal(result.ok, false);
-  const lines = Object.fromEntries(
-    result.detail.split("\n").map((l) => [l.split(":")[0], l]),
-  );
-  assert.match(lines.nutrition, /^nutrition: ERROR .*500/);
-  assert.equal(lines.weight, "weight: 1");
-  // Failed type keeps no cursor so the next run retries it; healthy types advance.
+  assert.match(result.detail, /^nutrition: ERROR .*500/);
   assert.equal(await getCursor("nutrition"), null);
-  assert.ok(await getCursor("weight"));
 });
 
 test("batches posts over 500 records and sums accepted counts", async () => {
@@ -237,23 +268,20 @@ test("batches posts over 500 records and sums accepted counts", async () => {
   assert.match(result.detail, /nutrition: 501/);
 });
 
-test("a type with no records makes no request but still advances its cursor", async () => {
+test("no records makes no request but still advances the cursor", async () => {
   await saveConfig({
     serverUrl: "https://prep.example.com",
     apiKey: "",
     referenceId: REFERENCE_ID,
     deviceId: "d",
   });
-  // Only nutrition has data; everything else is empty.
-  __setRecords("Nutrition", [
-    { metadata: { id: "n1" }, startTime: recent(), mealType: 1, energy: { inKilocalories: 500 } },
-  ]);
+  __setRecords("Nutrition", []);
   const calls = installFetch();
 
   const result = await runSync();
 
   assert.ok(result.ok);
-  assert.match(result.detail, /sleep: 0/);
-  assert.equal(calls.filter((c) => c.url.endsWith("/sleep")).length, 0);
-  assert.ok(await getCursor("sleep"), "empty type should still advance its cursor");
+  assert.equal(result.detail, "nutrition: 0");
+  assert.equal(calls.length, 0);
+  assert.ok(await getCursor("nutrition"), "empty sync should still advance its cursor");
 });

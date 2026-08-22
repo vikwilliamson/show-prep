@@ -9,15 +9,7 @@ import {
 // happen on-device (HC has no cloud API). Postgres on the server is the system
 // of record; HC is just the pipe.
 
-export const RECORD_TYPES = [
-  "Nutrition",
-  "Weight",
-  "Hydration",
-  "SleepSession",
-  "ExerciseSession",
-  "Steps",
-  "TotalCaloriesBurned",
-] as const;
+export const RECORD_TYPES = ["Nutrition"] as const;
 
 export type HcRecordType = (typeof RECORD_TYPES)[number];
 
