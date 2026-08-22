@@ -1,4 +1,3 @@
-import { ExerciseType } from "react-native-health-connect";
 import {
   getCursor,
   loadConfig,
@@ -7,15 +6,7 @@ import {
   type CompanionConfig,
 } from "./config";
 import { readAll } from "./healthConnect";
-import {
-  invertExerciseTypes,
-  mapActivity,
-  mapExercise,
-  mapHydration,
-  mapNutrition,
-  mapSleep,
-  mapWeight,
-} from "./mapper";
+import { mapNutrition } from "./mapper";
 
 // Incremental sync engine.
 //  - HC only exposes data from up to 30 days before permission was granted,
@@ -29,7 +20,7 @@ const BATCH_SIZE = 500;
 
 interface TypePlan {
   ingestType: string;
-  source: "myfitnesspal" | "samsung_health";
+  source: "myfitnesspal";
   read: (startTime: string, endTime: string) => Promise<unknown[]>;
 }
 
@@ -88,47 +79,12 @@ export async function runSync(): Promise<SyncResult> {
 
   const now = new Date();
   const endTime = now.toISOString();
-  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const exerciseNames = invertExerciseTypes(
-    ExerciseType as unknown as Record<string, number>,
-  );
 
   const plans: TypePlan[] = [
     {
       ingestType: "nutrition",
       source: "myfitnesspal",
       read: async (s, e) => mapNutrition(await readAll("Nutrition", s, e)),
-    },
-    {
-      ingestType: "weight",
-      source: "samsung_health",
-      read: async (s, e) => mapWeight(await readAll("Weight", s, e)),
-    },
-    {
-      ingestType: "hydration",
-      source: "samsung_health",
-      read: async (s, e) => mapHydration(await readAll("Hydration", s, e)),
-    },
-    {
-      ingestType: "sleep",
-      source: "samsung_health",
-      read: async (s, e) => mapSleep(await readAll("SleepSession", s, e)),
-    },
-    {
-      ingestType: "exercise",
-      source: "samsung_health",
-      read: async (s, e) =>
-        mapExercise(await readAll("ExerciseSession", s, e), exerciseNames),
-    },
-    {
-      ingestType: "activity",
-      source: "samsung_health",
-      read: async (s, e) =>
-        mapActivity(
-          await readAll("Steps", s, e),
-          await readAll("TotalCaloriesBurned", s, e),
-          timeZone,
-        ),
     },
   ];
 
