@@ -123,6 +123,49 @@ Already built, never run against real hardware (`HANDOFF.md`). This pass:
   that the pipeline is nutrition-only, since any app writing to Health
   Connect's `Nutrition` type gets that same label today).
 
+### 2026-08-27 — real-device validation done, three Android 14 gotchas (VIK-16)
+
+Validated end-to-end on a Galaxy S25 (Android 15): MyFitnessPal → Health
+Connect → Gamma Companion → `/api/ingest/nutrition` → shows correctly on
+the web dashboard's Macro compliance panel. `mapNutrition()`'s assumptions
+held (meal types, zero-energy filtering); `source: "myfitnesspal"` still
+reads correctly since MFP is the only app currently writing to this
+device's Health Connect Nutrition store.
+
+Getting there took three follow-up fixes, none about the narrowing
+itself — all pre-existing gaps in `react-native-health-connect` +
+Expo's managed workflow that only a real device could surface:
+
+1. **Crash on "Grant HC permissions"** — `kotlin.
+   UninitializedPropertyAccessException`. `HealthConnectPermissionDelegate.
+   setPermissionDelegate(this)` was never called; the library's own Expo
+   config plugin only patches `AndroidManifest.xml`, not `MainActivity`.
+   Fixed with a custom plugin (`mobile/plugins/
+   withHealthConnectPermissionDelegate.js`) injecting it via
+   `withMainActivity`. Matches matinzd/react-native-health-connect#114,
+   #117, #214.
+2. **Permission request silently no-ops** (crash gone, but no dialog, no
+   error, nothing granted — app didn't even appear in Health Connect's own
+   app list). Android 14+ requires a manifest `<activity-alias>`
+   (`ViewPermissionUsageActivity`, category `HEALTH_PERMISSIONS`) to
+   register as a Health Connect client at all — also missing from the
+   library's plugin. Fixed with a second plugin (`mobile/plugins/
+   withHealthConnectPermissionsRationaleActivity.js`), mirroring the
+   library maintainer's own fix in matinzd/react-native-health-connect#60.
+3. **Sync fails with a generic network error** against `http://<lan-ip>:
+   port`. Android blocks cleartext HTTP to non-localhost hosts by default
+   for apps targeting API 28+. Fixed with `expo-build-properties`'s
+   existing `android.usesCleartextTraffic` option.
+
+All three are config/native-manifest changes, each needing a fresh EAS
+build to test — no way around that with the managed-workflow/no-committed-
+`android/` setup this project uses.
+
+**New bug found in this same pass, not yet fixed:** a *second* sync
+attempt (after a first one already succeeded) hangs indefinitely — see
+VIK-74. `sync.ts`'s `fetch()` call has no timeout, which is the leading
+unconfirmed hypothesis.
+
 ## 3. iOS — new work, but not from raw native code
 
 `react-native-health` ([agencyenterprise/react-native-health](https://github.com/agencyenterprise/react-native-health),
