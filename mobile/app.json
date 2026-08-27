@@ -21,6 +21,7 @@
           "permissionsRationaleActivity": true
         }
       ],
+      "./plugins/withHealthConnectPermissionDelegate",
       "expo-background-task",
       [
         "expo-build-properties",

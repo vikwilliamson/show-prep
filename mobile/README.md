@@ -54,6 +54,26 @@ In the app:
 > first granted, and background reads require the app to have been used
 > recently. Open the app and manual-sync if background sync looks stale.
 
+## Fast iteration: dev client (avoid reinstalling for every JS change)
+
+A `preview`/`production` EAS build is a standalone APK — every change, JS or
+native, needs a fresh build + reinstall. For plain JS/TS changes (most of
+what changes here — `sync.ts`, `mapper.ts`, `App.tsx`), install once with the
+`development` profile instead and get Metro Fast Refresh like normal RN dev:
+
+```bash
+cd mobile
+npx eas-cli@latest build -p android --profile development   # one-time install
+npx expo start --dev-client                                 # then just this, going forward
+```
+
+Install the resulting APK on the phone once. After that, `expo start
+--dev-client` + Fast Refresh covers JS-only changes with no reinstall. You
+only need a new `development` build again when something changes at the
+native/config level — `app.json`'s `plugins`/`android` block, a native
+dependency, `eas.json` — same category of change as the Health Connect
+permission delegate and `minSdkVersion` fixes.
+
 ## How to test on a Galaxy S25 (against the Vercel demo)
 
 End-to-end test of the real MyFitnessPal / Samsung Health → Health Connect →
