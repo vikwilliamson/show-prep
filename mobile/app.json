@@ -4,7 +4,9 @@
     "slug": "gamma-companion",
     "version": "0.1.0",
     "orientation": "portrait",
-    "platforms": ["android"],
+    "platforms": [
+      "android"
+    ],
     "android": {
       "package": "com.gamma.companion",
       "permissions": [
@@ -19,7 +21,20 @@
           "permissionsRationaleActivity": true
         }
       ],
-      "expo-background-task"
-    ]
+      "expo-background-task",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 26
+          }
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "a6b7f1d8-15f8-450b-bf93-800a1153d68a"
+      }
+    }
   }
 }
