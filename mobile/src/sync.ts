@@ -17,6 +17,9 @@ import { mapNutrition } from "./mapper";
 const FIRST_SYNC_DAYS = 30;
 const OVERLAP_MS = 24 * 60 * 60 * 1000;
 const BATCH_SIZE = 500;
+// A hung request (dead connection, dev server mid-restart, etc.) must not
+// leave the sync — and the UI's "Syncing…" state — stuck forever. See VIK-74.
+export const FETCH_TIMEOUT_MS = 30_000;
 
 interface TypePlan {
   ingestType: string;
@@ -41,22 +44,35 @@ async function post(
   let accepted = 0;
   for (let i = 0; i < records.length; i += BATCH_SIZE) {
     const batch = records.slice(i, i + BATCH_SIZE);
-    const res = await fetch(
-      `${config.serverUrl.replace(/\/$/, "")}/api/ingest/${ingestType}`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {}),
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    let res: Response;
+    try {
+      res = await fetch(
+        `${config.serverUrl.replace(/\/$/, "")}/api/ingest/${ingestType}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {}),
+          },
+          body: JSON.stringify({
+            deviceId: config.deviceId,
+            referenceId: config.referenceId,
+            source,
+            records: batch,
+          }),
+          signal: controller.signal,
         },
-        body: JSON.stringify({
-          deviceId: config.deviceId,
-          referenceId: config.referenceId,
-          source,
-          records: batch,
-        }),
-      },
-    );
+      );
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") {
+        throw new Error(`${ingestType} sync timed out after ${FETCH_TIMEOUT_MS}ms`);
+      }
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
     if (!res.ok) {
       const body = await res.text().catch(() => "");
       throw new Error(`${ingestType} sync failed (${res.status}): ${body.slice(0, 200)}`);
