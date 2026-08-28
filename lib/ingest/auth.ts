@@ -5,6 +5,8 @@ import { env } from "../env";
 /**
  * Bearer-token gate for /api/ingest/*. When INGEST_API_KEY is unset (local
  * dev), ingestion is open — the app is single-user and typically not exposed.
+ * It can only be unset this way in local dev — lib/env.ts throws at boot if
+ * it's missing while process.env.VERCEL is set.
  */
 export function checkIngestAuth(req: NextRequest): NextResponse | null {
   if (!env.ingestApiKey) return null;

@@ -45,4 +45,6 @@ jobs:
         run: pnpm exec playwright install --with-deps
 
       - name: E2E tests
+        env:
+          SESSION_SECRET: ${{ secrets.SESSION_SECRET || 'e2e-ci-session-secret-do-not-use-in-prod' }}
         run: pnpm test:e2e
