@@ -12,7 +12,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
   workspace package with its own toolchain, not covered by the rules below.
   Its typecheck + unit tests do run in CI as their own steps — see
   "Commands" — but it has no lint script and isn't subject to the
-  TDD-pairing hook, which only checks `app/`, `lib/`, `components/`)
+  TDD-pairing hook, which only checks `app/`, `lib/`, `components/`, `scripts/`)
 - Unit tests: Vitest
 - E2E tests: Playwright
 - Health data: a self-hosted health-data aggregator (currently Open
@@ -34,8 +34,9 @@ This version has breaking changes — APIs, conventions, and file structure may 
 ## TDD — hard requirement, not a suggestion
 - Write or update a failing test BEFORE writing the implementation, for
   every behavior change. Red, then green, then refactor.
-- Any commit touching `app/`, `lib/`, or `components/` must include a
-  matching test file (`*.test.ts(x)` or `*.spec.ts(x)`) in the same commit.
+- Any commit touching `app/`, `lib/`, `components/`, or `scripts/` must
+  include a matching test file (`*.test.ts(x)` or `*.spec.ts(x)`) in the
+  same commit.
   This is enforced by a pre-commit hook (`.husky/pre-commit`) and re-checked
   in CI on every PR — the CI check is the real gate, since a local hook can
   be bypassed with `--no-verify` but the PR check cannot.

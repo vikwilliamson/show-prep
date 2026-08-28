@@ -26,6 +26,9 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      - name: Typecheck
+        run: pnpm typecheck
+
       - name: TDD pairing check
         if: github.event_name == 'pull_request'
         run: |
@@ -34,6 +37,9 @@ jobs:
 
       - name: Unit tests
         run: pnpm test
+
+      - name: Build
+        run: pnpm build
 
       - name: Mobile typecheck
         run: pnpm --filter gamma-companion typecheck
