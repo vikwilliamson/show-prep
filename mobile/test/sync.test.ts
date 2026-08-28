@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, test } from "node:test";
 import { loadStatus, saveConfig, setCursor, getCursor } from "../src/config";
-import { runSync } from "../src/sync";
+import { FETCH_TIMEOUT_MS, runSync } from "../src/sync";
 import { __reset as resetStorage } from "./mocks/async-storage";
 import { __readCalls, __reset as resetHc, __setRecords } from "./mocks/react-native-health-connect";
 
@@ -285,3 +285,42 @@ test("no records makes no request but still advances the cursor", async () => {
   assert.equal(calls.length, 0);
   assert.ok(await getCursor("nutrition"), "empty sync should still advance its cursor");
 });
+
+test(
+  "a fetch that never settles times out instead of hanging the sync forever (VIK-74)",
+  { timeout: 5_000 },
+  async (t) => {
+    await saveConfig({
+      serverUrl: "https://prep.example.com",
+      apiKey: "",
+      referenceId: REFERENCE_ID,
+      deviceId: "d",
+    });
+    seedNutrition();
+
+    // A fetch that only ever settles if its AbortSignal fires — models a
+    // request that would otherwise hang forever (dead connection, server
+    // mid-restart, etc).
+    globalThis.fetch = ((_url: string, init: any) => {
+      return new Promise((_resolve, reject) => {
+        init.signal?.addEventListener("abort", () => {
+          reject(new DOMException("The operation was aborted.", "AbortError"));
+        });
+      });
+    }) as unknown as typeof globalThis.fetch;
+
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+
+    const resultPromise = runSync();
+    // Let the async chain (config/cursor/HC reads, all real microtasks in
+    // these mocks) progress up to post()'s fetch call before advancing the
+    // mocked clock past its timeout.
+    await new Promise((resolve) => setImmediate(resolve));
+    t.mock.timers.tick(FETCH_TIMEOUT_MS);
+    const result = await resultPromise;
+
+    assert.equal(result.ok, false);
+    assert.match(result.detail, /^nutrition: ERROR/);
+    assert.equal(await getCursor("nutrition"), null);
+  },
+);

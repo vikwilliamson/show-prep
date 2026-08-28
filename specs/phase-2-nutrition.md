@@ -166,6 +166,27 @@ attempt (after a first one already succeeded) hangs indefinitely — see
 VIK-74. `sync.ts`'s `fetch()` call has no timeout, which is the leading
 unconfirmed hypothesis.
 
+### 2026-08-27 — VIK-74 fixed: fetch timeout in sync.ts
+
+Confirmed by reading the code (no real-device repro needed — the bug is
+structural, not environment-specific): `post()`'s `fetch()` call had no
+timeout/`AbortController`, and `App.tsx`'s `syncNow()` has no timeout guard
+of its own either, so any hung request left the UI in `busy === "sync"`
+forever. The server route (`app/api/ingest/[type]/route.ts`) has no
+mechanism that would itself hang indefinitely, so this was treated as the
+"add a client-side timeout for robustness regardless of root cause" case
+the ticket already anticipated, rather than a server-side fix.
+
+Fixed: `post()` now races each batch `fetch()` against an `AbortController`
+timeout (`FETCH_TIMEOUT_MS`, 30s, exported from `sync.ts`). A timeout aborts
+the request and surfaces as a normal `${ingestType}: ERROR …` result — the
+same path `runSync()`'s existing per-plan try/catch already reports through,
+so no change was needed in `App.tsx`; its `finally { setBusy(null) }`
+now always runs because `runSync()` is now guaranteed to settle.
+`mobile/test/sync.test.ts` covers it with a fetch stub that only resolves
+when its `AbortSignal` fires (using `node:test`'s mock timers to advance
+past the timeout without a real 30s wait).
+
 ## 3. iOS — new work, but not from raw native code
 
 `react-native-health` ([agencyenterprise/react-native-health](https://github.com/agencyenterprise/react-native-health),
