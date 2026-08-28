@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "vitest";
-import { eq, inArray } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import {
   accounts,
   chatMessages,
@@ -19,7 +19,7 @@ import {
   weightEntries,
   workouts,
 } from "../lib/db";
-import { hashPasscode } from "../lib/auth";
+import { deleteAccount, hashPasscode } from "../lib/auth";
 
 const createdAccountIds: number[] = [];
 
@@ -59,14 +59,10 @@ async function makeAccount(name: string): Promise<number> {
 }
 
 afterEach(async () => {
-  const db = await getDb();
-  if (createdAccountIds.length === 0) return;
-  // Safe regardless of whether ON DELETE CASCADE already cleaned these up —
-  // deleting zero matching rows is a no-op.
-  for (const table of CHILD_TABLES) {
-    await db.delete(table).where(inArray(accountIdColumnOf(table), createdAccountIds));
-  }
-  await db.delete(accounts).where(inArray(accounts.id, createdAccountIds));
+  // deleteAccount() is safe to call even on an account this file's own
+  // cascade test already deleted directly — deleting an unknown id is a
+  // no-op (see its "returns false for an account that doesn't exist" test).
+  await Promise.all(createdAccountIds.map(deleteAccount));
   createdAccountIds.length = 0;
 });
 

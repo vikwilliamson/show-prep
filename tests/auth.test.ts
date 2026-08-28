@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import {
   createSessionToken,
+  deleteAccount,
   getAccountByReferenceId,
   getAccountReferenceId,
   getCurrentAccount,
@@ -15,7 +16,7 @@ import {
   verifyPasscode,
   verifySessionToken,
 } from "../lib/auth";
-import { accounts, getDb } from "../lib/db";
+import { accounts, documents, getDb } from "../lib/db";
 
 test("a passcode verifies against its own hash", async () => {
   const hash = await hashPasscode("elk-basalt-7");
@@ -147,4 +148,30 @@ test("getPrimaryCoachAccountId resolves to an existing coach account", async () 
   } finally {
     await db.delete(accounts).where(eq(accounts.id, row.id));
   }
+});
+
+test("deleteAccount removes the account and cascades to its data", async () => {
+  const db = await getDb();
+  const passcodeHash = await hashPasscode("delete-account-test");
+  const [account] = await db
+    .insert(accounts)
+    .values({ name: "Delete Account Test", role: "client", passcodeHash })
+    .returning();
+  const [doc] = await db
+    .insert(documents)
+    .values({ accountId: account.id, title: "t", sourceType: "txt", contentText: "c" })
+    .returning();
+
+  const deleted = await deleteAccount(account.id);
+  assert.equal(deleted, true);
+
+  const [remainingAccount] = await db.select().from(accounts).where(eq(accounts.id, account.id));
+  assert.equal(remainingAccount, undefined);
+  const [remainingDoc] = await db.select().from(documents).where(eq(documents.id, doc.id));
+  assert.equal(remainingDoc, undefined);
+});
+
+test("deleteAccount returns false for an account that doesn't exist", async () => {
+  const deleted = await deleteAccount(-1);
+  assert.equal(deleted, false);
 });

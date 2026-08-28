@@ -1,9 +1,8 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, test } from "vitest";
 import { NextRequest } from "next/server";
-import { eq } from "drizzle-orm";
 import { getDb, accounts } from "../lib/db";
-import { hashPasscode, SESSION_COOKIE, verifySessionToken } from "../lib/auth";
+import { deleteAccount, hashPasscode, SESSION_COOKIE, verifySessionToken } from "../lib/auth";
 import { POST } from "../app/api/session/route";
 
 let testAccountId: number;
@@ -19,8 +18,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  const db = await getDb();
-  await db.delete(accounts).where(eq(accounts.id, testAccountId));
+  await deleteAccount(testAccountId);
 });
 
 function postSession(body: unknown) {

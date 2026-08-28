@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "vitest";
 import { NextRequest } from "next/server";
-import { eq, inArray } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { accounts, getDb, settings, weeklyTargets } from "../lib/db";
-import { createSessionToken, hashPasscode, SESSION_COOKIE } from "../lib/auth";
+import { createSessionToken, deleteAccount, hashPasscode, SESSION_COOKIE } from "../lib/auth";
 import { GET, PUT } from "../app/api/settings/route";
 
 const createdAccountIds: number[] = [];
@@ -20,11 +20,7 @@ async function makeAccount(name: string): Promise<number> {
 }
 
 afterEach(async () => {
-  const db = await getDb();
-  if (createdAccountIds.length === 0) return;
-  await db.delete(settings).where(inArray(settings.accountId, createdAccountIds));
-  await db.delete(weeklyTargets).where(inArray(weeklyTargets.accountId, createdAccountIds));
-  await db.delete(accounts).where(inArray(accounts.id, createdAccountIds));
+  await Promise.all(createdAccountIds.map(deleteAccount));
   createdAccountIds.length = 0;
 });
 

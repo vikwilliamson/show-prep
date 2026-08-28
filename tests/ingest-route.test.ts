@@ -1,20 +1,18 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "vitest";
 import { NextRequest } from "next/server";
-import { eq, inArray } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import {
   accounts,
   dailyActivity,
   getDb,
   hydrationEntries,
   nutritionEntries,
-  settings,
   sleepSessions,
-  syncLog,
   weightEntries,
   workouts,
 } from "../lib/db";
-import { hashPasscode } from "../lib/auth";
+import { deleteAccount, hashPasscode } from "../lib/auth";
 import { POST } from "../app/api/ingest/[type]/route";
 
 const createdAccountIds: number[] = [];
@@ -31,19 +29,7 @@ async function makeAccount(name: string): Promise<{ id: number; referenceId: str
 }
 
 afterEach(async () => {
-  const db = await getDb();
-  if (createdAccountIds.length === 0) return;
-  // Children first — accounts.id has no ON DELETE CASCADE. The ingest route
-  // lazily creates a settings row per account (for the timezone lookup).
-  await db.delete(nutritionEntries).where(inArray(nutritionEntries.accountId, createdAccountIds));
-  await db.delete(weightEntries).where(inArray(weightEntries.accountId, createdAccountIds));
-  await db.delete(hydrationEntries).where(inArray(hydrationEntries.accountId, createdAccountIds));
-  await db.delete(sleepSessions).where(inArray(sleepSessions.accountId, createdAccountIds));
-  await db.delete(workouts).where(inArray(workouts.accountId, createdAccountIds));
-  await db.delete(dailyActivity).where(inArray(dailyActivity.accountId, createdAccountIds));
-  await db.delete(syncLog).where(inArray(syncLog.accountId, createdAccountIds));
-  await db.delete(settings).where(inArray(settings.accountId, createdAccountIds));
-  await db.delete(accounts).where(inArray(accounts.id, createdAccountIds));
+  await Promise.all(createdAccountIds.map(deleteAccount));
   createdAccountIds.length = 0;
 });
 
