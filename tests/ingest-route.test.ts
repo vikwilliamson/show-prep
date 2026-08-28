@@ -3,7 +3,6 @@ import { afterEach, test } from "vitest";
 import { NextRequest } from "next/server";
 import { eq } from "drizzle-orm";
 import {
-  accounts,
   dailyActivity,
   getDb,
   hydrationEntries,
@@ -12,26 +11,11 @@ import {
   weightEntries,
   workouts,
 } from "../lib/db";
-import { deleteAccount, hashPasscode } from "../lib/auth";
 import { POST } from "../app/api/ingest/[type]/route";
+import { createAccountTracker } from "./helpers";
 
-const createdAccountIds: number[] = [];
-
-async function makeAccount(name: string): Promise<{ id: number; referenceId: string }> {
-  const db = await getDb();
-  const passcodeHash = await hashPasscode(`${name}-passcode`);
-  const [row] = await db
-    .insert(accounts)
-    .values({ name, role: "client", passcodeHash })
-    .returning();
-  createdAccountIds.push(row.id);
-  return { id: row.id, referenceId: row.referenceId };
-}
-
-afterEach(async () => {
-  await Promise.all(createdAccountIds.map(deleteAccount));
-  createdAccountIds.length = 0;
-});
+const { makeAccount, cleanup } = createAccountTracker();
+afterEach(cleanup);
 
 function ingestRequest(type: string, body: unknown) {
   return new NextRequest(`http://localhost/api/ingest/${type}`, {

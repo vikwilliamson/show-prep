@@ -19,9 +19,10 @@ import {
   weightEntries,
   workouts,
 } from "../lib/db";
-import { deleteAccount, hashPasscode } from "../lib/auth";
+import { createAccountTracker } from "./helpers";
 
-const createdAccountIds: number[] = [];
+const { makeAccount, cleanup } = createAccountTracker();
+afterEach(cleanup);
 
 // Every account-scoped table besides `accounts` itself.
 const CHILD_TABLES = [
@@ -47,28 +48,9 @@ function accountIdColumnOf(table: (typeof CHILD_TABLES)[number]) {
   return (table as { accountId: (typeof CHILD_TABLES)[number]["accountId"] }).accountId;
 }
 
-async function makeAccount(name: string): Promise<number> {
-  const db = await getDb();
-  const passcodeHash = await hashPasscode(`${name}-passcode`);
-  const [row] = await db
-    .insert(accounts)
-    .values({ name, role: "client", passcodeHash })
-    .returning();
-  createdAccountIds.push(row.id);
-  return row.id;
-}
-
-afterEach(async () => {
-  // deleteAccount() is safe to call even on an account this file's own
-  // cascade test already deleted directly — deleting an unknown id is a
-  // no-op (see its "returns false for an account that doesn't exist" test).
-  await Promise.all(createdAccountIds.map(deleteAccount));
-  createdAccountIds.length = 0;
-});
-
 test("account_id is NOT NULL on every account-scoped table", async () => {
   const db = await getDb();
-  const a = await makeAccount("Schema NotNull Test");
+  const { id: a } = await makeAccount("Schema NotNull Test");
   const [doc] = await db
     .insert(documents)
     .values({ accountId: a, title: "t", sourceType: "txt", contentText: "c" })
@@ -105,7 +87,7 @@ test("account_id is NOT NULL on every account-scoped table", async () => {
 
 test("deleting an account cascades to delete every child table's rows", async () => {
   const db = await getDb();
-  const a = await makeAccount("Schema Cascade Test");
+  const { id: a } = await makeAccount("Schema Cascade Test");
 
   const [doc] = await db
     .insert(documents)

@@ -2,22 +2,13 @@ import assert from "node:assert/strict";
 import { afterEach, test } from "vitest";
 import { NextRequest } from "next/server";
 import { inArray } from "drizzle-orm";
-import { accounts, documents, getDb } from "../lib/db";
-import { createSessionToken, deleteAccount, hashPasscode, SESSION_COOKIE } from "../lib/auth";
+import { documents, getDb } from "../lib/db";
+import { createSessionToken, SESSION_COOKIE } from "../lib/auth";
 import { DELETE, GET } from "../app/api/documents/[id]/route";
+import { createAccountTracker } from "./helpers";
 
-const createdAccountIds: number[] = [];
-
-async function makeAccount(name: string): Promise<number> {
-  const db = await getDb();
-  const passcodeHash = await hashPasscode(`${name}-passcode`);
-  const [row] = await db
-    .insert(accounts)
-    .values({ name, role: "client", passcodeHash })
-    .returning();
-  createdAccountIds.push(row.id);
-  return row.id;
-}
+const { makeAccount, cleanup } = createAccountTracker();
+afterEach(cleanup);
 
 async function makeDocument(accountId: number, title: string): Promise<number> {
   const db = await getDb();
@@ -33,11 +24,6 @@ async function makeDocument(accountId: number, title: string): Promise<number> {
     .returning();
   return row.id;
 }
-
-afterEach(async () => {
-  await Promise.all(createdAccountIds.map(deleteAccount));
-  createdAccountIds.length = 0;
-});
 
 function requestWithSession(accountId: number | null) {
   const headers: Record<string, string> = {};
@@ -58,7 +44,7 @@ test("GET requires a session", async () => {
 });
 
 test("GET returns the document for the owning account", async () => {
-  const a = await makeAccount("Documents Route Test Owner");
+  const { id: a } = await makeAccount("Documents Route Test Owner");
   const docId = await makeDocument(a, "A's doc");
 
   const res = await GET(requestWithSession(a), ctxFor(docId));
@@ -68,8 +54,8 @@ test("GET returns the document for the owning account", async () => {
 });
 
 test("GET returns 404 for another account's document", async () => {
-  const a = await makeAccount("Documents Route Test A");
-  const b = await makeAccount("Documents Route Test B");
+  const { id: a } = await makeAccount("Documents Route Test A");
+  const { id: b } = await makeAccount("Documents Route Test B");
   const docId = await makeDocument(a, "A's doc");
 
   const res = await GET(requestWithSession(b), ctxFor(docId));
@@ -82,7 +68,7 @@ test("DELETE requires a session", async () => {
 });
 
 test("DELETE removes the document for the owning account", async () => {
-  const a = await makeAccount("Documents Route Test Delete Owner");
+  const { id: a } = await makeAccount("Documents Route Test Delete Owner");
   const docId = await makeDocument(a, "to delete");
 
   const res = await DELETE(requestWithSession(a), ctxFor(docId));
@@ -97,8 +83,8 @@ test("DELETE removes the document for the owning account", async () => {
 });
 
 test("DELETE does not remove, and 404s on, another account's document", async () => {
-  const a = await makeAccount("Documents Route Test Delete A");
-  const b = await makeAccount("Documents Route Test Delete B");
+  const { id: a } = await makeAccount("Documents Route Test Delete A");
+  const { id: b } = await makeAccount("Documents Route Test Delete B");
   const docId = await makeDocument(a, "A's doc");
 
   const res = await DELETE(requestWithSession(b), ctxFor(docId));

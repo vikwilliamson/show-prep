@@ -3,26 +3,12 @@ import { afterEach, test } from "vitest";
 import { NextRequest } from "next/server";
 import { eq } from "drizzle-orm";
 import { accounts, getDb, settings, weeklyTargets } from "../lib/db";
-import { createSessionToken, deleteAccount, hashPasscode, SESSION_COOKIE } from "../lib/auth";
+import { createSessionToken, SESSION_COOKIE } from "../lib/auth";
 import { GET, PUT } from "../app/api/settings/route";
+import { createAccountTracker } from "./helpers";
 
-const createdAccountIds: number[] = [];
-
-async function makeAccount(name: string): Promise<number> {
-  const db = await getDb();
-  const passcodeHash = await hashPasscode(`${name}-passcode`);
-  const [row] = await db
-    .insert(accounts)
-    .values({ name, role: "client", passcodeHash })
-    .returning();
-  createdAccountIds.push(row.id);
-  return row.id;
-}
-
-afterEach(async () => {
-  await Promise.all(createdAccountIds.map(deleteAccount));
-  createdAccountIds.length = 0;
-});
+const { makeAccount, cleanup } = createAccountTracker();
+afterEach(cleanup);
 
 function requestWithSession(
   method: "GET" | "PUT",
@@ -46,7 +32,7 @@ test("GET /api/settings 401s with no session", async () => {
 });
 
 test("GET /api/settings returns a default row for a brand-new account", async () => {
-  const a = await makeAccount("Settings Route Test New");
+  const { id: a } = await makeAccount("Settings Route Test New");
   const res = await GET(requestWithSession("GET", a));
   const json = await res.json();
   assert.equal(json.settings.accountId, a);
@@ -54,7 +40,7 @@ test("GET /api/settings returns a default row for a brand-new account", async ()
 });
 
 test("GET /api/settings returns the caller's own companion referenceId", async () => {
-  const a = await makeAccount("Settings Route Test ReferenceId");
+  const { id: a } = await makeAccount("Settings Route Test ReferenceId");
   const db = await getDb();
   const [row] = await db.select().from(accounts).where(eq(accounts.id, a));
 
@@ -65,8 +51,8 @@ test("GET /api/settings returns the caller's own companion referenceId", async (
 });
 
 test("PUT /api/settings only ever updates the caller's own row", async () => {
-  const a = await makeAccount("Settings Route Test Owner");
-  const b = await makeAccount("Settings Route Test Other");
+  const { id: a } = await makeAccount("Settings Route Test Owner");
+  const { id: b } = await makeAccount("Settings Route Test Other");
 
   const putRes = await PUT(
     requestWithSession("PUT", a, { settings: { targetName: "Owner's target" } }),
@@ -83,7 +69,7 @@ test("PUT /api/settings only ever updates the caller's own row", async () => {
 });
 
 test("PUT /api/settings accepts and persists the four manual macro target fields, scoped to the caller's account", async () => {
-  const a = await makeAccount("Settings Route Test Macros");
+  const { id: a } = await makeAccount("Settings Route Test Macros");
   const putRes = await PUT(
     requestWithSession("PUT", a, {
       settings: { targetCalories: 2200, targetProteinG: 180, targetCarbsG: 220, targetFatG: 70 },
@@ -102,7 +88,7 @@ test("PUT /api/settings accepts and persists the four manual macro target fields
 });
 
 test("PUT /api/settings updates the caller's own weekly targets", async () => {
-  const a = await makeAccount("Settings Route Test Targets");
+  const { id: a } = await makeAccount("Settings Route Test Targets");
   const res = await PUT(
     requestWithSession("PUT", a, { targets: { waterMlMin: 4000 } }),
   );
