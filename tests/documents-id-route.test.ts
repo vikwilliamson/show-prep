@@ -3,7 +3,7 @@ import { afterEach, test } from "vitest";
 import { NextRequest } from "next/server";
 import { inArray } from "drizzle-orm";
 import { accounts, documents, getDb } from "../lib/db";
-import { createSessionToken, hashPasscode, SESSION_COOKIE } from "../lib/auth";
+import { createSessionToken, deleteAccount, hashPasscode, SESSION_COOKIE } from "../lib/auth";
 import { DELETE, GET } from "../app/api/documents/[id]/route";
 
 const createdAccountIds: number[] = [];
@@ -35,10 +35,7 @@ async function makeDocument(accountId: number, title: string): Promise<number> {
 }
 
 afterEach(async () => {
-  const db = await getDb();
-  if (createdAccountIds.length === 0) return;
-  await db.delete(documents).where(inArray(documents.accountId, createdAccountIds));
-  await db.delete(accounts).where(inArray(accounts.id, createdAccountIds));
+  await Promise.all(createdAccountIds.map(deleteAccount));
   createdAccountIds.length = 0;
 });
 

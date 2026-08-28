@@ -1,16 +1,8 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "vitest";
-import { eq, inArray } from "drizzle-orm";
-import {
-  accounts,
-  getDb,
-  nutritionEntries,
-  protocols,
-  settings,
-  weeklyTargets,
-  weightEntries,
-} from "../lib/db";
-import { hashPasscode } from "../lib/auth";
+import { eq } from "drizzle-orm";
+import { accounts, getDb, nutritionEntries, protocols, settings, weightEntries } from "../lib/db";
+import { deleteAccount, hashPasscode } from "../lib/auth";
 import {
   dailyMacros,
   dailyWeights,
@@ -34,15 +26,7 @@ async function makeAccount(name: string): Promise<number> {
 }
 
 afterEach(async () => {
-  const db = await getDb();
-  if (createdAccountIds.length === 0) return;
-  // Children first — accounts.id has no ON DELETE CASCADE.
-  await db.delete(settings).where(inArray(settings.accountId, createdAccountIds));
-  await db.delete(weeklyTargets).where(inArray(weeklyTargets.accountId, createdAccountIds));
-  await db.delete(nutritionEntries).where(inArray(nutritionEntries.accountId, createdAccountIds));
-  await db.delete(weightEntries).where(inArray(weightEntries.accountId, createdAccountIds));
-  await db.delete(protocols).where(inArray(protocols.accountId, createdAccountIds));
-  await db.delete(accounts).where(inArray(accounts.id, createdAccountIds));
+  await Promise.all(createdAccountIds.map(deleteAccount));
   createdAccountIds.length = 0;
 });
 

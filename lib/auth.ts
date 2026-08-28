@@ -152,3 +152,13 @@ export async function getPrimaryCoachAccountId(): Promise<number> {
   }
   return row.id;
 }
+
+/** Deletes an account and, via ON DELETE CASCADE (VIK-78), every row it
+ *  owns across all 14 account-scoped tables in one statement — no more
+ *  hand-ordering per-table deletes. Returns whether an account was actually
+ *  deleted (false for an unknown accountId). */
+export async function deleteAccount(accountId: number): Promise<boolean> {
+  const db = await getDb();
+  const [deleted] = await db.delete(accounts).where(eq(accounts.id, accountId)).returning();
+  return deleted !== undefined;
+}

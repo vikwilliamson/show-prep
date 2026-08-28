@@ -3,7 +3,7 @@ import { afterEach, test } from "vitest";
 import { NextRequest } from "next/server";
 import { inArray } from "drizzle-orm";
 import { accounts, getDb, protocols } from "../lib/db";
-import { createSessionToken, hashPasscode, SESSION_COOKIE } from "../lib/auth";
+import { createSessionToken, deleteAccount, hashPasscode, SESSION_COOKIE } from "../lib/auth";
 import { GET } from "../app/api/protocols/route";
 import { PATCH } from "../app/api/protocols/[id]/route";
 
@@ -38,10 +38,7 @@ async function makeProtocol(
 }
 
 afterEach(async () => {
-  const db = await getDb();
-  if (createdAccountIds.length === 0) return;
-  await db.delete(protocols).where(inArray(protocols.accountId, createdAccountIds));
-  await db.delete(accounts).where(inArray(accounts.id, createdAccountIds));
+  await Promise.all(createdAccountIds.map(deleteAccount));
   createdAccountIds.length = 0;
 });
 
