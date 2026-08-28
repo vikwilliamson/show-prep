@@ -31,9 +31,14 @@ function stageFile(relativePath: string, contents: string) {
   execFileSync("git", ["add", relativePath], { cwd: repoDir });
 }
 
-function runScript(): { status: number | null; stdout: string } {
+function commitFile(relativePath: string, contents: string) {
+  stageFile(relativePath, contents);
+  execFileSync("git", ["commit", "-q", "-m", relativePath], { cwd: repoDir });
+}
+
+function runScript(...args: string[]): { status: number | null; stdout: string } {
   try {
-    const stdout = execFileSync("bash", [SCRIPT], { cwd: repoDir, encoding: "utf-8" });
+    const stdout = execFileSync("bash", [SCRIPT, ...args], { cwd: repoDir, encoding: "utf-8" });
     return { status: 0, stdout };
   } catch (err) {
     const e = err as { status: number | null; stdout: string };
@@ -60,5 +65,26 @@ test("still passes when only unrelated files change", () => {
   stageFile("README.md", "# hello\n");
 
   const { status } = runScript();
+  assert.equal(status, 0);
+});
+
+// CI invokes the script with `--range A...B` instead of inspecting staged
+// files (see ci.yml's "TDD pairing check" step) — exercise that path too.
+test("--range mode fails when a scripts/* file changes with no paired test", () => {
+  commitFile("README.md", "# hello\n");
+  const base = execFileSync("git", ["rev-parse", "HEAD"], { cwd: repoDir, encoding: "utf-8" }).trim();
+  commitFile("scripts/seed.ts", "export const seed = () => {};\n");
+
+  const { status } = runScript("--range", `${base}...HEAD`);
+  assert.equal(status, 1);
+});
+
+test("--range mode passes when a scripts/* file changes alongside a paired test", () => {
+  commitFile("README.md", "# hello\n");
+  const base = execFileSync("git", ["rev-parse", "HEAD"], { cwd: repoDir, encoding: "utf-8" }).trim();
+  commitFile("scripts/seed.ts", "export const seed = () => {};\n");
+  commitFile("tests/seed.test.ts", "// paired test\n");
+
+  const { status } = runScript("--range", `${base}...HEAD`);
   assert.equal(status, 0);
 });

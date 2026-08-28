@@ -34,8 +34,9 @@ This version has breaking changes — APIs, conventions, and file structure may 
 ## TDD — hard requirement, not a suggestion
 - Write or update a failing test BEFORE writing the implementation, for
   every behavior change. Red, then green, then refactor.
-- Any commit touching `app/`, `lib/`, or `components/` must include a
-  matching test file (`*.test.ts(x)` or `*.spec.ts(x)`) in the same commit.
+- Any commit touching `app/`, `lib/`, `components/`, or `scripts/` must
+  include a matching test file (`*.test.ts(x)` or `*.spec.ts(x)`) in the
+  same commit.
   This is enforced by a pre-commit hook (`.husky/pre-commit`) and re-checked
   in CI on every PR — the CI check is the real gate, since a local hook can
   be bypassed with `--no-verify` but the PR check cannot.
