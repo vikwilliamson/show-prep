@@ -17,10 +17,9 @@ import {
 export const EMBEDDING_DIM = 1024;
 
 // ---------------------------------------------------------------------------
-// Accounts (coach + clients). account_id below is nullable for now — this
-// pass adds the column everywhere but defers wiring query-level filtering
-// into existing routes to the phase ticket that next touches each one (see
-// specs/client-accounts.md's checklist).
+// Accounts (coach + clients). Every account-scoped table below carries a
+// NOT NULL account_id with ON DELETE CASCADE (VIK-78) — deleting an account
+// deletes all of its data.
 // ---------------------------------------------------------------------------
 
 export const accounts = pgTable("accounts", {
@@ -36,13 +35,23 @@ export const accounts = pgTable("accounts", {
     .defaultNow(),
 });
 
+// Every account-scoped table's account_id FK: NOT NULL with ON DELETE
+// CASCADE, so there's exactly one place to change this constraint rather
+// than 14 hand-copied ones (see VIK-78 — inconsistency here is how the
+// nullable/no-cascade gap this ticket fixes happened in the first place).
+function accountIdColumn() {
+  return integer("account_id")
+    .notNull()
+    .references(() => accounts.id, { onDelete: "cascade" });
+}
+
 // ---------------------------------------------------------------------------
 // Documents & RAG
 // ---------------------------------------------------------------------------
 
 export const documents = pgTable("documents", {
   id: serial("id").primaryKey(),
-  accountId: integer("account_id").references(() => accounts.id),
+  accountId: accountIdColumn(),
   title: text("title").notNull(),
   // coach_protocol: macro/cardio/training docs from coach
   // program_rules: reference rules & guidelines for the client's program
@@ -65,7 +74,7 @@ export const documents = pgTable("documents", {
 
 export const documentChunks = pgTable("document_chunks", {
   id: serial("id").primaryKey(),
-  accountId: integer("account_id").references(() => accounts.id),
+  accountId: accountIdColumn(),
   documentId: integer("document_id")
     .notNull()
     .references(() => documents.id, { onDelete: "cascade" }),
@@ -80,7 +89,7 @@ export const documentChunks = pgTable("document_chunks", {
 
 export const protocols = pgTable("protocols", {
   id: serial("id").primaryKey(),
-  accountId: integer("account_id").references(() => accounts.id),
+  accountId: accountIdColumn(),
   documentId: integer("document_id").references(() => documents.id, {
     onDelete: "set null",
   }),
@@ -113,7 +122,7 @@ export const nutritionEntries = pgTable(
   "nutrition_entries",
   {
     id: serial("id").primaryKey(),
-    accountId: integer("account_id").references(() => accounts.id),
+    accountId: accountIdColumn(),
     hcUid: text("hc_uid"),
     source: text("source").notNull().default("manual"), // myfitnesspal | samsung_health | csv_backfill | manual
     localDate: date("local_date").notNull(),
@@ -139,7 +148,7 @@ export const weightEntries = pgTable(
   "weight_entries",
   {
     id: serial("id").primaryKey(),
-    accountId: integer("account_id").references(() => accounts.id),
+    accountId: accountIdColumn(),
     hcUid: text("hc_uid"),
     source: text("source").notNull().default("manual"),
     measuredAt: timestamp("measured_at", { withTimezone: true }).notNull(),
@@ -154,7 +163,7 @@ export const hydrationEntries = pgTable(
   "hydration_entries",
   {
     id: serial("id").primaryKey(),
-    accountId: integer("account_id").references(() => accounts.id),
+    accountId: accountIdColumn(),
     hcUid: text("hc_uid"),
     source: text("source").notNull().default("manual"),
     localDate: date("local_date").notNull(),
@@ -167,7 +176,7 @@ export const workouts = pgTable(
   "workouts",
   {
     id: serial("id").primaryKey(),
-    accountId: integer("account_id").references(() => accounts.id),
+    accountId: accountIdColumn(),
     hcUid: text("hc_uid"),
     source: text("source").notNull().default("manual"),
     localDate: date("local_date").notNull(),
@@ -185,7 +194,7 @@ export const sleepSessions = pgTable(
   "sleep_sessions",
   {
     id: serial("id").primaryKey(),
-    accountId: integer("account_id").references(() => accounts.id),
+    accountId: accountIdColumn(),
     hcUid: text("hc_uid"),
     source: text("source").notNull().default("manual"),
     localDate: date("local_date").notNull(),
@@ -201,7 +210,7 @@ export const dailyActivity = pgTable(
   "daily_activity",
   {
     id: serial("id").primaryKey(),
-    accountId: integer("account_id").references(() => accounts.id),
+    accountId: accountIdColumn(),
     hcUid: text("hc_uid"),
     source: text("source").notNull().default("manual"),
     localDate: date("local_date").notNull(),
@@ -217,7 +226,7 @@ export const dailyActivity = pgTable(
 
 export const syncLog = pgTable("sync_log", {
   id: serial("id").primaryKey(),
-  accountId: integer("account_id").references(() => accounts.id),
+  accountId: accountIdColumn(),
   syncedAt: timestamp("synced_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -236,7 +245,7 @@ export const weeklyTargets = pgTable(
   "weekly_targets",
   {
     id: serial("id").primaryKey(),
-    accountId: integer("account_id").references(() => accounts.id),
+    accountId: accountIdColumn(),
     waterMlMin: integer("water_ml_min").notNull().default(3000), // per day
     sleepHoursMin: real("sleep_hours_min").notNull().default(7), // per night
     workoutsPerWeekMin: integer("workouts_per_week_min").notNull().default(3),
@@ -253,7 +262,7 @@ export const checkIns = pgTable(
   "check_ins",
   {
     id: serial("id").primaryKey(),
-    accountId: integer("account_id").references(() => accounts.id),
+    accountId: accountIdColumn(),
     weekStart: date("week_start").notNull(), // Monday of the week the check-in covers
     // Subjective, manually entered answers
     waistIn: real("waist_in"),
@@ -286,7 +295,7 @@ export const settings = pgTable(
   "settings",
   {
     id: serial("id").primaryKey(),
-    accountId: integer("account_id").references(() => accounts.id),
+    accountId: accountIdColumn(),
     targetName: text("target_name"),
     targetDate: date("target_date"),
     // Single selection now — see specs/phase-0-terminology.md. "physique_prep"
@@ -315,7 +324,7 @@ export const settings = pgTable(
 
 export const chatMessages = pgTable("chat_messages", {
   id: serial("id").primaryKey(),
-  accountId: integer("account_id").references(() => accounts.id),
+  accountId: accountIdColumn(),
   role: text("role", { enum: ["user", "assistant"] }).notNull(),
   content: text("content").notNull(),
   // [{ documentId, title, chunkIndex }] for assistant messages

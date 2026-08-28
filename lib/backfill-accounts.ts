@@ -47,6 +47,14 @@ async function findOrCreateAccount(
 // existing is the coach's own real data. The client account starts empty.
 // Idempotent: re-running finds the existing accounts by name instead of
 // duplicating them, and reassigns nothing that's already assigned.
+//
+// VIK-78 made account_id NOT NULL on every table below, so an unassigned
+// row can no longer exist — the isNull()-scoped updates are permanently a
+// no-op from here forward. Left in place rather than stripped: the account
+// bootstrap step (findOrCreateAccount) is still real and still used by
+// scripts/backfill-accounts.ts, and this function is a historical record of
+// how the original NULL-account_id data was migrated. See
+// specs/client-accounts.md's "Backfill migration" section.
 export async function backfillAccounts(
   db: Db,
   options: { coach: BackfillPerson; client: BackfillPerson },

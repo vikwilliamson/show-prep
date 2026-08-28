@@ -1,29 +1,24 @@
 import assert from "node:assert/strict";
-import { afterEach, test } from "vitest";
+import { test } from "vitest";
 import { eq } from "drizzle-orm";
 import { backfillAccounts } from "../lib/backfill-accounts";
-import { accounts, checkIns, getDb } from "../lib/db";
+import { accounts, getDb } from "../lib/db";
 import { verifyPasscode } from "../lib/auth";
 
-const SENTINEL_WEEK_START = "1901-01-07";
-
-afterEach(async () => {
+// VIK-78 made account_id NOT NULL on every account-scoped table, so an
+// "unassigned" row can no longer exist to reassign — the reassignment step
+// below is now permanently a no-op (kept for historical/idempotency
+// documentation; see specs/client-accounts.md's "Backfill migration" note).
+test("backfill's reassignment step is a no-op now that account_id can't be null", async () => {
   const db = await getDb();
-  await db.delete(checkIns).where(eq(checkIns.weekStart, SENTINEL_WEEK_START));
-});
-
-test("backfill assigns an unassigned row to a newly created coach account", async () => {
-  const db = await getDb();
-  await db.insert(checkIns).values({ weekStart: SENTINEL_WEEK_START, dataAnswers: {} });
-
   const result = await backfillAccounts(db, {
     coach: { name: "Test Vik", passcode: "coach-passcode-1" },
     client: { name: "Test Spouse", passcode: "client-passcode-1" },
   });
 
-  const [row] = await db.select().from(checkIns).where(eq(checkIns.weekStart, SENTINEL_WEEK_START));
-  assert.equal(row.accountId, result.coachAccountId);
-  assert.ok(result.reassignedRowCounts.check_ins >= 1);
+  for (const count of Object.values(result.reassignedRowCounts)) {
+    assert.equal(count, 0);
+  }
 });
 
 test("backfill creates the coach and client accounts with correct roles and passcodes", async () => {
