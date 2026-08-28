@@ -36,6 +36,8 @@ Add a nullable `account_id` FK (→ `accounts.id`) to every existing per-user ta
 2. Create one `accounts` row for spouse, `role: client`.
 3. Assign every existing row in the tables above to Vik's `account_id` (it's all his existing real data today). Spouse's row starts empty.
 
+**2026-08-28 update (VIK-78):** `account_id` is now `NOT NULL` with `ON DELETE CASCADE` on every table listed above — this was the backstop this section always intended but didn't yet enforce. One consequence: `backfillAccounts()`'s row-reassignment step (`WHERE account_id IS NULL`) can never match anything again, since an unassigned row is now schema-impossible. It's left in place as a historical record of the one-time migration rather than stripped out — `findOrCreateAccount`'s bootstrap behavior (idempotent coach/client account creation) is still live and still used by `scripts/backfill-accounts.ts` for fresh-environment setup.
+
 `settings.id = 1` singleton pattern goes away as part of this — `settings` becomes one row per `account_id` instead of a hardcoded single row.
 
 ## Auth
