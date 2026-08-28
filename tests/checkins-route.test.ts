@@ -2,28 +2,15 @@ import assert from "node:assert/strict";
 import { afterEach, test } from "vitest";
 import { NextRequest } from "next/server";
 import { inArray } from "drizzle-orm";
-import { accounts, checkIns, getDb } from "../lib/db";
-import { createSessionToken, deleteAccount, hashPasscode, SESSION_COOKIE } from "../lib/auth";
+import { checkIns, getDb } from "../lib/db";
+import { createSessionToken, SESSION_COOKIE } from "../lib/auth";
 import { GET, PUT } from "../app/api/checkins/route";
+import { createAccountTracker } from "./helpers";
 
-const createdAccountIds: number[] = [];
+const { makeAccount, cleanup } = createAccountTracker();
+afterEach(cleanup);
+
 const WEEK_START = "2026-02-02";
-
-async function makeAccount(name: string): Promise<number> {
-  const db = await getDb();
-  const passcodeHash = await hashPasscode(`${name}-passcode`);
-  const [row] = await db
-    .insert(accounts)
-    .values({ name, role: "client", passcodeHash })
-    .returning();
-  createdAccountIds.push(row.id);
-  return row.id;
-}
-
-afterEach(async () => {
-  await Promise.all(createdAccountIds.map(deleteAccount));
-  createdAccountIds.length = 0;
-});
 
 function requestWithSession(method: "GET" | "PUT", accountId: number, body?: unknown, weekStart = WEEK_START) {
   const token = createSessionToken({ accountId, role: "client" });
@@ -39,8 +26,8 @@ function requestWithSession(method: "GET" | "PUT", accountId: number, body?: unk
 }
 
 test("two accounts can each have their own check-in row for the same week", async () => {
-  const a = await makeAccount("Checkins Route Test A");
-  const b = await makeAccount("Checkins Route Test B");
+  const { id: a } = await makeAccount("Checkins Route Test A");
+  const { id: b } = await makeAccount("Checkins Route Test B");
 
   const putA = await PUT(
     requestWithSession("PUT", a, { weekStart: WEEK_START, manualNotes: "A's notes" }),
@@ -61,7 +48,7 @@ test("two accounts can each have their own check-in row for the same week", asyn
 });
 
 test("re-PUTting the same account+week upserts in place rather than duplicating", async () => {
-  const a = await makeAccount("Checkins Route Test Upsert");
+  const { id: a } = await makeAccount("Checkins Route Test Upsert");
 
   await PUT(requestWithSession("PUT", a, { weekStart: WEEK_START, manualNotes: "first" }));
   await PUT(requestWithSession("PUT", a, { weekStart: WEEK_START, manualNotes: "second" }));

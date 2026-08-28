@@ -1,8 +1,7 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "vitest";
 import { eq } from "drizzle-orm";
-import { accounts, getDb, nutritionEntries, protocols, settings, weightEntries } from "../lib/db";
-import { deleteAccount, hashPasscode } from "../lib/auth";
+import { getDb, nutritionEntries, protocols, settings, weightEntries } from "../lib/db";
 import {
   dailyMacros,
   dailyWeights,
@@ -11,28 +10,14 @@ import {
   getSettings,
   getTargets,
 } from "../lib/stats";
+import { createAccountTracker } from "./helpers";
 
-const createdAccountIds: number[] = [];
-
-async function makeAccount(name: string): Promise<number> {
-  const db = await getDb();
-  const passcodeHash = await hashPasscode(`${name}-passcode`);
-  const [row] = await db
-    .insert(accounts)
-    .values({ name, role: "client", passcodeHash })
-    .returning();
-  createdAccountIds.push(row.id);
-  return row.id;
-}
-
-afterEach(async () => {
-  await Promise.all(createdAccountIds.map(deleteAccount));
-  createdAccountIds.length = 0;
-});
+const { makeAccount, cleanup } = createAccountTracker();
+afterEach(cleanup);
 
 test("getSettings lazily creates one default row per account", async () => {
-  const a = await makeAccount("Stats Test Settings A");
-  const b = await makeAccount("Stats Test Settings B");
+  const { id: a } = await makeAccount("Stats Test Settings A");
+  const { id: b } = await makeAccount("Stats Test Settings B");
 
   const sa = await getSettings(a);
   const sb = await getSettings(b);
@@ -44,7 +29,7 @@ test("getSettings lazily creates one default row per account", async () => {
 });
 
 test("getSettings is idempotent: a second call returns the same row, not a duplicate", async () => {
-  const a = await makeAccount("Stats Test Settings Idempotent");
+  const { id: a } = await makeAccount("Stats Test Settings Idempotent");
   const first = await getSettings(a);
   const second = await getSettings(a);
   assert.equal(first.id, second.id);
@@ -52,8 +37,8 @@ test("getSettings is idempotent: a second call returns the same row, not a dupli
 
 test("writes to one account's settings are invisible to another account's read", async () => {
   const db = await getDb();
-  const a = await makeAccount("Stats Test Isolation A");
-  const b = await makeAccount("Stats Test Isolation B");
+  const { id: a } = await makeAccount("Stats Test Isolation A");
+  const { id: b } = await makeAccount("Stats Test Isolation B");
 
   const sa = await getSettings(a);
   await db
@@ -69,8 +54,8 @@ test("writes to one account's settings are invisible to another account's read",
 });
 
 test("getTargets lazily creates one default row per account, isolated", async () => {
-  const a = await makeAccount("Stats Test Targets A");
-  const b = await makeAccount("Stats Test Targets B");
+  const { id: a } = await makeAccount("Stats Test Targets A");
+  const { id: b } = await makeAccount("Stats Test Targets B");
 
   const ta = await getTargets(a);
   const tb = await getTargets(b);
@@ -82,8 +67,8 @@ test("getTargets lazily creates one default row per account, isolated", async ()
 
 test("dailyWeights and dailyMacros only return the requesting account's rows", async () => {
   const db = await getDb();
-  const a = await makeAccount("Stats Test Health A");
-  const b = await makeAccount("Stats Test Health B");
+  const { id: a } = await makeAccount("Stats Test Health A");
+  const { id: b } = await makeAccount("Stats Test Health B");
 
   await db.insert(weightEntries).values([
     {
@@ -139,8 +124,8 @@ test("dailyWeights and dailyMacros only return the requesting account's rows", a
 
 test("getActiveProtocol only returns the requesting account's active protocol", async () => {
   const db = await getDb();
-  const a = await makeAccount("Stats Test Protocol A");
-  const b = await makeAccount("Stats Test Protocol B");
+  const { id: a } = await makeAccount("Stats Test Protocol A");
+  const { id: b } = await makeAccount("Stats Test Protocol B");
 
   await db.insert(protocols).values([
     { accountId: a, status: "active", effectiveFrom: "2026-01-01", calories: 2100 },
@@ -155,7 +140,7 @@ test("getActiveProtocol only returns the requesting account's active protocol", 
 
 test("effectiveMacroTargets returns the active protocol's macros when one exists", async () => {
   const db = await getDb();
-  const a = await makeAccount("Stats Test EffectiveMacros Protocol");
+  const { id: a } = await makeAccount("Stats Test EffectiveMacros Protocol");
   const s = await getSettings(a);
   await db
     .update(settings)
@@ -182,7 +167,7 @@ test("effectiveMacroTargets returns the active protocol's macros when one exists
 
 test("effectiveMacroTargets falls back to settings' manual fields when there's no active protocol", async () => {
   const db = await getDb();
-  const a = await makeAccount("Stats Test EffectiveMacros Fallback");
+  const { id: a } = await makeAccount("Stats Test EffectiveMacros Fallback");
   const s = await getSettings(a);
   await db
     .update(settings)
@@ -195,7 +180,7 @@ test("effectiveMacroTargets falls back to settings' manual fields when there's n
 });
 
 test("effectiveMacroTargets returns nulls when neither protocol nor manual settings are set", async () => {
-  const a = await makeAccount("Stats Test EffectiveMacros Neither");
+  const { id: a } = await makeAccount("Stats Test EffectiveMacros Neither");
   const s = await getSettings(a);
 
   const result = effectiveMacroTargets(s, null);

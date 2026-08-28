@@ -2,23 +2,14 @@ import assert from "node:assert/strict";
 import { afterEach, test } from "vitest";
 import { NextRequest } from "next/server";
 import { inArray } from "drizzle-orm";
-import { accounts, getDb, protocols } from "../lib/db";
-import { createSessionToken, deleteAccount, hashPasscode, SESSION_COOKIE } from "../lib/auth";
+import { getDb, protocols } from "../lib/db";
+import { createSessionToken, SESSION_COOKIE } from "../lib/auth";
 import { GET } from "../app/api/protocols/route";
 import { PATCH } from "../app/api/protocols/[id]/route";
+import { createAccountTracker } from "./helpers";
 
-const createdAccountIds: number[] = [];
-
-async function makeAccount(name: string): Promise<number> {
-  const db = await getDb();
-  const passcodeHash = await hashPasscode(`${name}-passcode`);
-  const [row] = await db
-    .insert(accounts)
-    .values({ name, role: "client", passcodeHash })
-    .returning();
-  createdAccountIds.push(row.id);
-  return row.id;
-}
+const { makeAccount, cleanup } = createAccountTracker();
+afterEach(cleanup);
 
 async function makeProtocol(
   accountId: number,
@@ -36,11 +27,6 @@ async function makeProtocol(
     .returning();
   return row.id;
 }
-
-afterEach(async () => {
-  await Promise.all(createdAccountIds.map(deleteAccount));
-  createdAccountIds.length = 0;
-});
 
 function getRequestWithSession(accountId: number | null, status?: string) {
   const headers: Record<string, string> = {};
@@ -77,8 +63,8 @@ test("GET requires a session", async () => {
 });
 
 test("GET only lists the caller's own protocols", async () => {
-  const a = await makeAccount("Protocols Route Test A");
-  const b = await makeAccount("Protocols Route Test B");
+  const { id: a } = await makeAccount("Protocols Route Test A");
+  const { id: b } = await makeAccount("Protocols Route Test B");
   await makeProtocol(a, { notes: "A's protocol" });
   await makeProtocol(b, { notes: "B's protocol" });
 
@@ -94,8 +80,8 @@ test("PATCH requires a session", async () => {
 });
 
 test("PATCH 404s on another account's protocol", async () => {
-  const a = await makeAccount("Protocols Route Test PATCH A");
-  const b = await makeAccount("Protocols Route Test PATCH B");
+  const { id: a } = await makeAccount("Protocols Route Test PATCH A");
+  const { id: b } = await makeAccount("Protocols Route Test PATCH B");
   const protocolId = await makeProtocol(a);
 
   const res = await PATCH(
@@ -106,8 +92,8 @@ test("PATCH 404s on another account's protocol", async () => {
 });
 
 test("confirming a protocol only supersedes the same account's active protocols", async () => {
-  const a = await makeAccount("Protocols Route Test Supersede A");
-  const b = await makeAccount("Protocols Route Test Supersede B");
+  const { id: a } = await makeAccount("Protocols Route Test Supersede A");
+  const { id: b } = await makeAccount("Protocols Route Test Supersede B");
   const aActive = await makeProtocol(a, { status: "active", confirmedAt: new Date() });
   const bActive = await makeProtocol(b, { status: "active", confirmedAt: new Date() });
   const aPending = await makeProtocol(a, { status: "pending" });
