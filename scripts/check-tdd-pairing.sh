@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Blocks commits/PRs that touch app/lib/components source files without a
-# corresponding test file change in the same diff. This is a mechanical
+# Blocks commits/PRs that touch app/lib/components/scripts source files
+# without a corresponding test file change in the same diff. This is a mechanical
 # proxy for "tests exist alongside this change" — it cannot prove tests
 # were literally written first chronologically. Pair it with the TDD
 # instruction in AGENTS.md, not as a replacement for actual discipline.
@@ -30,7 +30,7 @@ while IFS= read -r file; do
     *.test.ts|*.test.tsx|*.spec.ts|*.spec.tsx)
       TEST_CHANGED=true
       ;;
-    app/*|lib/*|components/*)
+    app/*|lib/*|components/*|scripts/*)
       SOURCE_CHANGED=true
       ;;
   esac
@@ -38,7 +38,7 @@ done <<< "$CHANGED"
 
 if [ "$SOURCE_CHANGED" = true ] && [ "$TEST_CHANGED" = false ]; then
   echo ""
-  echo "TDD gate failed: source files changed under app/, lib/, or components/"
+  echo "TDD gate failed: source files changed under app/, lib/, components/, or scripts/"
   echo "but no matching test file (*.test.ts(x) or *.spec.ts(x)) is included"
   echo "in this diff."
   echo ""
