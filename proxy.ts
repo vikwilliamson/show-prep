@@ -5,7 +5,10 @@ import { env } from "@/lib/env";
 // Per-account session gate. Active only when SESSION_SECRET is configured
 // (unset in local dev by default): every route except /login, /api/session
 // and /api/ingest/* (which has its own bearer-token auth) requires a valid
-// session cookie. This only reads the cookie (optimistic check, no DB call)
+// session cookie. SESSION_SECRET can only be unset in this fail-open way in
+// local dev — lib/env.ts throws at boot if it's missing while
+// process.env.VERCEL is set, so a real deploy can never come up with this
+// gate silently disabled. This only reads the cookie (optimistic check, no DB call)
 // since Proxy runs on every route, including prefetches — see
 // node_modules/next/dist/docs/01-app/02-guides/authentication.md. This only
 // gates "is there a valid session" — individual route handlers use

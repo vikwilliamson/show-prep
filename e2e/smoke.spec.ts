@@ -1,5 +1,12 @@
 import { expect, test } from "@playwright/test";
 
+test("an unauthenticated visitor is redirected to /login (proxy.ts session gate)", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await expect(page).toHaveURL(/\/login$/);
+});
+
 test("login page renders", async ({ page }) => {
   await page.goto("/login");
   await expect(page.getByRole("heading", { name: "Gamma" })).toBeVisible();
