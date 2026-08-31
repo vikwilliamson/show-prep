@@ -1,6 +1,7 @@
 import {
   boolean,
   date,
+  index,
   integer,
   jsonb,
   pgTable,
@@ -72,16 +73,27 @@ export const documents = pgTable("documents", {
     .defaultNow(),
 });
 
-export const documentChunks = pgTable("document_chunks", {
-  id: serial("id").primaryKey(),
-  accountId: accountIdColumn(),
-  documentId: integer("document_id")
-    .notNull()
-    .references(() => documents.id, { onDelete: "cascade" }),
-  chunkIndex: integer("chunk_index").notNull(),
-  content: text("content").notNull(),
-  embedding: vector("embedding", { dimensions: EMBEDDING_DIM }),
-});
+export const documentChunks = pgTable(
+  "document_chunks",
+  {
+    id: serial("id").primaryKey(),
+    accountId: accountIdColumn(),
+    documentId: integer("document_id")
+      .notNull()
+      .references(() => documents.id, { onDelete: "cascade" }),
+    chunkIndex: integer("chunk_index").notNull(),
+    content: text("content").notNull(),
+    embedding: vector("embedding", { dimensions: EMBEDDING_DIM }),
+  },
+  (t) => [
+    // Full sequential scan over document_chunks doesn't survive documents
+    // accumulating per client, let alone multiplying across clients (VIK-81).
+    index("document_chunks_embedding_hnsw_idx").using(
+      "hnsw",
+      t.embedding.op("vector_cosine_ops"),
+    ),
+  ],
+);
 
 // ---------------------------------------------------------------------------
 // Protocols (extracted prescriptions; confirmed ones become "active")
