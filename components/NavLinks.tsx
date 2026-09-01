@@ -11,11 +11,14 @@ const LINKS = [
   { href: "/settings", label: "Settings" },
 ];
 
-export function NavLinks() {
+const COACH_LINKS = [{ href: "/clients", label: "Clients" }];
+
+export function NavLinks({ isCoach = false }: { isCoach?: boolean }) {
   const pathname = usePathname();
+  const links = isCoach ? [...LINKS.slice(0, 1), ...COACH_LINKS, ...LINKS.slice(1)] : LINKS;
   return (
     <nav className="flex flex-wrap items-center gap-1">
-      {LINKS.map(({ href, label }) => {
+      {links.map(({ href, label }) => {
         const active =
           href === "/" ? pathname === "/" : pathname.startsWith(href);
         return (

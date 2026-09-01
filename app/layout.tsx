@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { cookies } from "next/headers";
 import { NavLinks } from "@/components/NavLinks";
+import { getCurrentAccount, SESSION_COOKIE } from "@/lib/auth";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -18,11 +20,14 @@ export const metadata: Metadata = {
   description: "Coaching client management",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const jar = await cookies();
+  const session = getCurrentAccount(jar.get(SESSION_COOKIE)?.value);
+
   return (
     <html
       lang="en"
@@ -37,7 +42,7 @@ export default function RootLayout({
               </span>
               <span className="text-xs text-muted">Coaching HQ</span>
             </div>
-            <NavLinks />
+            <NavLinks isCoach={session?.role === "coach"} />
           </div>
         </header>
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6">

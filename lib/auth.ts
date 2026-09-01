@@ -6,7 +6,7 @@ import {
 } from "node:crypto";
 import { promisify } from "node:util";
 import { NextResponse, type NextRequest } from "next/server";
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { env } from "./env";
 import { accounts, getDb } from "./db";
 
@@ -129,6 +129,37 @@ export async function getAccountReferenceId(accountId: number): Promise<string |
     .where(eq(accounts.id, accountId))
     .limit(1);
   return row?.referenceId ?? null;
+}
+
+/** Lists every client account for the coach dashboard's client list.
+ *  Single-coach assumption (see specs/phase-2.5-coach-dashboard.md): "list
+ *  my clients" is "list every account with role = 'client'", correct only
+ *  because there's exactly one coach today. */
+export async function listClientAccounts(): Promise<
+  { id: number; name: string; createdAt: Date }[]
+> {
+  const db = await getDb();
+  return db
+    .select({ id: accounts.id, name: accounts.name, createdAt: accounts.createdAt })
+    .from(accounts)
+    .where(eq(accounts.role, "client"))
+    .orderBy(asc(accounts.name));
+}
+
+/** Resolves accountId to its account row only if it's a client account —
+ *  the coach dashboard's per-client routes use this so a coach hitting a
+ *  non-client accountId (another coach's, or a nonexistent one) 404s
+ *  instead of silently working. */
+export async function getClientAccount(
+  accountId: number,
+): Promise<{ id: number; name: string } | null> {
+  const db = await getDb();
+  const [row] = await db
+    .select({ id: accounts.id, name: accounts.name })
+    .from(accounts)
+    .where(and(eq(accounts.id, accountId), eq(accounts.role, "client")))
+    .limit(1);
+  return row ?? null;
 }
 
 /** Single-tenant fallback for /api/analysis, the one route not yet migrated

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { test } from "vitest";
+import { afterEach, test } from "vitest";
 import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import {
@@ -7,9 +7,11 @@ import {
   deleteAccount,
   getAccountByReferenceId,
   getAccountReferenceId,
+  getClientAccount,
   getCurrentAccount,
   getPrimaryCoachAccountId,
   hashPasscode,
+  listClientAccounts,
   requireAccount,
   requireCoach,
   SESSION_COOKIE,
@@ -17,6 +19,10 @@ import {
   verifySessionToken,
 } from "../lib/auth";
 import { accounts, documents, getDb } from "../lib/db";
+import { createAccountTracker } from "./helpers";
+
+const { makeAccount, cleanup: cleanupAccounts } = createAccountTracker();
+afterEach(cleanupAccounts);
 
 test("a passcode verifies against its own hash", async () => {
   const hash = await hashPasscode("elk-basalt-7");
@@ -174,4 +180,48 @@ test("deleteAccount removes the account and cascades to its data", async () => {
 test("deleteAccount returns false for an account that doesn't exist", async () => {
   const deleted = await deleteAccount(-1);
   assert.equal(deleted, false);
+});
+
+test("listClientAccounts returns only client accounts", async () => {
+  const { id: clientId } = await makeAccount("List Client Accounts Test Client");
+  const db = await getDb();
+  const passcodeHash = await hashPasscode("list-client-accounts-coach");
+  const [coach] = await db
+    .insert(accounts)
+    .values({ name: "List Client Accounts Test Coach", role: "coach", passcodeHash })
+    .returning();
+
+  try {
+    const clients = await listClientAccounts();
+    const ids = clients.map((c) => c.id);
+    assert.ok(ids.includes(clientId));
+    assert.ok(!ids.includes(coach.id));
+  } finally {
+    await deleteAccount(coach.id);
+  }
+});
+
+test("getClientAccount returns the account for a real client", async () => {
+  const { id: clientId } = await makeAccount("Get Client Account Test");
+  const found = await getClientAccount(clientId);
+  assert.equal(found?.id, clientId);
+});
+
+test("getClientAccount returns null for a coach account", async () => {
+  const db = await getDb();
+  const passcodeHash = await hashPasscode("get-client-account-coach");
+  const [coach] = await db
+    .insert(accounts)
+    .values({ name: "Get Client Account Test Coach", role: "coach", passcodeHash })
+    .returning();
+
+  try {
+    assert.equal(await getClientAccount(coach.id), null);
+  } finally {
+    await deleteAccount(coach.id);
+  }
+});
+
+test("getClientAccount returns null for a nonexistent id", async () => {
+  assert.equal(await getClientAccount(-1), null);
 });
