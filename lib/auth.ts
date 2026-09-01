@@ -37,6 +37,19 @@ export async function hashPasscode(passcode: string): Promise<string> {
   return `${salt}:${derived.toString("hex")}`;
 }
 
+// Unambiguous lowercase alphanumeric alphabet — excludes 0/o and 1/l/i so a
+// coach can read a passcode aloud or over text without transcription errors.
+const PASSCODE_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789";
+
+/** Generates a random client passcode, grouped as `xxxx-xxxx` for
+ *  readability. Callers must hash it via hashPasscode() before storing —
+ *  this only produces the plaintext to hand to the coach once. */
+export function generatePasscode(): string {
+  const group = () =>
+    Array.from(randomBytes(4), (b) => PASSCODE_ALPHABET[b % PASSCODE_ALPHABET.length]).join("");
+  return `${group()}-${group()}`;
+}
+
 export async function verifyPasscode(passcode: string, hash: string): Promise<boolean> {
   const [salt, storedHex] = hash.split(":");
   if (!salt || !storedHex) return false;

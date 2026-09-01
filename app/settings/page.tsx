@@ -28,6 +28,7 @@ export default function SettingsPage() {
   const [s, setS] = useState<SettingsShape | null>(null);
   const [t, setT] = useState<TargetsShape | null>(null);
   const [referenceId, setReferenceId] = useState<string | null>(null);
+  const [role, setRole] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -39,6 +40,7 @@ export default function SettingsPage() {
         setS(json.settings);
         setT(json.targets);
         setReferenceId(json.referenceId);
+        setRole(json.role);
       });
   }, []);
 
@@ -134,7 +136,8 @@ export default function SettingsPage() {
   );
 
   return (
-    <form onSubmit={save} className="max-w-2xl space-y-6">
+    <div className="max-w-2xl space-y-6">
+      <form onSubmit={save} className="space-y-6">
       <section className="rounded-xl border border-borderc bg-surface p-4">
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted">
           Companion pairing ID
@@ -243,6 +246,97 @@ export default function SettingsPage() {
         </button>
         {note && <span className="text-sm text-muted">{note}</span>}
       </div>
-    </form>
+      </form>
+      {role === "coach" && <AddClientSection />}
+    </div>
+  );
+}
+
+function AddClientSection() {
+  const [name, setName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [created, setCreated] = useState<{ name: string; passcode: string } | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  async function addClient(e: React.FormEvent) {
+    e.preventDefault();
+    if (!name.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/accounts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Couldn't create client");
+      setCreated({ name: json.account.name, passcode: json.passcode });
+      setName("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't create client");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function copyPasscode() {
+    if (!created) return;
+    try {
+      await navigator.clipboard.writeText(created.passcode);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard permission denied — passcode is still selectable text.
+    }
+  }
+
+  return (
+    <section className="rounded-xl border border-borderc bg-surface p-4">
+      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted">
+        Add a client
+      </h2>
+      <form onSubmit={addClient} className="flex items-end gap-2">
+        <label className="block flex-1 text-sm">
+          <span className="mb-1 block text-muted">Client name</span>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="w-full rounded-md border border-borderc bg-background px-3 py-1.5"
+          />
+        </label>
+        <button
+          disabled={busy || !name.trim()}
+          className="shrink-0 rounded-md bg-accent px-4 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+        >
+          {busy ? "Adding…" : "Add client"}
+        </button>
+      </form>
+      {error && <p className="mt-2 text-sm text-muted">{error}</p>}
+      {created && (
+        <div className="mt-3 rounded-md border border-borderc bg-background p-3">
+          <p className="mb-2 text-xs text-muted">
+            {created.name}&apos;s passcode — shown once, relay it out-of-band
+            (text/call). It can&apos;t be shown again after you leave this page.
+          </p>
+          <div className="flex items-center gap-2">
+            <input
+              readOnly
+              value={created.passcode}
+              onFocus={(e) => e.target.select()}
+              className="w-full rounded-md border border-borderc bg-surface px-3 py-1.5 font-mono text-sm"
+            />
+            <button
+              type="button"
+              onClick={copyPasscode}
+              className="shrink-0 rounded-md border border-borderc px-3 py-1.5 text-sm hover:bg-surface"
+            >
+              {copied ? "Copied" : "Copy"}
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
   );
 }

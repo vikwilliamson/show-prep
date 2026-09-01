@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import {
   createSessionToken,
   deleteAccount,
+  generatePasscode,
   getAccountByReferenceId,
   getAccountReferenceId,
   getCurrentAccount,
@@ -17,6 +18,16 @@ import {
   verifySessionToken,
 } from "../lib/auth";
 import { accounts, documents, getDb } from "../lib/db";
+
+test("generatePasscode returns passcodes of the expected shape", () => {
+  const passcode = generatePasscode();
+  assert.match(passcode, /^[a-z0-9]{4,}-[a-z0-9]{4,}$/);
+});
+
+test("generatePasscode doesn't repeat across calls", () => {
+  const seen = new Set(Array.from({ length: 20 }, () => generatePasscode()));
+  assert.equal(seen.size, 20);
+});
 
 test("a passcode verifies against its own hash", async () => {
   const hash = await hashPasscode("elk-basalt-7");
