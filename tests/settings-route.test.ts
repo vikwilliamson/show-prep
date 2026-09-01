@@ -39,6 +39,13 @@ test("GET /api/settings returns a default row for a brand-new account", async ()
   assert.equal(json.targets.accountId, a);
 });
 
+test("GET /api/settings returns the caller's role", async () => {
+  const { id: a } = await makeAccount("Settings Route Test Role");
+  const res = await GET(requestWithSession("GET", a));
+  const json = await res.json();
+  assert.equal(json.role, "client");
+});
+
 test("GET /api/settings returns the caller's own companion referenceId", async () => {
   const { id: a } = await makeAccount("Settings Route Test ReferenceId");
   const db = await getDb();

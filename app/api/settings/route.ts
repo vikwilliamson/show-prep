@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
     getTargets(session.accountId),
     getAccountReferenceId(session.accountId),
   ]);
-  return NextResponse.json({ settings: s, targets: t, referenceId });
+  return NextResponse.json({ settings: s, targets: t, referenceId, role: session.role });
 }
 
 const putSchema = z.object({
