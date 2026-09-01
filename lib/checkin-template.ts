@@ -1,16 +1,19 @@
+import { z } from "zod";
+
 // The coach's weekly check-in template, stored as app config (settings.checkin_template).
 // Each question is either data-backed (pre-filled from ingested data) or manual
 // (subjective, entered by the client and saved on the check_ins row).
 
-export type CheckinQuestionType = "data" | "manual" | "mixed";
-
-export interface CheckinQuestion {
-  key: string;
-  question: string;
-  type: CheckinQuestionType;
+export const CheckinQuestionSchema = z.object({
+  key: z.string().min(1),
+  question: z.string().min(1),
+  type: z.enum(["data", "manual", "mixed"]),
   // For "mixed" questions, which parts come from data vs manual entry.
-  note?: string;
-}
+  note: z.string().optional(),
+});
+
+export type CheckinQuestion = z.infer<typeof CheckinQuestionSchema>;
+export type CheckinQuestionType = CheckinQuestion["type"];
 
 export const DEFAULT_CHECKIN_TEMPLATE: CheckinQuestion[] = [
   {

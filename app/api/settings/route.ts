@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { getAccountReferenceId, requireAccount } from "@/lib/auth";
+import { CheckinQuestionSchema } from "@/lib/checkin-template";
 import { getDb, settings, weeklyTargets } from "@/lib/db";
 import { getSettings, getTargets } from "@/lib/stats";
 import { PROGRAM_TYPES } from "@/lib/program-types";
@@ -32,6 +33,7 @@ const putSchema = z.object({
       targetCarbsG: z.number().int().nonnegative().nullable().optional(),
       targetFatG: z.number().int().nonnegative().nullable().optional(),
       timezone: z.string().optional(),
+      checkinTemplate: z.array(CheckinQuestionSchema).min(1).optional(),
     })
     .optional(),
   targets: z

@@ -106,3 +106,49 @@ test("PUT /api/settings updates the caller's own weekly targets", async () => {
   const [row] = await db.select().from(weeklyTargets).where(eq(weeklyTargets.accountId, a));
   assert.equal(row.waterMlMin, 4000);
 });
+
+test("PUT /api/settings accepts and persists a valid checkinTemplate, and GET reflects it", async () => {
+  const { id: a } = await makeAccount("Settings Route Test Checkin Template");
+  const template = [
+    { key: "sleep_quality", question: "How was your sleep?", type: "manual" },
+    {
+      key: "bodyweight",
+      question: "Current bodyweight?",
+      type: "mixed",
+      note: "From Health Connect, manually confirmed.",
+    },
+  ];
+
+  const putRes = await PUT(
+    requestWithSession("PUT", a, { settings: { checkinTemplate: template } }),
+  );
+  assert.equal(putRes.status, 200);
+  const putJson = await putRes.json();
+  assert.deepEqual(putJson.settings.checkinTemplate, template);
+
+  const getRes = await GET(requestWithSession("GET", a));
+  const getJson = await getRes.json();
+  assert.deepEqual(getJson.settings.checkinTemplate, template);
+});
+
+test("PUT /api/settings rejects a checkinTemplate entry missing question", async () => {
+  const { id: a } = await makeAccount("Settings Route Test Checkin Template Invalid");
+  const res = await PUT(
+    requestWithSession("PUT", a, {
+      settings: { checkinTemplate: [{ key: "sleep_quality", type: "manual" }] },
+    }),
+  );
+  assert.equal(res.status, 422);
+});
+
+test("PUT /api/settings rejects a checkinTemplate entry with an invalid type", async () => {
+  const { id: a } = await makeAccount("Settings Route Test Checkin Template Bad Type");
+  const res = await PUT(
+    requestWithSession("PUT", a, {
+      settings: {
+        checkinTemplate: [{ key: "sleep_quality", question: "How was your sleep?", type: "ai" }],
+      },
+    }),
+  );
+  assert.equal(res.status, 422);
+});
