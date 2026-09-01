@@ -62,8 +62,51 @@ Add a nullable `account_id` FK (→ `accounts.id`) to every existing per-user ta
 - [x] `app/api/documents/[id]/route.ts` (GET/DELETE a single document by ID) — was missed by `feat/phase-1-account-scoping` despite matching its glob (tracked as `TECH_DEBT.md` §1.2); fixed via VIK-77.
 - [x] `app/api/chat/route.ts`, `app/chat` — Phase 1 (done via `feat/phase-1-account-scoping`)
 - [x] `app/api/protocols/route.ts`, `app/api/protocols/[id]/route.ts` — never listed here in the first place, the root cause of both gaps (tracked as `TECH_DEBT.md` §1.1); fixed via VIK-77.
-- [ ] `app/api/ingest/[type]/route.ts` → `app/api/health-webhook` — Phase 2 (replaced, not patched). Note: as of `feat/phase-1-account-scoping`, `lib/stats.ts`'s data-access functions all require `account_id` now, so ingest was given a documented single-tenant fallback (`getPrimaryCoachAccountId()` in `lib/auth.ts`) just to keep compiling — it does NOT tag inserted rows with `account_id`. This means data synced through the old ingest path after this lands won't appear in the now-scoped dashboard until Phase 2's webhook actually sets `account_id` on write. Phase 2 must account for this, not just replace the auth mechanism.
-- [ ] `app/api/analysis/route.ts` — Phase 3. Also on `getPrimaryCoachAccountId()` fallback for now; Phase 3 should switch it to real session-based resolution (the route is always called from an already-authenticated dashboard, so this is a smaller lift than ingest's).
+- [x] `app/api/ingest/[type]/route.ts` — **superseded, ahead of this doc.** VIK-19 (`692ecd1`, `4e05412`) resolved the mobile companion's opaque `referenceId` server-side to `accountId` via `getAccountByReferenceId()` and tags every inserted row (`nutritionEntries`, `weightEntries`, etc.) with it — the single-tenant fallback described below never shipped for this route. This section originally said ingest "does NOT tag inserted rows with `account_id`"; that was true when written and is now stale. Left here as history rather than deleted, per the "fix whichever is wrong immediately" rule below — the code moved first, this doc is catching up.
+- [ ] `app/api/analysis/route.ts` — Phase 3. Still on the `getPrimaryCoachAccountId()` fallback; Phase 3 should switch it to real session-based resolution (the route is always called from an already-authenticated dashboard, so this is a smaller lift than ingest's was).
+
+## Auth-hardening follow-ups (VIK-79, VIK-81, VIK-83)
+
+These three shipped without a spec entry at the time — a gap flagged by an
+AI-code-review pass on 2026-08-31 against AGENTS.md's "a real decision made
+while working a ticket must be written into the relevant spec" rule.
+Recorded here now, after the fact, rather than left living only in commit
+messages:
+
+- **VIK-79 — auth fail-open on missing env vars.** Both `SESSION_SECRET`
+  (session cookies) and `INGEST_API_KEY` (mobile ingest) previously no-op'd
+  *open* if their env var was unset, with no production guard — a missing
+  Vercel env var would have silently disabled auth entirely rather than
+  breaking loudly. `lib/env.ts` now validates every env var with Zod at
+  module load and throws at boot if either is missing while
+  `process.env.VERCEL` is set. Decision: **fail closed in production,
+  fail open only in local dev** (where an unset secret is a developer
+  convenience, not a live exposure). CI's e2e job now sets `SESSION_SECRET`
+  so `proxy.ts`'s redirect is actually exercised instead of permanently
+  no-op'ing.
+- **VIK-81 — vector search scoping + performance.** Audited whether
+  `lib/rag.ts`'s `retrieve()` could leak one account's document chunks into
+  another's chat answers. The account filter turned out to already be
+  correct (landed earlier via `77bbcbe`, before this ticket was filed) —
+  resolved by adding a **regression test** (two accounts, identically
+  embedded chunks, account A's query must never surface account B's) rather
+  than re-implementing something already correct. The ticket's other,
+  independent finding — a missing HNSW index on
+  `document_chunks.embedding` — was real: sequential-scan cosine-distance
+  queries don't survive documents accumulating per client, let alone across
+  clients once multi-tenant. Fixed and verified against a real Neon branch,
+  not just PGlite's pgvector port.
+- **VIK-83 — Neon environment isolation.** The Neon↔Vercel integration
+  re-shared one `DATABASE_URL` across Production/Development/Preview twice
+  during unrelated work, which meant local dev and preview builds could
+  point at the real production database. Decision: dedicated `test` and
+  `staging` Neon branches with one-command reset scripts
+  (`pnpm db:reset-test`, `pnpm db:reset-staging`); `staging` is schema-only
+  at creation and only ever populated via migrate+seed, never a
+  parent-reset from production, so it can never carry real personal data.
+  The Neon integration's Vercel connection is now narrowed to Preview only,
+  so per-preview branch injection can't touch the manually-set
+  Production/Development values again.
 
 ## Test plan (TDD — write these first)
 
