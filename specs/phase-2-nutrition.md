@@ -187,6 +187,11 @@ now always runs because `runSync()` is now guaranteed to settle.
 when its `AbortSignal` fires (using `node:test`'s mock timers to advance
 past the timeout without a real 30s wait).
 
+**Real-device validated** (Galaxy S25, PR #15's build off `v3-generalized`
+post-merge): first sync succeeded, then a second sync after logging another
+MyFitnessPal update completed cleanly with no hang — confirmed twice. VIK-74
+closed; VIK-75 (product-testing onboarding doc) is now unblocked.
+
 ## 3. iOS — new work, but not from raw native code
 
 `react-native-health` ([agencyenterprise/react-native-health](https://github.com/agencyenterprise/react-native-health),
