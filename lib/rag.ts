@@ -46,20 +46,22 @@ export async function indexDocument(doc: Document): Promise<number> {
   if (chunks.length === 0) return 0;
 
   const vectors = await embed(chunks, "document");
-  await db.delete(documentChunks).where(eq(documentChunks.documentId, doc.id));
-  await db.insert(documentChunks).values(
-    chunks.map((content, i) => ({
-      documentId: doc.id,
-      accountId: doc.accountId,
-      chunkIndex: i,
-      content,
-      embedding: vectors[i],
-    })),
-  );
-  await db
-    .update(documents)
-    .set({ embeddedAt: new Date() })
-    .where(eq(documents.id, doc.id));
+  await db.transaction(async (tx) => {
+    await tx.delete(documentChunks).where(eq(documentChunks.documentId, doc.id));
+    await tx.insert(documentChunks).values(
+      chunks.map((content, i) => ({
+        documentId: doc.id,
+        accountId: doc.accountId,
+        chunkIndex: i,
+        content,
+        embedding: vectors[i],
+      })),
+    );
+    await tx
+      .update(documents)
+      .set({ embeddedAt: new Date() })
+      .where(eq(documents.id, doc.id));
+  });
   return chunks.length;
 }
 
