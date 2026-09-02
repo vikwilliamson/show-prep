@@ -9,7 +9,11 @@ export default defineConfig({
   },
   test: {
     include: ["tests/**/*.test.ts", "tests/**/*.test.tsx"],
+    // Default stays "node" — DB/API-route tests need real Node behavior.
+    // Component tests opt into jsdom individually via a
+    // `// @vitest-environment jsdom` docblock at the top of the file.
     environment: "node",
+    setupFiles: ["./tests/setup.ts"],
     // PGlite is single-process (see README) — several tests share the local
     // .data/pglite dev database, so test files can't run in parallel.
     fileParallelism: false,
