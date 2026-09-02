@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import { afterEach, test, vi } from "vitest";
-import { sql } from "drizzle-orm";
-import { chunkText, retrieve } from "../lib/rag";
+import { eq, sql } from "drizzle-orm";
+import { chunkText, indexDocument, retrieve } from "../lib/rag";
 import { documentChunks, documents, getDb } from "../lib/db";
+import { embed } from "../lib/ai/embeddings";
 import { createAccountTracker } from "./helpers";
 
 // retrieve() embeds the query via Voyage; stub it so tests don't need a real
@@ -114,6 +115,54 @@ test("retrieve() never returns another account's chunks", async () => {
   for (const r of results) {
     assert.equal(r.documentId, docA.id, "leaked a chunk from another account");
   }
+});
+
+test("indexDocument leaves existing chunks and embeddedAt untouched when the insert fails partway", async () => {
+  const db = await getDb();
+  const account = await makeAccount("RAG Transactional Account");
+  const [doc] = await db
+    .insert(documents)
+    .values({
+      accountId: account.id,
+      title: "Protocol",
+      sourceType: "txt",
+      contentText: "Calories: 2100\n\nProtein: 210g",
+    })
+    .returning();
+
+  // Seed state from a prior successful index — this is what a failed
+  // re-index must leave untouched.
+  await db.insert(documentChunks).values({
+    accountId: account.id,
+    documentId: doc.id,
+    chunkIndex: 0,
+    content: "stale chunk from a prior index",
+    embedding: MATCHING_VECTOR,
+  });
+  await db
+    .update(documents)
+    .set({ embeddedAt: new Date("2020-01-01") })
+    .where(eq(documents.id, doc.id));
+
+  // Force the insert step to fail: a wrong-dimension vector violates the
+  // embedding column's pgvector dimension constraint mid-transaction.
+  vi.mocked(embed).mockResolvedValueOnce([[1, 2, 3]]);
+
+  await assert.rejects(() => indexDocument({ ...doc, contentText: "New content here" }));
+
+  const chunksAfter = await db
+    .select()
+    .from(documentChunks)
+    .where(eq(documentChunks.documentId, doc.id));
+  assert.equal(chunksAfter.length, 1, "the pre-existing chunk should survive — delete must roll back");
+  assert.equal(chunksAfter[0].content, "stale chunk from a prior index");
+
+  const [docAfter] = await db.select().from(documents).where(eq(documents.id, doc.id));
+  assert.equal(
+    docAfter.embeddedAt?.toISOString().slice(0, 10),
+    "2020-01-01",
+    "embeddedAt should not have been touched by the failed attempt",
+  );
 });
 
 test("document_chunks.embedding has an HNSW index for fast similarity search", async () => {
