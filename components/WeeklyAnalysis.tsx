@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { errorMessage, fetchJson } from "@/lib/client-fetch";
 
 export function WeeklyAnalysis({
   weekStart,
@@ -17,16 +18,14 @@ export function WeeklyAnalysis({
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch("/api/analysis", {
+      const json = await fetchJson<{ analysis: string }>("/api/analysis", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ weekStart }),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
       setAnalysis(json.analysis);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to generate");
+      setError(errorMessage(err, "Failed to generate."));
     } finally {
       setBusy(false);
     }

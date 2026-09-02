@@ -8,7 +8,7 @@ export default defineConfig({
     },
   },
   test: {
-    include: ["tests/**/*.test.ts"],
+    include: ["tests/**/*.test.ts", "tests/**/*.test.tsx"],
     environment: "node",
     // PGlite is single-process (see README) — several tests share the local
     // .data/pglite dev database, so test files can't run in parallel.

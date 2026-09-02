@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { PROGRAM_TYPES, PROGRAM_TYPE_LABELS } from "@/lib/program-types";
+import { errorMessage, fetchJson } from "@/lib/client-fetch";
+import { FormField } from "@/components/FormField";
 
 interface SettingsShape {
   targetName: string | null;
@@ -29,19 +31,25 @@ export default function SettingsPage() {
   const [t, setT] = useState<TargetsShape | null>(null);
   const [referenceId, setReferenceId] = useState<string | null>(null);
   const [role, setRole] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    fetch("/api/settings")
-      .then((r) => r.json())
+    fetchJson<{
+      settings: SettingsShape;
+      targets: TargetsShape;
+      referenceId: string;
+      role: string;
+    }>("/api/settings")
       .then((json) => {
         setS(json.settings);
         setT(json.targets);
         setReferenceId(json.referenceId);
         setRole(json.role);
-      });
+      })
+      .catch((err) => setLoadError(errorMessage(err, "Couldn't load your settings.")));
   }, []);
 
   async function copyReferenceId() {
@@ -64,76 +72,40 @@ export default function SettingsPage() {
     setBusy(true);
     setNote(null);
     try {
-      const res = await fetch("/api/settings", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          settings: {
-            targetName: s.targetName,
-            targetDate: s.targetDate,
-            programType: s.programType,
-            targetNote: s.targetNote,
-            targetWeightLbs: s.targetWeightLbs,
-            heightInches: s.heightInches,
-            targetCalories: s.targetCalories,
-            targetProteinG: s.targetProteinG,
-            targetCarbsG: s.targetCarbsG,
-            targetFatG: s.targetFatG,
-            timezone: s.timezone,
-          },
-          targets: t,
-        }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Save failed");
+      const json = await fetchJson<{ settings: SettingsShape; targets: TargetsShape }>(
+        "/api/settings",
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            settings: {
+              targetName: s.targetName,
+              targetDate: s.targetDate,
+              programType: s.programType,
+              targetNote: s.targetNote,
+              targetWeightLbs: s.targetWeightLbs,
+              heightInches: s.heightInches,
+              targetCalories: s.targetCalories,
+              targetProteinG: s.targetProteinG,
+              targetCarbsG: s.targetCarbsG,
+              targetFatG: s.targetFatG,
+              timezone: s.timezone,
+            },
+            targets: t,
+          }),
+        },
+      );
       setS(json.settings);
       setT(json.targets);
       setNote("Saved.");
     } catch (err) {
-      setNote(err instanceof Error ? err.message : "Save failed");
+      setNote(errorMessage(err, "Save failed."));
     } finally {
       setBusy(false);
     }
   }
 
-  if (!s || !t) return <p className="text-sm text-muted">Loading…</p>;
-
-  const text = (
-    label: string,
-    value: string | null,
-    onChange: (v: string | null) => void,
-    props: React.InputHTMLAttributes<HTMLInputElement> = {},
-  ) => (
-    <label className="block text-sm">
-      <span className="mb-1 block text-muted">{label}</span>
-      <input
-        {...props}
-        value={value ?? ""}
-        onChange={(e) => onChange(e.target.value || null)}
-        className="w-full rounded-md border border-borderc bg-background px-3 py-1.5"
-      />
-    </label>
-  );
-
-  const num = (
-    label: string,
-    value: number | null,
-    onChange: (v: number | null) => void,
-    step = 1,
-  ) => (
-    <label className="block text-sm">
-      <span className="mb-1 block text-muted">{label}</span>
-      <input
-        type="number"
-        step={step}
-        value={value ?? ""}
-        onChange={(e) =>
-          onChange(e.target.value === "" ? null : Number(e.target.value))
-        }
-        className="w-full rounded-md border border-borderc bg-background px-3 py-1.5 tabular-nums"
-      />
-    </label>
-  );
+  if (!s || !t) return <p className="text-sm text-muted">{loadError ?? "Loading…"}</p>;
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -168,10 +140,17 @@ export default function SettingsPage() {
           Target
         </h2>
         <div className="grid gap-3 sm:grid-cols-2">
-          {text("Target name", s.targetName, (v) => setS({ ...s, targetName: v }))}
-          {text("Target date", s.targetDate, (v) => setS({ ...s, targetDate: v }), {
-            type: "date",
-          })}
+          <FormField
+            label="Target name"
+            value={s.targetName ?? ""}
+            onChange={(v) => setS({ ...s, targetName: v || null })}
+          />
+          <FormField
+            label="Target date"
+            type="date"
+            value={s.targetDate ?? ""}
+            onChange={(v) => setS({ ...s, targetDate: v || null })}
+          />
           <label className="block text-sm sm:col-span-2">
             <span className="mb-1 block text-muted">Program type</span>
             <select
@@ -187,17 +166,30 @@ export default function SettingsPage() {
               ))}
             </select>
           </label>
-          {text(
-            "Target note (shown in check-ins)",
-            s.targetNote,
-            (v) => setS({ ...s, targetNote: v }),
-          )}
-          {num("Target weight (lbs)", s.targetWeightLbs, (v) =>
-            setS({ ...s, targetWeightLbs: v }), 0.5)}
-          {num("Height (inches)", s.heightInches, (v) =>
-            setS({ ...s, heightInches: v }), 0.5)}
-          {text("Timezone (day bucketing)", s.timezone, (v) =>
-            setS({ ...s, timezone: v ?? "America/Los_Angeles" }))}
+          <FormField
+            label="Target note (shown in check-ins)"
+            value={s.targetNote ?? ""}
+            onChange={(v) => setS({ ...s, targetNote: v || null })}
+          />
+          <FormField
+            label="Target weight (lbs)"
+            type="number"
+            step={0.5}
+            value={s.targetWeightLbs?.toString() ?? ""}
+            onChange={(v) => setS({ ...s, targetWeightLbs: v === "" ? null : Number(v) })}
+          />
+          <FormField
+            label="Height (inches)"
+            type="number"
+            step={0.5}
+            value={s.heightInches?.toString() ?? ""}
+            onChange={(v) => setS({ ...s, heightInches: v === "" ? null : Number(v) })}
+          />
+          <FormField
+            label="Timezone (day bucketing)"
+            value={s.timezone}
+            onChange={(v) => setS({ ...s, timezone: v || "America/Los_Angeles" })}
+          />
         </div>
       </section>
 
@@ -210,14 +202,31 @@ export default function SettingsPage() {
           overrides these once one exists.
         </p>
         <div className="grid gap-3 sm:grid-cols-2">
-          {num("Calories (kcal/day)", s.targetCalories, (v) =>
-            setS({ ...s, targetCalories: v }), 50)}
-          {num("Protein (g/day)", s.targetProteinG, (v) =>
-            setS({ ...s, targetProteinG: v }))}
-          {num("Carbs (g/day)", s.targetCarbsG, (v) =>
-            setS({ ...s, targetCarbsG: v }))}
-          {num("Fat (g/day)", s.targetFatG, (v) =>
-            setS({ ...s, targetFatG: v }))}
+          <FormField
+            label="Calories (kcal/day)"
+            type="number"
+            step={50}
+            value={s.targetCalories?.toString() ?? ""}
+            onChange={(v) => setS({ ...s, targetCalories: v === "" ? null : Number(v) })}
+          />
+          <FormField
+            label="Protein (g/day)"
+            type="number"
+            value={s.targetProteinG?.toString() ?? ""}
+            onChange={(v) => setS({ ...s, targetProteinG: v === "" ? null : Number(v) })}
+          />
+          <FormField
+            label="Carbs (g/day)"
+            type="number"
+            value={s.targetCarbsG?.toString() ?? ""}
+            onChange={(v) => setS({ ...s, targetCarbsG: v === "" ? null : Number(v) })}
+          />
+          <FormField
+            label="Fat (g/day)"
+            type="number"
+            value={s.targetFatG?.toString() ?? ""}
+            onChange={(v) => setS({ ...s, targetFatG: v === "" ? null : Number(v) })}
+          />
         </div>
       </section>
 
@@ -226,14 +235,32 @@ export default function SettingsPage() {
           Weekly targets (check-in thresholds)
         </h2>
         <div className="grid gap-3 sm:grid-cols-2">
-          {num("Water minimum (ml/day)", t.waterMlMin, (v) =>
-            setT({ ...t, waterMlMin: v ?? 3000 }), 100)}
-          {num("Sleep minimum (hours/night)", t.sleepHoursMin, (v) =>
-            setT({ ...t, sleepHoursMin: v ?? 7 }), 0.5)}
-          {num("Workouts minimum (days/week)", t.workoutsPerWeekMin, (v) =>
-            setT({ ...t, workoutsPerWeekMin: v ?? 3 }))}
-          {num("Cardio sessions prescribed (per week, 0 = none)", t.cardioSessionsPerWeek, (v) =>
-            setT({ ...t, cardioSessionsPerWeek: v ?? 0 }))}
+          <FormField
+            label="Water minimum (ml/day)"
+            type="number"
+            step={100}
+            value={t.waterMlMin.toString()}
+            onChange={(v) => setT({ ...t, waterMlMin: v === "" ? 3000 : Number(v) })}
+          />
+          <FormField
+            label="Sleep minimum (hours/night)"
+            type="number"
+            step={0.5}
+            value={t.sleepHoursMin.toString()}
+            onChange={(v) => setT({ ...t, sleepHoursMin: v === "" ? 7 : Number(v) })}
+          />
+          <FormField
+            label="Workouts minimum (days/week)"
+            type="number"
+            value={t.workoutsPerWeekMin.toString()}
+            onChange={(v) => setT({ ...t, workoutsPerWeekMin: v === "" ? 3 : Number(v) })}
+          />
+          <FormField
+            label="Cardio sessions prescribed (per week, 0 = none)"
+            type="number"
+            value={t.cardioSessionsPerWeek.toString()}
+            onChange={(v) => setT({ ...t, cardioSessionsPerWeek: v === "" ? 0 : Number(v) })}
+          />
         </div>
       </section>
 
@@ -265,17 +292,18 @@ function AddClientSection() {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch("/api/accounts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Couldn't create client");
+      const json = await fetchJson<{ account: { name: string }; passcode: string }>(
+        "/api/accounts",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name }),
+        },
+      );
       setCreated({ name: json.account.name, passcode: json.passcode });
       setName("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't create client");
+      setError(errorMessage(err, "Couldn't create client."));
     } finally {
       setBusy(false);
     }

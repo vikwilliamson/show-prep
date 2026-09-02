@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { errorMessage, fetchJson } from "@/lib/client-fetch";
 
 const markdownComponents: Components = {
   p: ({ ...props }) => <p className="mb-2 last:mb-0" {...props} />,
@@ -43,16 +44,17 @@ interface Message {
 }
 
 export default function ChatPage() {
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<Message[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    fetch("/api/chat")
-      .then((r) => r.json())
-      .then(setMessages);
+    fetchJson<Message[]>("/api/chat")
+      .then(setMessages)
+      .catch((err) => setLoadError(errorMessage(err, "Couldn't load your conversation.")));
   }, []);
 
   useEffect(() => {
@@ -68,20 +70,22 @@ export default function ChatPage() {
     setBusy(true);
     // Optimistic user bubble.
     setMessages((m) => [
-      ...m,
+      ...(m ?? []),
       { id: -Date.now(), role: "user", content: message, sources: null },
     ]);
     try {
-      const res = await fetch("/api/chat", {
+      const json = await fetchJson<{ user: Message; assistant: Message }>("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message }),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
-      setMessages((m) => [...m.slice(0, -1), json.user, json.assistant]);
+      setMessages((m) => [...(m ?? []).slice(0, -1), json.user, json.assistant]);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Chat failed");
+      // Roll back the optimistic bubble — it never actually sent — and give
+      // the user their text back so they don't have to retype it.
+      setMessages((m) => (m ?? []).slice(0, -1));
+      setInput(message);
+      setError(errorMessage(err, "Message failed to send."));
     } finally {
       setBusy(false);
     }
@@ -89,8 +93,19 @@ export default function ChatPage() {
 
   async function clear() {
     if (!confirm("Clear the whole conversation?")) return;
-    await fetch("/api/chat", { method: "DELETE" });
-    setMessages([]);
+    setBusy(true);
+    try {
+      await fetchJson("/api/chat", { method: "DELETE" });
+      setMessages([]);
+    } catch (err) {
+      setError(errorMessage(err, "Couldn't clear the conversation."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (messages === null) {
+    return <p className="text-sm text-muted">{loadError ?? "Loading…"}</p>;
   }
 
   return (
@@ -98,7 +113,7 @@ export default function ChatPage() {
       <div className="mb-2 flex items-center justify-between">
         <h1 className="text-lg font-semibold">Chat with your documents</h1>
         {messages.length > 0 && (
-          <button onClick={clear} className="text-xs text-muted hover:text-bad">
+          <button onClick={clear} disabled={busy} className="text-xs text-muted hover:text-bad disabled:opacity-50">
             clear history
           </button>
         )}

@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { errorMessage, fetchJson } from "@/lib/client-fetch";
+import { FormField } from "@/components/FormField";
 
 interface CheckinData {
   weekStart: string;
@@ -35,6 +37,7 @@ function shiftWeek(weekStart: string, weeks: number): string {
 export default function CheckInPage() {
   const [data, setData] = useState<CheckinData | null>(null);
   const [weekStart, setWeekStart] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [form, setForm] = useState({
     waistIn: "",
     strengthTrend: "",
@@ -43,14 +46,13 @@ export default function CheckInPage() {
     manualNotes: "",
   });
   const [draft, setDraft] = useState<string>("");
-  const [busy, setBusy] = useState<"save" | "draft" | null>(null);
+  const [busy, setBusy] = useState<"save" | "draft" | "sent" | null>(null);
   const [note, setNote] = useState<string | null>(null);
 
   const load = useCallback((ws?: string) => {
     const url = ws ? `/api/checkins?weekStart=${ws}` : "/api/checkins";
-    return fetch(url)
-      .then((r) => r.json())
-      .then((json: CheckinData) => {
+    return fetchJson<CheckinData>(url)
+      .then((json) => {
         setData(json);
         setWeekStart(json.weekStart);
         setForm({
@@ -61,6 +63,10 @@ export default function CheckInPage() {
           manualNotes: json.checkIn?.manualNotes ?? "",
         });
         setDraft(json.checkIn?.generatedDraft ?? "");
+        setLoadError(null);
+      })
+      .catch((err) => {
+        setLoadError(errorMessage(err, "Couldn't load this check-in."));
       });
   }, []);
 
@@ -73,7 +79,7 @@ export default function CheckInPage() {
     setBusy("save");
     setNote(null);
     try {
-      const res = await fetch("/api/checkins", {
+      await fetchJson("/api/checkins", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -85,11 +91,10 @@ export default function CheckInPage() {
           manualNotes: form.manualNotes || null,
         }),
       });
-      if (!res.ok) throw new Error((await res.json()).error ?? "Save failed");
       setNote("Saved.");
       return true;
     } catch (err) {
-      setNote(err instanceof Error ? err.message : "Save failed");
+      setNote(errorMessage(err, "Save failed."));
       return false;
     } finally {
       setBusy(null);
@@ -102,71 +107,55 @@ export default function CheckInPage() {
     setBusy("draft");
     setNote(null);
     try {
-      const res = await fetch("/api/checkins/draft", {
+      const json = await fetchJson<{ generatedDraft: string }>("/api/checkins/draft", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ weekStart }),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Draft failed");
       setDraft(json.generatedDraft);
       setNote("Draft generated — review, copy, and send.");
     } catch (err) {
-      setNote(err instanceof Error ? err.message : "Draft failed");
+      setNote(errorMessage(err, "Draft failed."));
     } finally {
       setBusy(null);
     }
   }
 
   async function copyDraft() {
-    await navigator.clipboard.writeText(draft);
-    setNote("Copied to clipboard.");
+    try {
+      await navigator.clipboard.writeText(draft);
+      setNote("Copied to clipboard.");
+    } catch {
+      setNote("Couldn't copy automatically — select the draft text above and copy it manually.");
+    }
   }
 
   async function markSent() {
-    if (!weekStart) return;
-    await fetch("/api/checkins", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ weekStart, sent: true }),
-    });
-    await load(weekStart);
-    setNote("Marked as sent.");
+    if (!weekStart || busy !== null) return;
+    setBusy("sent");
+    setNote(null);
+    try {
+      await fetchJson("/api/checkins", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ weekStart, sent: true }),
+      });
+      await load(weekStart);
+      setNote("Marked as sent.");
+    } catch (err) {
+      setNote(errorMessage(err, "Couldn't mark as sent."));
+    } finally {
+      setBusy(null);
+    }
   }
 
   if (!data || !weekStart) {
-    return <p className="text-sm text-muted">Loading…</p>;
+    return <p className="text-sm text-muted">{loadError ?? "Loading…"}</p>;
   }
-
-  const manualField = (
-    label: string,
-    key: keyof typeof form,
-    placeholder: string,
-    textarea = true,
-  ) => (
-    <label className="block text-sm">
-      <span className="mb-1 block font-medium">{label}</span>
-      {textarea ? (
-        <textarea
-          rows={2}
-          value={form[key]}
-          onChange={(e) => setForm({ ...form, [key]: e.target.value })}
-          placeholder={placeholder}
-          className="w-full rounded-md border border-borderc bg-background px-3 py-2 text-sm"
-        />
-      ) : (
-        <input
-          value={form[key]}
-          onChange={(e) => setForm({ ...form, [key]: e.target.value })}
-          placeholder={placeholder}
-          className="w-full rounded-md border border-borderc bg-background px-3 py-1.5 text-sm"
-        />
-      )}
-    </label>
-  );
 
   return (
     <div className="space-y-4">
+      {loadError && <p className="text-sm text-bad">{loadError}</p>}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-lg font-semibold">
           Coach check-in · week of {weekStart}
@@ -215,29 +204,58 @@ export default function CheckInPage() {
                   )}
                   {q.key === "bodyweight_waist" && (
                     <div className="mt-2 max-w-48">
-                      {manualField("Waist (inches)", "waistIn", "e.g. 31.5", false)}
+                      <FormField
+                        label="Waist (inches)"
+                        value={form.waistIn}
+                        onChange={(v) => setForm({ ...form, waistIn: v })}
+                        placeholder="e.g. 31.5"
+                      />
                     </div>
                   )}
                   {q.key === "strength" && (
                     <div className="mt-2">
-                      {manualField("Your notes", "strengthTrend", "e.g. Pressing felt flat, pulls still strong…")}
+                      <FormField
+                        label="Your notes"
+                        type="textarea"
+                        value={form.strengthTrend}
+                        onChange={(v) => setForm({ ...form, strengthTrend: v })}
+                        placeholder="e.g. Pressing felt flat, pulls still strong…"
+                      />
                     </div>
                   )}
                   {q.key === "digestion" && (
                     <div className="mt-2">
-                      {manualField("Your notes", "digestion", "e.g. Regular, no issues")}
+                      <FormField
+                        label="Your notes"
+                        type="textarea"
+                        value={form.digestion}
+                        onChange={(v) => setForm({ ...form, digestion: v })}
+                        placeholder="e.g. Regular, no issues"
+                      />
                     </div>
                   )}
                   {q.key === "change_requests" && (
                     <div className="mt-2">
-                      {manualField("Your notes", "changeRequests", "e.g. Would love a few more carbs pre-workout")}
+                      <FormField
+                        label="Your notes"
+                        type="textarea"
+                        value={form.changeRequests}
+                        onChange={(v) => setForm({ ...form, changeRequests: v })}
+                        placeholder="e.g. Would love a few more carbs pre-workout"
+                      />
                     </div>
                   )}
                 </li>
               );
             })}
           </ol>
-          {manualField("Anything else for the draft (optional)", "manualNotes", "Context you want woven in…")}
+          <FormField
+            label="Anything else for the draft (optional)"
+            type="textarea"
+            value={form.manualNotes}
+            onChange={(v) => setForm({ ...form, manualNotes: v })}
+            placeholder="Context you want woven in…"
+          />
           <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={saveManual}
@@ -285,9 +303,10 @@ export default function CheckInPage() {
                 </a>
                 <button
                   onClick={markSent}
-                  className="rounded-md border border-borderc px-3 py-1.5 text-sm font-medium hover:bg-borderc/30"
+                  disabled={busy !== null}
+                  className="rounded-md border border-borderc px-3 py-1.5 text-sm font-medium hover:bg-borderc/30 disabled:opacity-50"
                 >
-                  Mark as sent
+                  {busy === "sent" ? "Marking…" : "Mark as sent"}
                 </button>
               </div>
             </>

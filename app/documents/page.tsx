@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { errorMessage, fetchJson } from "@/lib/client-fetch";
 
 interface DocRow {
   id: number;
@@ -36,8 +37,11 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 export default function DocumentsPage() {
-  const [docs, setDocs] = useState<DocRow[]>([]);
-  const [protocols, setProtocols] = useState<ProtocolRow[]>([]);
+  const [docs, setDocs] = useState<DocRow[] | null>(null);
+  const [protocols, setProtocols] = useState<ProtocolRow[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [mutatingProtocolId, setMutatingProtocolId] = useState<number | null>(null);
+  const [mutatingDocId, setMutatingDocId] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [pasteMode, setPasteMode] = useState(false);
@@ -46,12 +50,17 @@ export default function DocumentsPage() {
 
   const refresh = useCallback(() => {
     return Promise.all([
-      fetch("/api/documents").then((r) => r.json()),
-      fetch("/api/protocols").then((r) => r.json()),
-    ]).then(([d, p]) => {
-      setDocs(d);
-      setProtocols(p);
-    });
+      fetchJson<DocRow[]>("/api/documents"),
+      fetchJson<ProtocolRow[]>("/api/protocols"),
+    ])
+      .then(([d, p]) => {
+        setDocs(d);
+        setProtocols(p);
+        setLoadError(null);
+      })
+      .catch((err) => {
+        setLoadError(errorMessage(err, "Couldn't load your documents. Try refreshing the page."));
+      });
   }, []);
 
   useEffect(() => {
@@ -69,9 +78,11 @@ export default function DocumentsPage() {
     setBusy(true);
     setMessage(null);
     try {
-      const res = await fetch("/api/documents", { method: "POST", body: form });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+      const json = await fetchJson<{
+        document: { title: string };
+        protocols?: unknown[];
+        warnings?: string[];
+      }>("/api/documents", { method: "POST", body: form });
       const extracted = json.protocols?.length ?? 0;
       setMessage(
         [
@@ -85,44 +96,60 @@ export default function DocumentsPage() {
       formRef.current?.reset();
       await refresh();
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Upload failed");
+      setMessage(errorMessage(err, "Upload failed."));
     } finally {
       setBusy(false);
     }
   }
 
   async function patchProtocol(id: number, action: "confirm" | "reject" | "reactivate") {
-    const res = await fetch(`/api/protocols/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action }),
-    });
-    if (!res.ok) {
-      const json = await res.json().catch(() => ({}));
-      setMessage(json.error ?? "Update failed");
+    setMutatingProtocolId(id);
+    try {
+      await fetchJson(`/api/protocols/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+    } catch (err) {
+      setMessage(errorMessage(err, "Update failed."));
+    } finally {
+      await refresh();
+      setMutatingProtocolId(null);
     }
-    await refresh();
   }
 
   async function removeDoc(id: number, title: string) {
     if (!confirm(`Delete "${title}" and its chunks?`)) return;
-    await fetch(`/api/documents/${id}`, { method: "DELETE" });
-    await refresh();
+    setMutatingDocId(id);
+    try {
+      await fetchJson(`/api/documents/${id}`, { method: "DELETE" });
+    } catch (err) {
+      setMessage(errorMessage(err, "Delete failed."));
+    } finally {
+      await refresh();
+      setMutatingDocId(null);
+    }
   }
 
   async function reprocess(id: number) {
-    setBusy(true);
+    setMutatingDocId(id);
     setMessage(null);
     try {
-      const res = await fetch(`/api/documents/${id}/reprocess`, { method: "POST" });
-      const json = await res.json();
-      setMessage(
-        [json.ok ? "Reprocessed." : "Failed.", ...(json.warnings ?? [])].join(" "),
+      const json = await fetchJson<{ ok: boolean; warnings?: string[] }>(
+        `/api/documents/${id}/reprocess`,
+        { method: "POST" },
       );
-      await refresh();
+      setMessage([json.ok ? "Reprocessed." : "Failed.", ...(json.warnings ?? [])].join(" "));
+    } catch (err) {
+      setMessage(errorMessage(err, "Reprocess failed."));
     } finally {
-      setBusy(false);
+      await refresh();
+      setMutatingDocId(null);
     }
+  }
+
+  if (docs === null || protocols === null) {
+    return <p className="text-sm text-muted">{loadError ?? "Loading…"}</p>;
   }
 
   const pending = protocols.filter((p) => p.status === "pending");
@@ -130,6 +157,8 @@ export default function DocumentsPage() {
 
   return (
     <div className="space-y-6">
+      {loadError && <p className="text-sm text-bad">{loadError}</p>}
+
       {/* Upload */}
       <section className="rounded-xl border border-borderc bg-surface p-4">
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted">
@@ -202,46 +231,51 @@ export default function DocumentsPage() {
             Extracted prescriptions awaiting your confirmation
           </h2>
           <div className="space-y-3">
-            {pending.map((p) => (
-              <div key={p.id} className="rounded-lg border border-borderc p-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <p className="text-sm font-medium">
-                      {p.calories != null ? `${p.calories} kcal` : "No calorie target"} ·{" "}
-                      {p.proteinG ?? "?"}P / {p.carbsG ?? "?"}C / {p.fatG ?? "?"}F
-                    </p>
-                    <p className="text-xs text-muted">
-                      Effective {p.effectiveFrom}
-                      {p.documentTitle && ` · from "${p.documentTitle}"`}
-                      {p.extractedJson?.confidence && ` · confidence: ${p.extractedJson.confidence}`}
-                    </p>
-                    {p.cardioPlan && (
-                      <p className="mt-1 text-xs text-muted">Cardio: {p.cardioPlan}</p>
-                    )}
-                    {p.notes && <p className="mt-1 text-xs text-muted">Notes: {p.notes}</p>}
-                    {p.extractedJson?.source_quote && (
-                      <p className="mt-1 text-xs italic text-muted">
-                        “{p.extractedJson.source_quote}”
+            {pending.map((p) => {
+              const rowBusy = mutatingProtocolId === p.id;
+              return (
+                <div key={p.id} className="rounded-lg border border-borderc p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-medium">
+                        {p.calories != null ? `${p.calories} kcal` : "No calorie target"} ·{" "}
+                        {p.proteinG ?? "?"}P / {p.carbsG ?? "?"}C / {p.fatG ?? "?"}F
                       </p>
-                    )}
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => patchProtocol(p.id, "confirm")}
-                      className="rounded-md bg-good px-3 py-1.5 text-sm font-medium text-white hover:opacity-90"
-                    >
-                      Confirm as active
-                    </button>
-                    <button
-                      onClick={() => patchProtocol(p.id, "reject")}
-                      className="rounded-md border border-borderc px-3 py-1.5 text-sm hover:bg-borderc/30"
-                    >
-                      Reject
-                    </button>
+                      <p className="text-xs text-muted">
+                        Effective {p.effectiveFrom}
+                        {p.documentTitle && ` · from "${p.documentTitle}"`}
+                        {p.extractedJson?.confidence && ` · confidence: ${p.extractedJson.confidence}`}
+                      </p>
+                      {p.cardioPlan && (
+                        <p className="mt-1 text-xs text-muted">Cardio: {p.cardioPlan}</p>
+                      )}
+                      {p.notes && <p className="mt-1 text-xs text-muted">Notes: {p.notes}</p>}
+                      {p.extractedJson?.source_quote && (
+                        <p className="mt-1 text-xs italic text-muted">
+                          “{p.extractedJson.source_quote}”
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => patchProtocol(p.id, "confirm")}
+                        disabled={rowBusy}
+                        className="rounded-md bg-good px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+                      >
+                        {rowBusy ? "Working…" : "Confirm as active"}
+                      </button>
+                      <button
+                        onClick={() => patchProtocol(p.id, "reject")}
+                        disabled={rowBusy}
+                        className="rounded-md border border-borderc px-3 py-1.5 text-sm hover:bg-borderc/30 disabled:opacity-50"
+                      >
+                        Reject
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </section>
       )}
@@ -269,37 +303,42 @@ export default function DocumentsPage() {
               </tr>
             </thead>
             <tbody>
-              {docs.map((d) => (
-                <tr key={d.id} className="border-t border-borderc">
-                  <td className="py-2 pr-3 font-medium">{d.title}</td>
-                  <td className="py-2 pr-3">{CATEGORY_LABELS[d.category] ?? d.category}</td>
-                  <td className="py-2 pr-3 text-muted">{d.sourceType}</td>
-                  <td className="py-2 pr-3">
-                    {d.chunkCount > 0 ? (
-                      <span className="text-good">{d.chunkCount} chunks</span>
-                    ) : (
-                      <span className="text-muted">not embedded</span>
-                    )}
-                  </td>
-                  <td className="py-2 pr-3 text-muted">
-                    {new Date(d.uploadedAt).toLocaleDateString()}
-                  </td>
-                  <td className="py-2 text-right">
-                    <button
-                      onClick={() => reprocess(d.id)}
-                      className="mr-2 text-xs text-accent hover:underline"
-                    >
-                      re-run AI
-                    </button>
-                    <button
-                      onClick={() => removeDoc(d.id, d.title)}
-                      className="text-xs text-bad hover:underline"
-                    >
-                      delete
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {docs.map((d) => {
+                const rowBusy = mutatingDocId === d.id;
+                return (
+                  <tr key={d.id} className="border-t border-borderc">
+                    <td className="py-2 pr-3 font-medium">{d.title}</td>
+                    <td className="py-2 pr-3">{CATEGORY_LABELS[d.category] ?? d.category}</td>
+                    <td className="py-2 pr-3 text-muted">{d.sourceType}</td>
+                    <td className="py-2 pr-3">
+                      {d.chunkCount > 0 ? (
+                        <span className="text-good">{d.chunkCount} chunks</span>
+                      ) : (
+                        <span className="text-muted">not embedded</span>
+                      )}
+                    </td>
+                    <td className="py-2 pr-3 text-muted">
+                      {new Date(d.uploadedAt).toLocaleDateString()}
+                    </td>
+                    <td className="py-2 text-right">
+                      <button
+                        onClick={() => reprocess(d.id)}
+                        disabled={rowBusy}
+                        className="mr-2 text-xs text-accent hover:underline disabled:opacity-50"
+                      >
+                        {rowBusy ? "working…" : "re-run AI"}
+                      </button>
+                      <button
+                        onClick={() => removeDoc(d.id, d.title)}
+                        disabled={rowBusy}
+                        className="text-xs text-bad hover:underline disabled:opacity-50"
+                      >
+                        delete
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
@@ -322,36 +361,40 @@ export default function DocumentsPage() {
               </tr>
             </thead>
             <tbody>
-              {others.map((p) => (
-                <tr key={p.id} className="border-t border-borderc">
-                  <td className="py-2 pr-3">
-                    <span
-                      className={
-                        p.status === "active"
-                          ? "rounded bg-good/15 px-1.5 py-0.5 text-xs font-medium text-good"
-                          : "rounded bg-borderc/40 px-1.5 py-0.5 text-xs text-muted"
-                      }
-                    >
-                      {p.status}
-                    </span>
-                  </td>
-                  <td className="py-2 pr-3 tabular-nums">{p.effectiveFrom}</td>
-                  <td className="py-2 pr-3 tabular-nums">
-                    {p.calories ?? "—"} kcal · {p.proteinG ?? "?"}P/{p.carbsG ?? "?"}C/{p.fatG ?? "?"}F
-                  </td>
-                  <td className="py-2 pr-3 text-muted">{p.documentTitle ?? "—"}</td>
-                  <td className="py-2 text-right">
-                    {p.status !== "active" && (
-                      <button
-                        onClick={() => patchProtocol(p.id, "reactivate")}
-                        className="text-xs text-accent hover:underline"
+              {others.map((p) => {
+                const rowBusy = mutatingProtocolId === p.id;
+                return (
+                  <tr key={p.id} className="border-t border-borderc">
+                    <td className="py-2 pr-3">
+                      <span
+                        className={
+                          p.status === "active"
+                            ? "rounded bg-good/15 px-1.5 py-0.5 text-xs font-medium text-good"
+                            : "rounded bg-borderc/40 px-1.5 py-0.5 text-xs text-muted"
+                        }
                       >
-                        make active
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
+                        {p.status}
+                      </span>
+                    </td>
+                    <td className="py-2 pr-3 tabular-nums">{p.effectiveFrom}</td>
+                    <td className="py-2 pr-3 tabular-nums">
+                      {p.calories ?? "—"} kcal · {p.proteinG ?? "?"}P/{p.carbsG ?? "?"}C/{p.fatG ?? "?"}F
+                    </td>
+                    <td className="py-2 pr-3 text-muted">{p.documentTitle ?? "—"}</td>
+                    <td className="py-2 text-right">
+                      {p.status !== "active" && (
+                        <button
+                          onClick={() => patchProtocol(p.id, "reactivate")}
+                          disabled={rowBusy}
+                          className="text-xs text-accent hover:underline disabled:opacity-50"
+                        >
+                          {rowBusy ? "working…" : "make active"}
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </section>
