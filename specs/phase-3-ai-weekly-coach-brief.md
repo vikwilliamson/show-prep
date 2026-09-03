@@ -45,7 +45,10 @@ card. Before approval, it's visible only on the coach's per-client view.
 first thing to cut** — the demo narrative itself is the coach-side
 generate → edit → approve flow; showing the client-side result is a nice-to
 -have, not what carries the story. Sequenced last for exactly this reason —
-see "Recommended sequencing."
+see "Recommended sequencing." (See the 2026-09-02 addendum below for how
+this card coexists with the existing Weekly Analysis card, now that the
+"keep them separate" call has been re-examined and confirmed rather than
+left as an open inconsistency.)
 
 ## Relationship to the existing Weekly Analysis feature
 
@@ -216,8 +219,9 @@ brief).
 - **Real scheduling.** A Vercel cron (or similar) auto-generating drafts
   weekly. The on-demand endpoint built here is exactly what a scheduled
   job would call — adding the schedule later is additive, not a rewrite.
-- **Reconciling this with the existing client-facing Weekly Analysis
-  feature.** Named as a real inconsistency above; not resolved here.
+- ~~Reconciling this with the existing client-facing Weekly Analysis
+  feature.~~ **Resolved 2026-09-02** — deliberately kept separate, not
+  unified. See the dated addendum below.
 - **Multi-coach scoping** on the new route/table — same deliberate,
   documented YAGNI as everywhere else in this codebase (`specs/
   client-accounts.md`, `specs/phase-2.5-coach-dashboard.md`) until a second
@@ -235,3 +239,76 @@ brief).
   clears `approvedAt`.
 - `getClientAccount()`'s existing 404-on-non-client behavior is exercised
   through the new routes (regression coverage, not new behavior).
+
+---
+
+## 2026-09-02 — grill-session follow-ups (VIK-9)
+
+A `/grill-me` pass on this spec (before more code got built past the
+schema/AI-function/API-route layer) surfaced that the original "Scope
+decisions" section above was written under demo time pressure without
+fully thinking through a few branches. Resolved with Vik:
+
+**This is real product work, not disposable demo-ware.** The PRD already
+says Phase 3 exists to shrink the coach's actual weekly work ("read each
+client's week, write a personalized analysis" — `specs/prd.md`'s "Who uses
+this" section). Confirmed explicitly: build it to be genuinely used every
+week post-demo, not thrown away after. This doesn't change anything already
+built (§1-§4 all stand), but it does change the calculus on the deferred
+items below — they're real roadmap, not "maybe later."
+
+**Weekly Analysis stays separate — confirmed, not just left unresolved.**
+Seriously considered unifying (having the coach's approval gate the
+existing client self-serve feature) and rejected it: that would be a
+*breaking* change to a feature Heather already relies on today (instant,
+no-wait, self-serve), for the sake of closing a transparency gap that
+Phase 4's badge already narrows. The two are legitimately different
+products for different audiences — a client's own quick self-check-in
+vs. a coach's reviewed, eventually-shared note — not a duplicate. Grounded
+in similar underlying data, yes; the same artifact, no.
+
+**Client dashboard shows both cards, never suppresses either.** Follows
+from the above: once an approved coach brief exists for the week, the
+client's dashboard (`app/page.tsx`) shows it *alongside* their own
+`WeeklyAnalysis` card, not instead of it. Label them distinctly — e.g.
+"Your self-check-in" (existing, unchanged) vs. "From your coach" (new, §4's
+client-side card) — so it's obvious these are two different things, not a
+duplicate or a glitch. This is the concrete shape of §4's "client side"
+card; VIK-109 should build to this, not a generic "show the brief" spec.
+
+**On-demand generation stays, but gets a nudge.** The button (§3, already
+built) stays the trigger — no scheduled job for the demo. But "shrink real
+weekly work" doesn't hold if it silently depends on the coach remembering
+to click it for every client every week. Added to scope: a lightweight
+nudge on `/clients` (the coach dashboard's client list) — e.g. "3 clients
+need this week's brief" — computed by checking which clients have no
+`coach_briefs` row (or only a stale one) for the current week. Not a
+notification/email, just a dashboard indicator. New, small, not yet built
+— tracked as its own ticket (see Linear) rather than folded into an
+already-open PR.
+
+**Protocol-history grounding: add now, it's cheap.** `generateCoachBrief()`
+(§2) currently only sees the *currently active* protocol (via
+`statsBrief()`'s existing `active_protocol` field). Add one more query
+against the `protocols` table for recent status changes (anything
+superseded/activated within, say, the last 4 weeks) so the brief can
+actually say "protocol changed 2 weeks ago, adherence hasn't caught up" —
+which is exactly the kind of thing the brief's own prompt already asks it
+to flag but currently has no data to flag *with*. This is a small, cheap
+addition (one more query, one more prompt field, no schema change) —
+folded into VIK-104's existing scope rather than a new ticket, since that
+PR hadn't merged yet when this was decided.
+
+**Full document/RAG grounding: real, but genuinely separate — deferred
+with its own spec.** Went further than protocol history: should the brief
+also pull in relevant *document* content the way doc chat's `lib/rag.ts`
+`retrieve()` does? Yes, eventually — but this is a materially different
+problem, not a small add-on: doc chat has a literal user question to
+search against, a brief doesn't, so the retrieval strategy has to be
+designed from scratch (what do you even query for?), plus citation/sourcing
+to match doc chat's own transparency bar, plus real hallucination-risk
+mitigation. Comparable in size to the AI-function + API-route work already
+done for this phase, not a tweak. Deliberately **not** bundled into this
+spec or its ticket chain (VIK-9, VIK-103–109) — see `specs/
+phase-3-document-grounding.md` for the full spec, and its own Linear
+ticket, so it doesn't quietly get dropped.
