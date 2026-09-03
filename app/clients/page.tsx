@@ -1,7 +1,12 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { getCurrentAccount, listClientAccounts, SESSION_COOKIE } from "@/lib/auth";
+import {
+  getCurrentAccount,
+  listClientAccounts,
+  listClientsNeedingBrief,
+  SESSION_COOKIE,
+} from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -11,11 +16,21 @@ export default async function ClientsPage() {
   if (!session) redirect("/login");
   if (session.role !== "coach") redirect("/");
 
-  const clients = await listClientAccounts();
+  const [clients, needingBrief] = await Promise.all([
+    listClientAccounts(),
+    listClientsNeedingBrief(),
+  ]);
 
   return (
     <div className="max-w-2xl space-y-4">
       <h1 className="text-lg font-semibold">Clients</h1>
+      {needingBrief.length > 0 && (
+        <p className="rounded-lg border border-borderc bg-surface px-4 py-2 text-sm text-muted">
+          {needingBrief.length} client{needingBrief.length === 1 ? "" : "s"} need
+          {needingBrief.length === 1 ? "s" : ""} this week&apos;s brief:{" "}
+          {needingBrief.map((c) => c.name).join(", ")}
+        </p>
+      )}
       {clients.length === 0 ? (
         <p className="text-sm text-muted">
           No clients yet — add one from{" "}
