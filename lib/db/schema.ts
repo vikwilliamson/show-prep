@@ -299,6 +299,35 @@ export const checkIns = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// Coach briefs (Phase 3, specs/phase-3-ai-weekly-coach-brief.md). An
+// AI-drafted weekly brief written TO the coach ABOUT one client — distinct
+// from check_ins.ai_analysis, which is client-facing self-serve content.
+// Regenerating replaces the same (accountId, weekStart) row rather than
+// piling up duplicates, same upsert pattern as check_ins. Regenerating an
+// already-approved brief resets status back to 'draft' and clears
+// approvedAt — a fresh draft was never actually re-approved.
+// ---------------------------------------------------------------------------
+
+export const coachBriefs = pgTable(
+  "coach_briefs",
+  {
+    id: serial("id").primaryKey(),
+    accountId: accountIdColumn(), // the CLIENT this brief is about
+    weekStart: date("week_start").notNull(), // Monday of the week covered
+    status: text("status").notNull().default("draft"), // 'draft' | 'approved'
+    content: text("content").notNull(),
+    generatedAt: timestamp("generated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [uniqueIndex("coach_brief_account_week_idx").on(t.accountId, t.weekStart)],
+);
+
+// ---------------------------------------------------------------------------
 // App settings. One row per account (was a hardcoded single row, id = 1,
 // before accounts existed). Includes the coach check-in template.
 // ---------------------------------------------------------------------------
