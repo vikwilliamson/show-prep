@@ -1,11 +1,33 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { getClientAccount, requireCoach, SESSION_COOKIE } from "@/lib/auth";
-import { coachBriefs, getDb } from "@/lib/db";
-import { generateCoachBrief } from "@/lib/ai/brief";
+import { coachBriefs, getDb, protocols } from "@/lib/db";
+import { generateCoachBrief, type ProtocolHistoryEntry } from "@/lib/ai/brief";
 import { mondayOf, todayLocal } from "@/lib/dates";
 import { getSettings, weekStats } from "@/lib/stats";
+
+/** Recent protocol status changes beyond the currently-active one WeekStats
+ *  already carries — lets the brief say things like "protocol changed 2
+ *  weeks ago" (specs/phase-3-ai-weekly-coach-brief.md's 2026-09-02
+ *  addendum). Pending (never-activated) extractions aren't real history. */
+async function recentProtocolHistory(accountId: number): Promise<ProtocolHistoryEntry[]> {
+  const db = await getDb();
+  const rows = await db
+    .select()
+    .from(protocols)
+    .where(and(eq(protocols.accountId, accountId), inArray(protocols.status, ["active", "superseded"])))
+    .orderBy(desc(protocols.effectiveFrom))
+    .limit(5);
+  return rows.map((p) => ({
+    status: p.status as "active" | "superseded",
+    effectiveFrom: p.effectiveFrom,
+    calories: p.calories,
+    proteinG: p.proteinG,
+    carbsG: p.carbsG,
+    fatG: p.fatG,
+  }));
+}
 
 // Allow long-running Claude calls on Vercel (clamped to the plan's max).
 export const maxDuration = 300;
@@ -66,7 +88,8 @@ export async function POST(
   const settings = await getSettings(client.id);
   const weekStart = parsed.data.weekStart ?? mondayOf(todayLocal(settings.timezone));
   const stats = await weekStats(client.id, weekStart);
-  const content = await generateCoachBrief(stats, settings, client.name);
+  const recentProtocols = await recentProtocolHistory(client.id);
+  const content = await generateCoachBrief(stats, settings, client.name, recentProtocols);
 
   const db = await getDb();
   const values = {

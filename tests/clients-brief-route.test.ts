@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { afterEach, test, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { eq } from "drizzle-orm";
-import { coachBriefs, getDb } from "../lib/db";
+import { coachBriefs, getDb, protocols } from "../lib/db";
 import { createSessionToken, SESSION_COOKIE } from "../lib/auth";
 import { createAccountTracker } from "./helpers";
 
@@ -16,6 +16,10 @@ const { GET, POST, PUT } = await import("../app/api/clients/[accountId]/brief/ro
 
 const { makeAccount, cleanup } = createAccountTracker();
 afterEach(cleanup);
+// generateMock is a module-level shared mock — without clearing, mock.calls
+// accumulates across tests, so a later test's mock.calls[0] silently reads
+// an earlier test's call.
+afterEach(() => generateMock.mockClear());
 
 const WEEK_START = "2026-02-02";
 
@@ -42,6 +46,14 @@ function requestWithSession(
 
 function ctxFor(accountId: number) {
   return { params: Promise.resolve({ accountId: String(accountId) }) };
+}
+
+async function insertProtocol(
+  accountId: number,
+  fields: { status: "pending" | "active" | "superseded"; effectiveFrom: string; calories: number },
+) {
+  const db = await getDb();
+  await db.insert(protocols).values({ accountId, ...fields });
 }
 
 test("401s with no session", async () => {
@@ -128,6 +140,28 @@ test("regenerating an approved brief resets it to draft and clears approvedAt", 
   assert.equal(json.status, "draft", "a freshly regenerated draft was never re-approved");
   assert.equal(json.approvedAt, null);
   assert.equal(json.content, "fresh draft after regenerate");
+});
+
+test("POST passes the client's recent protocol history (active + superseded) to generateCoachBrief", async () => {
+  const { id: clientId } = await makeAccount("Brief Route Test Client F");
+  generateMock.mockResolvedValue("draft content");
+
+  await insertProtocol(clientId, { status: "superseded", effectiveFrom: "2026-07-20", calories: 2000 });
+  await insertProtocol(clientId, { status: "active", effectiveFrom: "2026-08-17", calories: 1800 });
+  // A pending (never-activated) extraction shouldn't count as history.
+  await insertProtocol(clientId, { status: "pending", effectiveFrom: "2026-09-01", calories: 1600 });
+
+  await POST(requestWithSession("POST", clientId, "coach", { weekStart: WEEK_START }), ctxFor(clientId));
+
+  assert.equal(generateMock.mock.calls.length, 1);
+  const recentProtocols = generateMock.mock.calls[0][3];
+  assert.equal(recentProtocols.length, 2, "only active/superseded protocols count as history");
+  assert.ok(recentProtocols.some((p: { effectiveFrom: string }) => p.effectiveFrom === "2026-08-17"));
+  assert.ok(recentProtocols.some((p: { effectiveFrom: string }) => p.effectiveFrom === "2026-07-20"));
+  assert.ok(
+    !recentProtocols.some((p: { effectiveFrom: string }) => p.effectiveFrom === "2026-09-01"),
+    "a pending protocol isn't real history yet",
+  );
 });
 
 test("GET returns null when no brief exists yet for the week", async () => {
