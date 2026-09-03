@@ -5,6 +5,7 @@ import {
   accounts,
   chatMessages,
   checkIns,
+  coachBriefs,
   dailyActivity,
   documentChunks,
   documents,
@@ -38,6 +39,7 @@ const CHILD_TABLES = [
   syncLog,
   weeklyTargets,
   checkIns,
+  coachBriefs,
   settings,
   chatMessages,
 ];
@@ -73,6 +75,7 @@ test("account_id is NOT NULL on every account-scoped table", async () => {
     ["sync_log", syncLog, { deviceId: "d1", recordCount: 1, status: "ok" }],
     ["weekly_targets", weeklyTargets, {}],
     ["check_ins", checkIns, { weekStart: "2026-01-01" }],
+    ["coach_briefs", coachBriefs, { weekStart: "2026-01-01", content: "c" }],
     ["settings", settings, { checkinTemplate: [] }],
     ["chat_messages", chatMessages, { role: "user", content: "hi" }],
   ];
@@ -120,6 +123,7 @@ test("deleting an account cascades to delete every child table's rows", async ()
   await db.insert(syncLog).values({ accountId: a, deviceId: "d1", recordCount: 1, status: "ok" });
   await db.insert(weeklyTargets).values({ accountId: a });
   await db.insert(checkIns).values({ accountId: a, weekStart: "2026-01-01" });
+  await db.insert(coachBriefs).values({ accountId: a, weekStart: "2026-01-01", content: "c" });
   await db.insert(settings).values({ accountId: a, checkinTemplate: [] });
   await db.insert(chatMessages).values({ accountId: a, role: "user", content: "hi" });
 
@@ -132,4 +136,14 @@ test("deleting an account cascades to delete every child table's rows", async ()
       .where(eq(accountIdColumnOf(table), a));
     assert.equal(rows.length, 0, `expected no remaining rows for this account`);
   }
+});
+
+test("coach_briefs has a composite unique index on (account_id, week_start)", async () => {
+  const db = await getDb();
+  const { id: a } = await makeAccount("Coach Brief Uniqueness Test");
+  await db.insert(coachBriefs).values({ accountId: a, weekStart: "2026-01-01", content: "first" });
+  await assert.rejects(
+    () => db.insert(coachBriefs).values({ accountId: a, weekStart: "2026-01-01", content: "second" }),
+    "a second brief for the same account+week should violate the unique index",
+  );
 });
