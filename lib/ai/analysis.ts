@@ -7,7 +7,10 @@ import { getAnthropic, MODEL } from "./client";
 // the computed WeekStats snapshot — the model narrates the numbers, it never
 // invents them.
 
-function statsBrief(stats: WeekStats, settings: Settings): string {
+/** Grounded, numbers-only JSON snapshot of a week — shared by every AI
+ *  function in this file (and lib/ai/brief.ts's coach brief) so the model
+ *  narrates the same data instead of each caller re-deriving its own shape. */
+export function statsBrief(stats: WeekStats, settings: Settings): string {
   const p = stats.protocol;
   return JSON.stringify(
     {
