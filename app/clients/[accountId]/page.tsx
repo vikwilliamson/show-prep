@@ -1,12 +1,15 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
+import { and, eq } from "drizzle-orm";
 import { getClientAccount, getCurrentAccount, SESSION_COOKIE } from "@/lib/auth";
+import { coachBriefs, getDb } from "@/lib/db";
 import { mondayOf, todayLocal } from "@/lib/dates";
 import { dashboardData, effectiveMacroTargets, weekStats } from "@/lib/stats";
 import { programTypeLabel } from "@/lib/program-types";
 import { WeightChart } from "@/components/WeightChart";
 import { ComplianceChart } from "@/components/ComplianceChart";
+import { CoachBrief } from "@/components/CoachBrief";
 
 export const dynamic = "force-dynamic";
 
@@ -52,6 +55,12 @@ export default async function ClientDashboard({
   const macroTargets = effectiveMacroTargets(settings, protocol);
   const weekStart = mondayOf(todayLocal(settings.timezone));
   const stats = await weekStats(client.id, weekStart);
+
+  const db = await getDb();
+  const [weekBrief] = await db
+    .select()
+    .from(coachBriefs)
+    .where(and(eq(coachBriefs.accountId, client.id), eq(coachBriefs.weekStart, weekStart)));
 
   const latest = data.latestWeight;
   const toTarget =
@@ -211,6 +220,22 @@ export default async function ClientDashboard({
             Cardio plan: {protocol.cardioPlan}
           </p>
         )}
+      </Card>
+
+      <Card title={`Weekly brief — week of ${weekStart}`}>
+        <CoachBrief
+          accountId={client.id}
+          weekStart={weekStart}
+          initialBrief={
+            weekBrief
+              ? {
+                  status: weekBrief.status,
+                  content: weekBrief.content,
+                  approvedAt: weekBrief.approvedAt ? weekBrief.approvedAt.toISOString() : null,
+                }
+              : null
+          }
+        />
       </Card>
     </div>
   );
