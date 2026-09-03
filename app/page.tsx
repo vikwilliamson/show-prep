@@ -3,13 +3,14 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { and, eq } from "drizzle-orm";
 import { getCurrentAccount, SESSION_COOKIE } from "@/lib/auth";
-import { checkIns, getDb } from "@/lib/db";
+import { checkIns, coachBriefs, getDb } from "@/lib/db";
 import { mondayOf, todayLocal } from "@/lib/dates";
 import { dashboardData, effectiveMacroTargets, weekStats } from "@/lib/stats";
 import { programTypeLabel } from "@/lib/program-types";
 import { WeightChart } from "@/components/WeightChart";
 import { ComplianceChart } from "@/components/ComplianceChart";
 import { WeeklyAnalysis } from "@/components/WeeklyAnalysis";
+import { CoachBriefCard } from "@/components/CoachBriefCard";
 
 export const dynamic = "force-dynamic";
 
@@ -52,6 +53,10 @@ export default async function Dashboard() {
     .select()
     .from(checkIns)
     .where(and(eq(checkIns.accountId, session.accountId), eq(checkIns.weekStart, weekStart)));
+  const [weekBrief] = await db
+    .select()
+    .from(coachBriefs)
+    .where(and(eq(coachBriefs.accountId, session.accountId), eq(coachBriefs.weekStart, weekStart)));
 
   const latest = data.latestWeight;
   const toTarget =
@@ -178,8 +183,12 @@ export default async function Dashboard() {
         </Card>
       </div>
 
+      <CoachBriefCard
+        brief={weekBrief ? { status: weekBrief.status, content: weekBrief.content } : null}
+      />
+
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card title={`Weekly analysis — week of ${weekStart}`}>
+        <Card title={`Your self-check-in — week of ${weekStart}`}>
           <WeeklyAnalysis
             weekStart={weekStart}
             initialAnalysis={weekCheckIn?.aiAnalysis ?? null}
