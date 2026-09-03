@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { test, vi } from "vitest";
+import { afterEach, test, vi } from "vitest";
 import type { WeekStats } from "../lib/stats";
 import type { Settings } from "../lib/db/schema";
 
@@ -14,6 +14,11 @@ vi.mock("../lib/ai/client", () => ({
 }));
 
 const { generateCoachBrief } = await import("../lib/ai/brief");
+
+// Without this, mock.calls[0] in a later test silently reads an earlier
+// test's captured call args (createMock is a module-level shared mock) —
+// each test needs its own clean call history to assert against.
+afterEach(() => createMock.mockClear());
 
 const STATS: WeekStats = {
   weekStart: "2026-08-24",
@@ -83,4 +88,23 @@ test("generateCoachBrief writes coach-facing, third-person framing into the syst
   const system = Array.isArray(params.system) ? params.system.join("\n") : params.system;
   assert.match(system, /coach/i);
   assert.match(system, /third person/i);
+});
+
+test("generateCoachBrief grounds its prompt in recent protocol history when given some", async () => {
+  mockCreateResponse("draft");
+  await generateCoachBrief(STATS, SETTINGS, "Jake Martinez", [
+    { status: "active", effectiveFrom: "2026-08-17", calories: 1800, proteinG: 165, carbsG: 150, fatG: 55 },
+    { status: "superseded", effectiveFrom: "2026-07-20", calories: 2000, proteinG: 165, carbsG: 200, fatG: 60 },
+  ]);
+
+  const params = createMock.mock.calls[0][0];
+  const payload = JSON.stringify(params);
+  assert.ok(payload.includes("2026-08-17"), "prompt should include the recent protocol's effective date");
+  assert.ok(payload.includes("2026-07-20"), "prompt should include the prior protocol's effective date");
+});
+
+test("generateCoachBrief works with no protocol history given (the common case)", async () => {
+  mockCreateResponse("draft");
+  const result = await generateCoachBrief(STATS, SETTINGS, "Jake Martinez", []);
+  assert.equal(result, "draft");
 });
