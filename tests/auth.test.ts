@@ -13,14 +13,18 @@ import {
   getPrimaryCoachAccountId,
   hashPasscode,
   listClientAccounts,
+  listClientsNeedingBrief,
   requireAccount,
   requireCoach,
   SESSION_COOKIE,
   verifyPasscode,
   verifySessionToken,
 } from "../lib/auth";
-import { accounts, documents, getDb } from "../lib/db";
+import { accounts, coachBriefs, documents, getDb } from "../lib/db";
+import { DEFAULT_TIMEZONE, mondayOf, todayLocal } from "../lib/dates";
 import { createAccountTracker } from "./helpers";
+
+const CURRENT_WEEK_START = mondayOf(todayLocal(DEFAULT_TIMEZONE));
 
 const { makeAccount, cleanup: cleanupAccounts } = createAccountTracker();
 afterEach(cleanupAccounts);
@@ -210,6 +214,58 @@ test("listClientAccounts returns only client accounts", async () => {
   } finally {
     await deleteAccount(coach.id);
   }
+});
+
+test("listClientsNeedingBrief includes a client with no coach_briefs row for the current week", async () => {
+  const { id: clientId } = await makeAccount("Needs Brief Test Client A");
+
+  const needing = await listClientsNeedingBrief();
+  assert.ok(needing.some((c) => c.id === clientId));
+});
+
+test("listClientsNeedingBrief excludes a client with a draft brief for the current week", async () => {
+  const { id: clientId } = await makeAccount("Needs Brief Test Client B");
+  const db = await getDb();
+  await db.insert(coachBriefs).values({
+    accountId: clientId,
+    weekStart: CURRENT_WEEK_START,
+    status: "draft",
+    content: "draft content",
+  });
+
+  const needing = await listClientsNeedingBrief();
+  assert.ok(!needing.some((c) => c.id === clientId), "an existing draft counts as handled");
+});
+
+test("listClientsNeedingBrief excludes a client with an approved brief for the current week", async () => {
+  const { id: clientId } = await makeAccount("Needs Brief Test Client C");
+  const db = await getDb();
+  await db.insert(coachBriefs).values({
+    accountId: clientId,
+    weekStart: CURRENT_WEEK_START,
+    status: "approved",
+    content: "approved content",
+    approvedAt: new Date(),
+  });
+
+  const needing = await listClientsNeedingBrief();
+  assert.ok(!needing.some((c) => c.id === clientId));
+});
+
+test("listClientsNeedingBrief still includes a client whose only brief is for a prior week", async () => {
+  const { id: clientId } = await makeAccount("Needs Brief Test Client D");
+  const db = await getDb();
+  const staleWeekStart = mondayOf("2020-01-06"); // long-past Monday
+  await db.insert(coachBriefs).values({
+    accountId: clientId,
+    weekStart: staleWeekStart,
+    status: "approved",
+    content: "old content",
+    approvedAt: new Date(),
+  });
+
+  const needing = await listClientsNeedingBrief();
+  assert.ok(needing.some((c) => c.id === clientId), "a stale prior-week brief doesn't stop the nudge");
 });
 
 test("getClientAccount returns the account for a real client", async () => {

@@ -8,7 +8,9 @@ import { promisify } from "node:util";
 import { NextResponse, type NextRequest } from "next/server";
 import { and, asc, eq } from "drizzle-orm";
 import { env } from "./env";
-import { accounts, getDb } from "./db";
+import { accounts, coachBriefs, getDb } from "./db";
+import { mondayOf, todayLocal } from "./dates";
+import { getSettings } from "./stats";
 
 export const SESSION_COOKIE = "gamma_session";
 
@@ -157,6 +159,31 @@ export async function listClientAccounts(): Promise<
     .from(accounts)
     .where(eq(accounts.role, "client"))
     .orderBy(asc(accounts.name));
+}
+
+/** Clients (per listClientAccounts()) with no coach_briefs row for their
+ *  current week — the nudge on /clients so "shrink the coach's real weekly
+ *  work" doesn't silently depend on the coach remembering to click
+ *  "Generate" for every client every week (specs/
+ *  phase-3-ai-weekly-coach-brief.md's 2026-09-02 addendum). Any row for the
+ *  current week counts as handled, draft or approved — approval is a
+ *  separate concern from generation. */
+export async function listClientsNeedingBrief(): Promise<
+  { id: number; name: string }[]
+> {
+  const clients = await listClientAccounts();
+  const db = await getDb();
+  const needing: { id: number; name: string }[] = [];
+  for (const client of clients) {
+    const clientSettings = await getSettings(client.id);
+    const weekStart = mondayOf(todayLocal(clientSettings.timezone));
+    const [row] = await db
+      .select({ id: coachBriefs.id })
+      .from(coachBriefs)
+      .where(and(eq(coachBriefs.accountId, client.id), eq(coachBriefs.weekStart, weekStart)));
+    if (!row) needing.push({ id: client.id, name: client.name });
+  }
+  return needing;
 }
 
 /** Resolves accountId to its account row only if it's a client account —
