@@ -106,3 +106,5 @@ Coach docs → upload → Claude extraction → pending protocol → user confir
           → active protocol (compliance baseline)
           → chunked + embedded (voyage-4) → doc chat (RAG)
 ```
+
+<!-- test comment for verifying the Claude Review gate; PR will not be merged -->
