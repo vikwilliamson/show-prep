@@ -71,15 +71,23 @@ This version has breaking changes — APIs, conventions, and file structure may 
   with a red check.
 - **Independent review, not self-review.** Claude Review runs
   `anthropics/claude-code-action@v1` in its own isolated GitHub Actions job
-  — no shared context with whatever session authored the PR — pinned to a
-  different model (`claude-opus-5`) than this repo's typical authoring
-  sessions use, so the same agent is never grading its own work. It reviews
-  every PR against this file and CLAUDE.md (TDD pairing, data handling,
-  account scoping, terminology, spec alignment) and fails the check on any
-  blocking finding. This exists because PR #4 shipped a self-documented
-  cross-tenant IDOR (missing account scoping on `/api/protocols` and
+  — no shared context with whatever session authored the PR — so the same
+  agent is never grading its own work. It reviews every PR against this
+  file and CLAUDE.md (TDD pairing, data handling, account scoping,
+  terminology, spec alignment) and fails the check on any blocking
+  finding. This exists because PR #4 shipped a self-documented cross-tenant
+  IDOR (missing account scoping on `/api/protocols` and
   `/api/documents/[id]`) straight to `main` in 2026-08 — CI was green, and
   green CI was, at the time, the entire review process.
+  - **Tiered model/effort routing** (cost control): PRs under 200 changed
+    lines get `claude-sonnet-5` at `high` effort. Larger PRs get
+    `claude-opus-5` at `medium` effort. PRs touching a "core
+    infrastructure" path — `lib/auth.ts`, `proxy.ts`, `lib/db/schema.ts`,
+    `lib/ingest/auth.ts`, `.github/workflows/*`, `drizzle/*` (kept in sync
+    with VIK-98's auth/account_id checklist-gate file list) — always get
+    `claude-opus-5` at `high` effort, regardless of size. The reviewing
+    model is always different from whichever model the authoring session
+    used, by construction of the isolated-job setup, independent of tier.
 
 ## Specs & tickets
 - Work is tracked in **Linear** (team `VIK`, project `Gamma`) — issues are
