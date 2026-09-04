@@ -5,6 +5,12 @@
   and its current status — that's the live source now, not this repo. Read
   every spec/doc a ticket links to before starting it (see AGENTS.md's
   "Specs & tickets").
+- **Clear the Audit Remediation milestone before starting a new
+  `Feature`-labeled ticket.** The 2026-09-04 audit found real, unfixed
+  gaps (cross-tenant scoping, an unenforced TDD gate, undocumented data
+  flows) sitting alongside completed feature work. Don't add to that pile
+  before it's paid down — work Audit Remediation's Backlog items first, or
+  get an explicit go-ahead from Vik to defer a specific low-priority one.
 - `HANDOFF.md` is retired as a "what's next" doc — kept in the repo as a
   dated historical record of the pre-Linear V3 rewrite, not something to
   update going forward. Its process/gotcha notes (drizzle-kit quirks,
@@ -18,11 +24,15 @@
   are where a skipped file or missed reference is expensive to find later).
 
 ## GitHub
-- `anthropics/claude-code-action@v1` is NOT currently installed on this
-  repo — CI (lint, unit tests, TDD pairing, e2e) is the only automated PR
-  gate for now. If/when the GitHub App + `ANTHROPIC_API_KEY` repo secret get
-  set up, treat its findings as a real reviewer's and update this note plus
-  the "Branching & PRs" section in AGENTS.md to make it a required check.
+- `anthropics/claude-code-action@v1` is installed as `.github/workflows/
+  claude-review.yml` (`ANTHROPIC_API_KEY` set 2026-09-04) and is a required
+  status check on `main` alongside CI — see AGENTS.md's "Branching & PRs".
+  Treat its findings as a real reviewer's: a "block" verdict is a real
+  blocker, not a suggestion to route around.
+- This was set up in response to a 43-PR audit (2026-09-04) that found a
+  self-documented cross-tenant IDOR (PR #4) had merged and sat on `main`
+  for ~9 days under the old "green CI = merge" policy. The audit's other
+  findings live in Linear under the **Audit Remediation** milestone.
 
 ## Reminders specific to this repo
 - This is a rewrite of a bodybuilding-specific app (formerly "Show Prep",
