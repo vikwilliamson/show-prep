@@ -28,11 +28,11 @@
         "expo-build-properties",
         {
           "android": {
-            "minSdkVersion": 26,
-            "usesCleartextTraffic": true
+            "minSdkVersion": 26
           }
         }
-      ]
+      ],
+      "./plugins/withDebugCleartextTraffic"
     ],
     "extra": {
       "eas": {
