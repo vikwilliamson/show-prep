@@ -143,3 +143,63 @@ test("passes when a nested app/api route is paired with the repo's route-test na
   const { status } = runScript();
   assert.equal(status, 0);
 });
+
+// Code review on VIK-118's own PR found the substring match had no word-
+// boundary check: lib/ingest/auth.ts (a "core infrastructure" path) slugs
+// to "ingest-auth", which contains "auth" as a trailing substring — so a
+// commit touching it plus tests/auth.test.ts (real coverage for the
+// unrelated lib/auth.ts) was wrongly accepted as correlated. This is the
+// PR #1/#3/#30 failure mode recreated for nested-vs-top-level basename
+// collisions, exactly what this gate exists to close.
+
+test("fails when lib/ingest/auth.ts changes and the only test is unrelated lib/auth.ts coverage (basename-suffix collision)", () => {
+  stageFile("lib/ingest/auth.ts", "export const ingestAuth = () => {};\n");
+  stageFile("tests/auth.test.ts", "// covers lib/auth.ts, not lib/ingest/auth.ts\n");
+
+  const { status } = runScript();
+  assert.equal(status, 1);
+});
+
+test("passes when lib/auth.ts itself changes alongside tests/auth.test.ts", () => {
+  stageFile("lib/auth.ts", "export const auth = () => {};\n");
+  stageFile("tests/auth.test.ts", "// covers lib/auth.ts\n");
+
+  const { status } = runScript();
+  assert.equal(status, 0);
+});
+
+test("passes when lib/ingest/auth.ts changes alongside a test actually named for it", () => {
+  stageFile("lib/ingest/auth.ts", "export const ingestAuth = () => {};\n");
+  stageFile("tests/ingest-auth.test.ts", "// covers lib/ingest/auth.ts\n");
+
+  const { status } = runScript();
+  assert.equal(status, 0);
+});
+
+// The repo's own route-to-test naming isn't fully consistent: [id] routes
+// keep the segment literally (documents-id-route, tested above), but
+// app/api/clients/[accountId]/... routes drop the bracketed segment
+// entirely (tests/clients-brief-route.test.ts, tests/clients-dashboard-
+// route.test.ts already exist this way). The gate must accept both.
+
+test("passes when a bracketed dynamic segment is dropped in the test name, matching this repo's own convention", () => {
+  stageFile("app/api/clients/[accountId]/brief/route.ts", "export const GET = () => {};\n");
+  stageFile("tests/clients-brief-route.test.ts", "// covers the [accountId] route\n");
+
+  const { status } = runScript();
+  assert.equal(status, 0);
+});
+
+// scripts/* isn't only .ts -- this very script is scripts/check-tdd-
+// pairing.sh. Token-sequence matching requires exact token equality, so
+// a leftover ".sh" glued onto the last token (if extension-stripping only
+// handled .ts/.tsx) would break the match against the extension-free test
+// slug. This is a real self-check the script's own PR must pass.
+
+test("passes when a scripts/*.sh file is paired with its test (non-.ts source extension)", () => {
+  stageFile("scripts/check-tdd-pairing.sh", "#!/usr/bin/env bash\n");
+  stageFile("tests/check-tdd-pairing.test.ts", "// covers the .sh script\n");
+
+  const { status } = runScript();
+  assert.equal(status, 0);
+});

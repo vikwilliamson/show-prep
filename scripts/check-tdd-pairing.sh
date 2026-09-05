@@ -10,12 +10,25 @@
 #
 # Tests here live in a top-level tests/ directory, not colocated inside
 # app/lib/components, and don't mirror that directory structure — so
-# matching is done by slug: app/api/documents/[id]/route.ts normalizes to
-# "documents-id-route", which must equal, contain, or be contained by a
-# changed test file's basename (e.g. documents-id-route.test.ts ->
-# "documents-id-route"). The contains-either-way check lets a broader test
-# file (e.g. seed-data.test.ts) still cover a narrower source file
-# (scripts/seed.ts) without requiring an exact name match.
+# matching is done by slug, split into '-'-delimited tokens and compared
+# as an ordered sequence: one side must be a token-for-token prefix of the
+# other (e.g. seed / seed-data -> tokens [seed] is a prefix of [seed,
+# data] -> related; scripts/seed.ts -> tests/seed-data.test.ts passes
+# without an exact name match). This is deliberately NOT raw substring
+# containment — an earlier version of this script used substring matching
+# and a code review on this ticket's own PR found it let lib/ingest/auth.ts
+# (slug "ingest-auth") incorrectly correlate with tests/auth.test.ts (slug
+# "auth"), since "auth" is a trailing substring of "ingest-auth" with no
+# word-boundary check. Token-sequence prefix matching, aligned from the
+# start, rejects that (first tokens "ingest" vs "auth" don't match) while
+# still allowing the intentional broader-test-covers-narrower-file case.
+#
+# Route files with bracketed dynamic segments (app/api/x/[id]/route.ts)
+# get two candidate slugs: one with the segment kept as a literal token,
+# one with it dropped entirely — because this repo's own naming isn't
+# consistent (documents/[id]/route.ts -> tests/documents-id-route.test.ts
+# keeps it; clients/[accountId]/brief/route.ts -> tests/clients-brief-
+# route.test.ts drops it). Either form is accepted.
 #
 # Correlation is required per top-level changed area (app/, lib/,
 # components/, scripts/), not per individual file — at least one changed
@@ -33,19 +46,48 @@ else
   CHANGED=$(git diff --cached --name-only --diff-filter=ACM)
 fi
 
-slugify_source() {
-  local f="$1"
-  local area="$2"
+# Emits one slug per line: the "keep" variant always, and a "drop" variant
+# too when the path has a bracketed segment (e.g. "[id]" or "[accountId]").
+emit_source_slugs() {
+  local area="$1" f="$2"
   local rest="${f#"$area"/}"
   if [ "$area" = "app" ]; then
     rest="${rest#api/}"
   fi
-  rest="${rest%.tsx}"
-  rest="${rest%.ts}"
-  rest="${rest//\[/}"
-  rest="${rest//\]/}"
-  rest="${rest//\//-}"
-  echo "$rest"
+  # Strip whatever extension the last path segment has, generically --
+  # source files under these areas aren't only .ts(x) (scripts/*.sh,
+  # app/**/*.css, components/**/*.ico all exist today). A hardcoded
+  # .ts/.tsx-only strip left .sh files with the extension still attached,
+  # which broke token equality against the (extension-free) test slug.
+  rest="${rest%.*}"
+
+  local IFS_OLD="$IFS"
+  IFS='/'
+  local -a segs
+  read -ra segs <<< "$rest"
+  IFS="$IFS_OLD"
+
+  local -a keep_parts=() drop_parts=()
+  local seg has_bracket=false stripped
+  for seg in "${segs[@]}"; do
+    case "$seg" in
+      \[*\])
+        has_bracket=true
+        stripped="${seg#\[}"
+        stripped="${stripped%\]}"
+        keep_parts+=("$stripped")
+        ;;
+      *)
+        keep_parts+=("$seg")
+        drop_parts+=("$seg")
+        ;;
+    esac
+  done
+
+  ( IFS=-; echo "${keep_parts[*]}" )
+  if [ "$has_bracket" = true ] && [ "${#drop_parts[@]}" -gt 0 ]; then
+    ( IFS=-; echo "${drop_parts[*]}" )
+  fi
 }
 
 slugify_test() {
@@ -57,21 +99,38 @@ slugify_test() {
   echo "$base"
 }
 
-slugs_related() {
+# True if one slug's '-'-delimited tokens are an exact, order-aligned
+# prefix of the other's (in either direction). Word-boundary aware by
+# construction — no raw substring containment.
+tokens_prefix_match() {
   local a="$1" b="$2"
   if [ -z "$a" ] || [ -z "$b" ]; then
     return 1
   fi
-  case "$b" in
-    *"$a"*) return 0 ;;
-  esac
-  case "$a" in
-    *"$b"*) return 0 ;;
-  esac
-  return 1
+
+  local IFS_OLD="$IFS"
+  IFS='-'
+  local -a ta tb
+  read -ra ta <<< "$a"
+  read -ra tb <<< "$b"
+  IFS="$IFS_OLD"
+
+  local len=${#ta[@]}
+  if [ "${#tb[@]}" -lt "$len" ]; then
+    len=${#tb[@]}
+  fi
+
+  local i
+  for ((i = 0; i < len; i++)); do
+    if [ "${ta[$i]}" != "${tb[$i]}" ]; then
+      return 1
+    fi
+  done
+  return 0
 }
 
-SOURCE_SLUGS=()   # "area|slug" pairs
+SOURCE_AREAS=()
+SOURCE_SLUGS=()   # parallel to SOURCE_AREAS
 TEST_SLUGS=()
 AREAS_CHANGED=()
 
@@ -92,7 +151,10 @@ while IFS= read -r file; do
       ;;
     app/*|lib/*|components/*|scripts/*)
       area="${file%%/*}"
-      SOURCE_SLUGS+=("${area}|$(slugify_source "$file" "$area")")
+      while IFS= read -r slug; do
+        SOURCE_AREAS+=("$area")
+        SOURCE_SLUGS+=("$slug")
+      done < <(emit_source_slugs "$area" "$file")
       if ! area_seen "$area"; then
         AREAS_CHANGED+=("$area")
       fi
@@ -121,12 +183,11 @@ fi
 FAILED_AREAS=()
 for area in "${AREAS_CHANGED[@]}"; do
   matched=false
-  for pair in "${SOURCE_SLUGS[@]}"; do
-    pair_area="${pair%%|*}"
-    [ "$pair_area" = "$area" ] || continue
-    src_slug="${pair#*|}"
+  for idx in "${!SOURCE_AREAS[@]}"; do
+    [ "${SOURCE_AREAS[$idx]}" = "$area" ] || continue
+    src_slug="${SOURCE_SLUGS[$idx]}"
     for test_slug in "${TEST_SLUGS[@]}"; do
-      if slugs_related "$src_slug" "$test_slug"; then
+      if tokens_prefix_match "$src_slug" "$test_slug"; then
         matched=true
         break 2
       fi
@@ -145,10 +206,9 @@ if [ "${#FAILED_AREAS[@]}" -gt 0 ]; then
   echo ""
   for area in "${FAILED_AREAS[@]}"; do
     echo "  $area/"
-    for pair in "${SOURCE_SLUGS[@]}"; do
-      pair_area="${pair%%|*}"
-      [ "$pair_area" = "$area" ] || continue
-      echo "    - ${pair#*|}"
+    for idx in "${!SOURCE_AREAS[@]}"; do
+      [ "${SOURCE_AREAS[$idx]}" = "$area" ] || continue
+      echo "    - ${SOURCE_SLUGS[$idx]}"
     done
   done
   echo ""
