@@ -147,6 +147,32 @@ test("an absurd calorie value is rejected with a 422, not silently accepted", as
   assert.equal(row, undefined);
 });
 
+test("an absurd weight value is rejected with a 422, not silently accepted", async () => {
+  const account = await makeAccount("Ingest Route Test Weight Bounds");
+  const res = await POST(
+    ingestRequest(
+      "weight",
+      batch(account.referenceId, "samsung_health", [
+        { hcUid: "weight-bounds-1", time: "2026-08-19T12:00:00.000Z", weightKg: 1e12 },
+      ]),
+    ),
+    { params: Promise.resolve({ type: "weight" }) },
+  );
+  assert.equal(res.status, 422);
+
+  const db = await getDb();
+  const [row] = await db.select().from(weightEntries).where(eq(weightEntries.hcUid, "weight-bounds-1"));
+  assert.equal(row, undefined);
+});
+
+test("an empty batch is rejected with a 422 rather than round-tripping through auth and the sync log", async () => {
+  const account = await makeAccount("Ingest Route Test Empty Batch");
+  const res = await POST(nutritionRequest(nutritionBatch(account.referenceId, [])), {
+    params: Promise.resolve({ type: "nutrition" }),
+  });
+  assert.equal(res.status, 422);
+});
+
 test("two accounts syncing weight with the same hcUid don't collide", async () => {
   const a = await makeAccount("Ingest Route Test Weight A");
   const b = await makeAccount("Ingest Route Test Weight B");
