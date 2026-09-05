@@ -23,14 +23,14 @@ export const nutritionRecord = z.object({
 export const weightRecord = z.object({
   hcUid: z.string().min(1),
   time: isoInstant,
-  weightKg: z.number().positive(),
+  weightKg: z.number().positive().max(1_000),
   bodyFatPct: z.number().min(0).max(100).nullish(),
 });
 
 export const hydrationRecord = z.object({
   hcUid: z.string().min(1),
   startTime: isoInstant,
-  volumeMl: z.number().nonnegative(),
+  volumeMl: z.number().nonnegative().max(20_000),
 });
 
 export const sleepRecord = z.object({
@@ -39,7 +39,7 @@ export const sleepRecord = z.object({
   endTime: isoInstant,
   stages: z
     .array(
-      z.object({ stage: z.string(), startTime: isoInstant, endTime: isoInstant }),
+      z.object({ stage: z.string().max(50), startTime: isoInstant, endTime: isoInstant }),
     )
     .nullish(),
 });
@@ -48,18 +48,18 @@ export const exerciseRecord = z.object({
   hcUid: z.string().min(1),
   startTime: isoInstant,
   endTime: isoInstant.nullish(),
-  exerciseType: z.string().default("strength"),
+  exerciseType: z.string().max(100).default("strength"),
   isCardio: z.boolean().optional(), // derived server-side when omitted
-  title: z.string().nullish(),
-  caloriesBurned: z.number().nonnegative().nullish(),
+  title: z.string().max(500).nullish(),
+  caloriesBurned: z.number().nonnegative().max(20_000).nullish(),
 });
 
 export const activityRecord = z.object({
   hcUid: z.string().min(1), // e.g. "activity-2026-07-14" from the companion
   date: z.iso.date(),
-  steps: z.number().int().nonnegative().nullish(),
-  activeCalories: z.number().nonnegative().nullish(),
-  totalCalories: z.number().nonnegative().nullish(),
+  steps: z.number().int().nonnegative().max(200_000).nullish(),
+  activeCalories: z.number().nonnegative().max(20_000).nullish(),
+  totalCalories: z.number().nonnegative().max(20_000).nullish(),
 });
 
 export const recordSchemas = {
@@ -80,7 +80,7 @@ export function batchSchema<T extends IngestType>(type: T) {
     // getAccountByReferenceId(), never trusted as an accountId directly.
     referenceId: z.string().uuid(),
     source: z.enum(["myfitnesspal", "samsung_health", "health_connect", "manual"]).default("health_connect"),
-    records: z.array(recordSchemas[type]).max(2000),
+    records: z.array(recordSchemas[type]).min(1).max(2000),
   });
 }
 
