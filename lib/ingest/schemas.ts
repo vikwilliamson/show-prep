@@ -41,6 +41,7 @@ export const sleepRecord = z.object({
     .array(
       z.object({ stage: z.string().max(50), startTime: isoInstant, endTime: isoInstant }),
     )
+    .max(500)
     .nullish(),
 });
 

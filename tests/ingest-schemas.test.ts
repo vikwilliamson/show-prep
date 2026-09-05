@@ -70,6 +70,19 @@ test("sleep stage strings have a length cap", () => {
   assert.equal(longStage.success, false);
 });
 
+test("the stages array itself has a length cap, not just each stage string", () => {
+  const oneStage = { stage: "light", startTime: "2026-08-19T02:00:00.000Z", endTime: "2026-08-19T02:01:00.000Z" };
+  const tooManyStages = batch("sleep", [
+    {
+      hcUid: "a",
+      startTime: "2026-08-19T02:00:00.000Z",
+      endTime: "2026-08-19T10:00:00.000Z",
+      stages: Array.from({ length: 5_000 }, () => oneStage),
+    },
+  ]);
+  assert.equal(tooManyStages.success, false);
+});
+
 test("activity steps/calories above plausible daily bounds are rejected", () => {
   const tooManySteps = batch("activity", [{ hcUid: "a", date: "2026-08-19", steps: 1e12 }]);
   assert.equal(tooManySteps.success, false);
