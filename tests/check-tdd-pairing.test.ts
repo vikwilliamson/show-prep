@@ -88,3 +88,58 @@ test("--range mode passes when a scripts/* file changes alongside a paired test"
   const { status } = runScript("--range", `${base}...HEAD`);
   assert.equal(status, 0);
 });
+
+// Regression cases for VIK-118: the old gate only checked "some test file
+// changed somewhere," so an unrelated test elsewhere in the diff satisfied
+// it. These reproduce the PR #1 / #3 / #30 patterns that slipped through.
+
+test("fails when lib/ and app/ change but the only test file is unrelated (PR #1 pattern)", () => {
+  stageFile("lib/db-sync.ts", "export const sync = () => {};\n");
+  stageFile("app/api/session/route.ts", "export const GET = () => {};\n");
+  stageFile("tests/unrelated-thing.test.ts", "// covers something else entirely\n");
+
+  const { status } = runScript();
+  assert.equal(status, 1);
+});
+
+test("fails when lib/ files change but the only new test is a trivial unrelated one (PR #3 pattern)", () => {
+  stageFile("lib/ai/analysis.ts", "export const analyze = () => {};\n");
+  stageFile("lib/rag.ts", "export const retrieve = () => {};\n");
+  stageFile("tests/new-thing.test.ts", "// 3 trivial assertions, unrelated basename\n");
+
+  const { status } = runScript();
+  assert.equal(status, 1);
+});
+
+test("passes when at least one lib/ change has a correlated test, even if not every file does", () => {
+  stageFile("lib/ai/analysis.ts", "export const analyze = () => {};\n");
+  stageFile("lib/rag.ts", "export const retrieve = () => {};\n");
+  stageFile("tests/rag.test.ts", "// covers lib/rag.ts\n");
+
+  const { status } = runScript();
+  assert.equal(status, 0);
+});
+
+test("fails when components/ change has no related test at all (PR #30 pattern)", () => {
+  stageFile("components/client-page.tsx", "export function ClientPage() { return null; }\n");
+  stageFile("tests/rag.test.ts", "// unrelated area entirely\n");
+
+  const { status } = runScript();
+  assert.equal(status, 1);
+});
+
+test("passes when a scripts/* file is paired with a test whose basename is a superset (e.g. seed-data)", () => {
+  stageFile("scripts/seed.ts", "export const seed = () => {};\n");
+  stageFile("tests/seed-data.test.ts", "// broader test that also covers seed.ts\n");
+
+  const { status } = runScript();
+  assert.equal(status, 0);
+});
+
+test("passes when a nested app/api route is paired with the repo's route-test naming convention", () => {
+  stageFile("app/api/documents/[id]/route.ts", "export const GET = () => {};\n");
+  stageFile("tests/documents-id-route.test.ts", "// covers the [id] route\n");
+
+  const { status } = runScript();
+  assert.equal(status, 0);
+});
