@@ -4,6 +4,8 @@ export default defineConfig({
   schema: "./lib/db/schema.ts",
   out: "./drizzle",
   dialect: "postgresql",
-  // Migrations are applied programmatically at runtime (lib/db/index.ts),
-  // so no dbCredentials are needed for `drizzle-kit generate`.
+  // No dbCredentials needed for `drizzle-kit generate` — it only writes
+  // SQL files here, it doesn't apply them. Migrations are applied
+  // programmatically by lib/db/migrate.ts (`pnpm db:migrate`), not by
+  // drizzle-kit itself. See AGENTS.md's "Migrations" section.
 });

@@ -12,6 +12,7 @@
     "start": "next start",
     "lint": "eslint",
     "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx scripts/migrate.ts",
     "seed": "node --env-file-if-exists=.env --env-file-if-exists=.env.local --import tsx scripts/seed.ts",
     "db:reset-test": "neonctl branches reset test --parent --project-id aged-resonance-61061629",
     "db:reset-staging": "tsx scripts/reset-staging.ts",

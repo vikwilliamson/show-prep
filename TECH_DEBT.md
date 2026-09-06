@@ -252,12 +252,15 @@ would leave some tables reassigned and others still `NULL`, no automatic
 rollback. Worth wrapping in `db.transaction(...)` before it's actually run
 against prod.
 
-### 3.5 Migrations run inside the serverless app process on every cold start — `medium`
-`lib/db/index.ts:41-42,54-55` calls `migrate()` at request time rather than
-as a separate deploy step, with no guard against concurrent cold-start
-instances racing to run it against the same DB simultaneously. May be a
-deliberate simplicity trade-off at current scale — worth making that an
-explicit written decision rather than an implicit one.
+### 3.5 Migrations run inside the serverless app process on every cold start — `medium` — RESOLVED 2026-09-06 (VIK-88)
+Migrations for Postgres now run as an explicit deploy step
+(`vercel.json`'s `buildCommand` → `pnpm db:migrate`), not implicitly at
+request time — see AGENTS.md's "Migrations" section for the full decision.
+`lib/db/index.ts`'s real-Postgres path now fails closed
+(`assertSchemaUpToDate`) instead of migrating mid-request. This was
+elevated from "worth deciding" to "decided" by the VIK-76 incident, which
+is exactly the concurrent-cold-start-race scenario this finding warned
+about.
 
 ### 3.6 Mobile has zero static analysis — `medium` — RESOLVED 2026-09-05 (VIK-87)
 `mobile/` now has a real `eslint.config.js` (`eslint-config-expo/flat`), a
