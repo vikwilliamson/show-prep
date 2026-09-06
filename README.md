@@ -82,7 +82,7 @@ SQL into the serverless output.
 | `pnpm test:e2e` | e2e smoke tests (Playwright) |
 | `pnpm typecheck` | `tsc --noEmit` |
 | `pnpm db:generate` | regenerate Drizzle migrations after schema changes |
-| `pnpm exec tsx scripts/backfill-accounts.ts` | one-time: create coach/client accounts, assign existing data (see the script's header comment) |
+| `pnpm backfill-accounts` | one-time: create coach/client accounts, assign existing data (see the script's header comment) |
 
 ## Configuration
 

@@ -1,11 +1,13 @@
 /**
  * One-time migration: creates the coach account (you) and an empty client
  * account (spouse), and assigns every existing unassigned row to the coach
- * account. Idempotent — safe to re-run.
+ * account. Idempotent — safe to re-run. Runs as a single transaction — a
+ * failure partway through rolls back everything rather than leaving some
+ * tables reassigned and others not.
  *
  * Run against local dev first to verify (PGlite, disposable):
  *   COACH_NAME="Vik" COACH_PASSCODE="..." CLIENT_NAME="..." CLIENT_PASSCODE="..." \
- *     node --env-file-if-exists=.env --env-file-if-exists=.env.local --import tsx scripts/backfill-accounts.ts
+ *     pnpm backfill-accounts
  *
  * Only point DATABASE_URL at production once you've verified against local
  * dev and taken a Neon backup/branch snapshot immediately before — see
