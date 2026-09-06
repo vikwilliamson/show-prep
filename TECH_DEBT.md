@@ -244,13 +244,11 @@ the redirect-to-`/login`/401 behaviors are only exercised by
 running app. A regression in cookie handling or the matcher config wouldn't
 be caught by E2E at all.
 
-### 3.4 `backfillAccounts()` runs 13 sequential UPDATEs with no transaction — `medium`
-`lib/backfill-accounts.ts:58-133`. `HANDOFF.md` explicitly notes this script
-"has never been run against production" and that the safety net is a manual
-Neon snapshot beforehand, not atomicity. A network blip partway through
-would leave some tables reassigned and others still `NULL`, no automatic
-rollback. Worth wrapping in `db.transaction(...)` before it's actually run
-against prod.
+### 3.4 `backfillAccounts()` runs 13 sequential UPDATEs with no transaction — `medium` — RESOLVED 2026-09-06 (VIK-89)
+`lib/backfill-accounts.ts`'s account creation and all 13 reassignment
+UPDATEs now run inside a single `db.transaction(...)`. A failure partway
+through rolls back everything instead of leaving some tables reassigned and
+others still `NULL`.
 
 ### 3.5 Migrations run inside the serverless app process on every cold start — `medium` — RESOLVED 2026-09-06 (VIK-88)
 Migrations for Postgres now run as an explicit deploy step
@@ -279,12 +277,11 @@ JSON (killed mid-write, etc.) throws, the promise rejects unhandled, state
 never sets, and the app is stuck on `ActivityIndicator` forever with no
 error message and no recovery short of clearing app storage.
 
-### 3.8 No `pnpm` script for `scripts/backfill-accounts.ts` — `medium`, given imminent use
-`seed.ts` gets a blessed `pnpm seed` entry; `backfill-accounts.ts` is only
-documented via a hand-typed multi-env-var `node --import tsx ...` command in
-its own docstring. This is specifically the script `HANDOFF.md` says still
-needs to run against production before the `v3-generalized` merge — worst
-script in the repo to leave without a canonical, low-typo invocation path.
+### 3.8 No `pnpm` script for `scripts/backfill-accounts.ts` — `medium`, given imminent use — RESOLVED 2026-09-06 (VIK-89)
+`package.json` now has a `pnpm backfill-accounts` script matching `seed`'s
+`--env-file-if-exists` pattern. The script's own docstring and README.md's
+commands table point at it instead of the hand-typed `node --import tsx
+...` invocation.
 
 ---
 

@@ -59,86 +59,88 @@ export async function backfillAccounts(
   db: Db,
   options: { coach: BackfillPerson; client: BackfillPerson },
 ): Promise<BackfillResult> {
-  const coachAccountId = await findOrCreateAccount(db, "coach", options.coach);
-  const clientAccountId = await findOrCreateAccount(db, "client", options.client);
-  const c = coachAccountId;
+  return db.transaction(async (tx) => {
+    const coachAccountId = await findOrCreateAccount(tx, "coach", options.coach);
+    const clientAccountId = await findOrCreateAccount(tx, "client", options.client);
+    const c = coachAccountId;
 
-  const reassignedRowCounts: Record<string, number> = {
-    documents: (
-      await db.update(documents).set({ accountId: c }).where(isNull(documents.accountId)).returning()
-    ).length,
-    document_chunks: (
-      await db
-        .update(documentChunks)
-        .set({ accountId: c })
-        .where(isNull(documentChunks.accountId))
-        .returning()
-    ).length,
-    protocols: (
-      await db.update(protocols).set({ accountId: c }).where(isNull(protocols.accountId)).returning()
-    ).length,
-    nutrition_entries: (
-      await db
-        .update(nutritionEntries)
-        .set({ accountId: c })
-        .where(isNull(nutritionEntries.accountId))
-        .returning()
-    ).length,
-    weight_entries: (
-      await db
-        .update(weightEntries)
-        .set({ accountId: c })
-        .where(isNull(weightEntries.accountId))
-        .returning()
-    ).length,
-    hydration_entries: (
-      await db
-        .update(hydrationEntries)
-        .set({ accountId: c })
-        .where(isNull(hydrationEntries.accountId))
-        .returning()
-    ).length,
-    workouts: (
-      await db.update(workouts).set({ accountId: c }).where(isNull(workouts.accountId)).returning()
-    ).length,
-    sleep_sessions: (
-      await db
-        .update(sleepSessions)
-        .set({ accountId: c })
-        .where(isNull(sleepSessions.accountId))
-        .returning()
-    ).length,
-    daily_activity: (
-      await db
-        .update(dailyActivity)
-        .set({ accountId: c })
-        .where(isNull(dailyActivity.accountId))
-        .returning()
-    ).length,
-    sync_log: (
-      await db.update(syncLog).set({ accountId: c }).where(isNull(syncLog.accountId)).returning()
-    ).length,
-    weekly_targets: (
-      await db
-        .update(weeklyTargets)
-        .set({ accountId: c })
-        .where(isNull(weeklyTargets.accountId))
-        .returning()
-    ).length,
-    check_ins: (
-      await db.update(checkIns).set({ accountId: c }).where(isNull(checkIns.accountId)).returning()
-    ).length,
-    settings: (
-      await db.update(settings).set({ accountId: c }).where(isNull(settings.accountId)).returning()
-    ).length,
-    chat_messages: (
-      await db
-        .update(chatMessages)
-        .set({ accountId: c })
-        .where(isNull(chatMessages.accountId))
-        .returning()
-    ).length,
-  };
+    const reassignedRowCounts: Record<string, number> = {
+      documents: (
+        await tx.update(documents).set({ accountId: c }).where(isNull(documents.accountId)).returning()
+      ).length,
+      document_chunks: (
+        await tx
+          .update(documentChunks)
+          .set({ accountId: c })
+          .where(isNull(documentChunks.accountId))
+          .returning()
+      ).length,
+      protocols: (
+        await tx.update(protocols).set({ accountId: c }).where(isNull(protocols.accountId)).returning()
+      ).length,
+      nutrition_entries: (
+        await tx
+          .update(nutritionEntries)
+          .set({ accountId: c })
+          .where(isNull(nutritionEntries.accountId))
+          .returning()
+      ).length,
+      weight_entries: (
+        await tx
+          .update(weightEntries)
+          .set({ accountId: c })
+          .where(isNull(weightEntries.accountId))
+          .returning()
+      ).length,
+      hydration_entries: (
+        await tx
+          .update(hydrationEntries)
+          .set({ accountId: c })
+          .where(isNull(hydrationEntries.accountId))
+          .returning()
+      ).length,
+      workouts: (
+        await tx.update(workouts).set({ accountId: c }).where(isNull(workouts.accountId)).returning()
+      ).length,
+      sleep_sessions: (
+        await tx
+          .update(sleepSessions)
+          .set({ accountId: c })
+          .where(isNull(sleepSessions.accountId))
+          .returning()
+      ).length,
+      daily_activity: (
+        await tx
+          .update(dailyActivity)
+          .set({ accountId: c })
+          .where(isNull(dailyActivity.accountId))
+          .returning()
+      ).length,
+      sync_log: (
+        await tx.update(syncLog).set({ accountId: c }).where(isNull(syncLog.accountId)).returning()
+      ).length,
+      weekly_targets: (
+        await tx
+          .update(weeklyTargets)
+          .set({ accountId: c })
+          .where(isNull(weeklyTargets.accountId))
+          .returning()
+      ).length,
+      check_ins: (
+        await tx.update(checkIns).set({ accountId: c }).where(isNull(checkIns.accountId)).returning()
+      ).length,
+      settings: (
+        await tx.update(settings).set({ accountId: c }).where(isNull(settings.accountId)).returning()
+      ).length,
+      chat_messages: (
+        await tx
+          .update(chatMessages)
+          .set({ accountId: c })
+          .where(isNull(chatMessages.accountId))
+          .returning()
+      ).length,
+    };
 
-  return { coachAccountId, clientAccountId, reassignedRowCounts };
+    return { coachAccountId, clientAccountId, reassignedRowCounts };
+  });
 }

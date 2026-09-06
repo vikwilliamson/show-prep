@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { test } from "vitest";
+import { test, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { backfillAccounts } from "../lib/backfill-accounts";
 import { accounts, getDb } from "../lib/db";
@@ -50,4 +50,49 @@ test("backfill is idempotent: re-running finds the same accounts instead of dupl
 
   assert.equal(second.coachAccountId, first.coachAccountId);
   assert.equal(second.clientAccountId, first.clientAccountId);
+});
+
+test("backfill rolls back the coach account if creating the client account fails partway through", async () => {
+  const db = await getDb();
+  const coachName = `Rollback Coach ${crypto.randomUUID()}`;
+  const clientName = `Rollback Client ${crypto.randomUUID()}`;
+
+  // Force the second account-creating insert (the client) to fail so we can
+  // verify the first (the coach) doesn't survive — i.e. the whole thing runs
+  // in one transaction rather than as independent statements.
+  const originalTransaction = db.transaction.bind(db);
+  const transactionSpy = vi.spyOn(db, "transaction").mockImplementation(
+    // Mocking machinery below needs to accept whichever driver's transaction
+    // shape (Pglite vs postgres-js) the test happens to run against.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (callback: any) =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      originalTransaction(async (tx: any) => {
+        let insertCalls = 0;
+        const originalInsert = tx.insert.bind(tx);
+        tx.insert = (...args: unknown[]) => {
+          insertCalls++;
+          if (insertCalls === 2) {
+            throw new Error("simulated failure creating the client account");
+          }
+          return originalInsert(...args);
+        };
+        return callback(tx);
+      }),
+  );
+
+  try {
+    await assert.rejects(
+      backfillAccounts(db, {
+        coach: { name: coachName, passcode: "coach-passcode-1" },
+        client: { name: clientName, passcode: "client-passcode-1" },
+      }),
+      /simulated failure creating the client account/,
+    );
+  } finally {
+    transactionSpy.mockRestore();
+  }
+
+  const coachRows = await db.select().from(accounts).where(eq(accounts.name, coachName));
+  assert.equal(coachRows.length, 0, "coach account should have been rolled back with the rest of the transaction");
 });
