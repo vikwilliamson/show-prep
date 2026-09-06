@@ -73,22 +73,29 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - **Independent review, not self-review.** Claude Review runs
   `anthropics/claude-code-action@v1` in its own isolated GitHub Actions job
   — no shared context with whatever session authored the PR — so the same
-  agent is never grading its own work. It reviews every PR against this
-  file and CLAUDE.md (TDD pairing, data handling, account scoping,
+  agent instance is never grading its own work. It reviews every PR against
+  this file and CLAUDE.md (TDD pairing, data handling, account scoping,
   terminology, spec alignment) and fails the check on any blocking
   finding. This exists because PR #4 shipped a self-documented cross-tenant
   IDOR (missing account scoping on `/api/protocols` and
   `/api/documents/[id]`) straight to `main` in 2026-08 — CI was green, and
   green CI was, at the time, the entire review process.
-  - **Tiered model/effort routing** (cost control): PRs under 200 changed
-    lines get `claude-sonnet-5` at `high` effort. Larger PRs get
-    `claude-opus-5` at `medium` effort. PRs touching a "core
-    infrastructure" path — `lib/auth.ts`, `proxy.ts`, `lib/db/schema.ts`,
-    `lib/ingest/auth.ts`, `.github/workflows/*`, `drizzle/*` (kept in sync
-    with VIK-98's auth/account_id checklist-gate file list) — always get
-    `claude-opus-5` at `high` effort, regardless of size. The reviewing
-    model is always different from whichever model the authoring session
-    used, by construction of the isolated-job setup, independent of tier.
+  - **Tiered effort routing** (cost control): every PR is reviewed by
+    `claude-sonnet-5` — Opus was too costly to run on every PR, so as of
+    2026-09-06 the model is fixed and effort level is the cost/thoroughness
+    dial instead. PRs under 200 changed lines get `low` effort. Larger PRs
+    get `medium`. PRs touching a "core infrastructure" path —
+    `lib/auth.ts`, `proxy.ts`, `lib/db/schema.ts`, `lib/ingest/auth.ts`,
+    `.github/workflows/*`, `drizzle/*` (kept in sync with VIK-98's
+    auth/account_id checklist-gate file list) — always get `high` effort,
+    regardless of size. `xhigh`/`max` are deliberately never used. **Since
+    the model is now fixed, it is no longer guaranteed to differ from
+    whatever model authored the PR** — a session authoring on
+    `claude-sonnet-5` (this repo's default) is reviewed by the same model.
+    The isolation (separate job, no shared context/memory with the
+    authoring session) still holds regardless of tier — that's what
+    prevents the reviewer from inheriting the author's blind spots or
+    assumptions — but the cross-model-perspective benefit is gone.
 
 ## Specs & tickets
 - Work is tracked in **Linear** (team `VIK`, project `Gamma`) — issues are
