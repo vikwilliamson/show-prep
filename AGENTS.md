@@ -123,6 +123,19 @@ This version has breaking changes — APIs, conventions, and file structure may 
     authoring session) still holds regardless of tier — that's what
     prevents the reviewer from inheriting the author's blind spots or
     assumptions — but the cross-model-perspective benefit is gone.
+- **Auth/account_id checklist gate** (VIK-98): the PR template
+  (`.github/PULL_REQUEST_TEMPLATE.md`) includes a checklist item asking
+  whether the PR touches `lib/auth.ts`, `proxy.ts`, `lib/db/schema.ts`'s
+  `accountId` columns, or `lib/ingest/auth.ts` — and if so, whether the
+  decision is recorded in `specs/`, per the "Specs & tickets" rule below.
+  This is advisory, not a required check — it doesn't block merge the way
+  CI and Claude Review do, and Claude Review's own prompt separately
+  checks spec alignment. It exists because three real security-hardening
+  decisions (VIK-79, VIK-81, VIK-83) shipped correctly but without the
+  spec entry that rule requires, caught only by a manual after-the-fact
+  audit pass rather than anything in the normal PR flow. This file list is
+  the same one used for Claude Review's "core infrastructure" effort tier
+  above — keep the two in sync.
 
 ## Specs & tickets
 - Work is tracked in **Linear** (team `VIK`, project `Gamma`) — issues are
