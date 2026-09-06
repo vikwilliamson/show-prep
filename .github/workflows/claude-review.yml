@@ -3,15 +3,20 @@ name: Claude Review
 # Independent review gate (VIK-99 / VIK-82). Green CI alone used to be
 # sufficient to merge — nothing ever re-read a diff for logic, security, or
 # process problems before it landed on main. This runs in its own isolated
-# GitHub Actions job, with no shared context with whatever session authored
-# the PR, and is pinned to a different model than this repo's typical
-# authoring sessions use, so it isn't the same agent grading its own work.
+# GitHub Actions job with no shared context with whatever session authored
+# the PR, so the same agent instance never grades its own work. As of
+# 2026-09-06 the reviewing model is fixed to claude-sonnet-5 for cost
+# control (see below) and is NOT guaranteed to differ from the model that
+# authored the PR — the independence here is the isolated-job/no-shared-
+# context guarantee, not a cross-model-perspective guarantee.
 #
-# Tiered model routing (cost control, keep the expensive/slow model for
-# where it matters): small PRs get Sonnet at high effort; anything large or
-# touching a "core infrastructure" path (kept in sync with VIK-98's
-# auth/account_id checklist-gate file list) gets Opus, escalated to high
-# effort specifically for the core-infrastructure case.
+# Tiered EFFORT routing (cost control): every PR is reviewed by
+# claude-sonnet-5 — Opus was too costly to run on every PR. Effort level is
+# the cost/thoroughness dial instead of model choice: small PRs get `low`,
+# large PRs get `medium`, and anything touching a "core infrastructure" path
+# (kept in sync with VIK-98's auth/account_id checklist-gate file list) gets
+# `high` regardless of size. `xhigh`/`max` are deliberately never used here —
+# also too costly for routine per-PR review.
 #
 # This job's conclusion (pass/fail) is meant to be added as a required
 # status check on main's branch protection — see VIK-82. A comment alone
@@ -55,12 +60,13 @@ jobs:
             esac
           done <<< "$CHANGED_FILES"
 
+          MODEL="claude-sonnet-5"
           if [ "$CORE_INFRA" = true ]; then
-            MODEL="claude-opus-5"; EFFORT="high"; TIER="opus-core-infra"
+            EFFORT="high"; TIER="high-core-infra"
           elif [ "$TOTAL" -ge 200 ]; then
-            MODEL="claude-opus-5"; EFFORT="medium"; TIER="opus-large-pr"
+            EFFORT="medium"; TIER="medium-large-pr"
           else
-            MODEL="claude-sonnet-5"; EFFORT="high"; TIER="sonnet-small-pr"
+            EFFORT="low"; TIER="low-small-pr"
           fi
 
           echo "model=$MODEL" >> "$GITHUB_OUTPUT"
