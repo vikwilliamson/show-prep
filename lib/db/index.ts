@@ -2,12 +2,22 @@ import { sql } from "drizzle-orm";
 import path from "node:path";
 import { env } from "../env";
 import * as schema from "./schema";
+import { assertSchemaUpToDate } from "./schema-check";
 
 // Two drivers behind one interface:
 //  - DATABASE_URL set  -> real Postgres via postgres-js (needs pgvector installed)
 //  - otherwise         -> embedded PGlite (WASM Postgres) with the vector extension,
 //                         persisted under .data/pglite. Zero-config dev.
-// Both run the same generated migrations from ./drizzle at startup.
+//
+// Migrations are NOT applied here for the Postgres path (see VIK-88 /
+// AGENTS.md's "Migrations" section) — concurrent serverless cold starts
+// racing to migrate the same production database is exactly the mechanism
+// that caused VIK-76. Migrations for Postgres now run as an explicit
+// deploy step (`pnpm db:migrate`, see lib/db/migrate.ts and vercel.json);
+// this module only fails closed via assertSchemaUpToDate() if that step
+// was skipped. The embedded PGlite path is unaffected — it's a
+// single-process, zero-config dev database, not a shared server, so it
+// keeps migrating on every boot.
 
 import type { PgliteDatabase } from "drizzle-orm/pglite";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
@@ -32,14 +42,12 @@ async function initDb(): Promise<Db> {
 
   if (env.databaseUrl) {
     const { drizzle } = await import("drizzle-orm/postgres-js");
-    const { migrate } = await import("drizzle-orm/postgres-js/migrator");
     const postgres = (await import("postgres")).default;
     // prepare:false keeps postgres-js compatible with transaction-mode
     // poolers (Neon -pooler URLs, PgBouncer).
     const client = postgres(env.databaseUrl, { max: 5, prepare: false });
     const pgDb = drizzle(client, { schema });
-    await pgDb.execute(sql`CREATE EXTENSION IF NOT EXISTS vector`);
-    await migrate(pgDb, { migrationsFolder });
+    await assertSchemaUpToDate(pgDb, migrationsFolder);
     db = pgDb;
   } else {
     const { PGlite } = await import("@electric-sql/pglite");

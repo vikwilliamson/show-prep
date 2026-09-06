@@ -12,7 +12,7 @@ test("buildSeedEnv sets DATABASE_URL and SEED_AI without mutating the base env",
   assert.equal(base.DATABASE_URL, "postgres://local");
 });
 
-test("resetStaging wipes the schema before seeding, using the staging connection string throughout", async () => {
+test("resetStaging wipes the schema, migrates, then seeds, using the staging connection string throughout", async () => {
   const calls: string[] = [];
   const statements: string[] = [];
   let seedEnv: NodeJS.ProcessEnv | undefined;
@@ -32,6 +32,9 @@ test("resetStaging wipes the schema before seeding, using the staging connection
       calls.push(`connect:${url}`);
       return fakeSql;
     },
+    runMigrations: async (url) => {
+      calls.push(`migrate:${url}`);
+    },
     runSeed: (env) => {
       seedEnv = env;
       calls.push("seed");
@@ -39,12 +42,18 @@ test("resetStaging wipes the schema before seeding, using the staging connection
   });
 
   assert.deepEqual(statements, ["DROP SCHEMA public CASCADE", "CREATE SCHEMA public"]);
-  assert.deepEqual(calls, ["connect:postgres://staging-conn", "end", "seed"]);
+  assert.deepEqual(calls, [
+    "connect:postgres://staging-conn",
+    "end",
+    "migrate:postgres://staging-conn",
+    "seed",
+  ]);
   assert.equal(seedEnv?.DATABASE_URL, "postgres://staging-conn");
   assert.equal(seedEnv?.SEED_AI, "1");
 });
 
-test("resetStaging never seeds if the schema wipe throws", async () => {
+test("resetStaging never migrates or seeds if the schema wipe throws", async () => {
+  let migrateCalled = false;
   let seedCalled = false;
   const fakeSql: SchemaClient = {
     unsafe: async () => {
@@ -57,6 +66,32 @@ test("resetStaging never seeds if the schema wipe throws", async () => {
     resetStaging({
       getConnectionString: () => "postgres://staging-conn",
       connectSql: () => fakeSql,
+      runMigrations: async () => {
+        migrateCalled = true;
+      },
+      runSeed: () => {
+        seedCalled = true;
+      },
+    }),
+  );
+  assert.equal(migrateCalled, false);
+  assert.equal(seedCalled, false);
+});
+
+test("resetStaging never seeds if migrations fail", async () => {
+  let seedCalled = false;
+  const fakeSql: SchemaClient = {
+    unsafe: async () => {},
+    end: async () => {},
+  };
+
+  await assert.rejects(
+    resetStaging({
+      getConnectionString: () => "postgres://staging-conn",
+      connectSql: () => fakeSql,
+      runMigrations: async () => {
+        throw new Error("migration failed");
+      },
       runSeed: () => {
         seedCalled = true;
       },
@@ -80,6 +115,7 @@ test("resetStaging always closes the connection, even if the wipe throws", async
     resetStaging({
       getConnectionString: () => "postgres://staging-conn",
       connectSql: () => fakeSql,
+      runMigrations: async () => {},
       runSeed: () => {},
     }),
   );

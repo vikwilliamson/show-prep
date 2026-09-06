@@ -57,6 +57,33 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - If a new feature seems to need more than the opaque ID sent to the
   aggregator, stop and flag it — don't add the field.
 
+## Migrations
+- Migrations run as an explicit deploy step, not implicitly on every cold
+  start. `vercel.json`'s `buildCommand` runs `pnpm db:migrate` before
+  `pnpm build` on every Vercel deployment — Production and each Preview
+  migrate their own Neon branch (see VIK-83's per-environment
+  `DATABASE_URL`s), exactly once per deployment, in a build log you can
+  actually read, instead of racing across however many serverless cold
+  starts happen to fire concurrently.
+- `lib/db/index.ts`'s real-Postgres path no longer calls `migrate()`. It
+  calls `assertSchemaUpToDate()` (`lib/db/schema-check.ts`) instead, which
+  fails closed — throws before the app serves any request — if the
+  database's latest applied migration hash doesn't match the latest file
+  in `drizzle/`. It never migrates mid-request.
+- The embedded PGlite path (local dev with no `DATABASE_URL`) is
+  unaffected — it still migrates on every boot. It's a single-process,
+  zero-config dev database, not a shared server, so the concurrent-cold-
+  start race this decision exists to close doesn't apply to it.
+- To apply migrations by hand against a real database (`test`/`staging`,
+  see VIK-83): `pnpm db:migrate` (reads `DATABASE_URL` from the
+  environment). `pnpm db:reset-staging` calls this itself after wiping the
+  staging schema — it no longer relies on `getDb()`'s cold-start path to
+  re-migrate.
+- Origin: `TECH_DEBT.md` §3.5 / VIK-88, elevated from a low-urgency note to
+  a decided fix by the VIK-76 incident (implicit cold-start migration,
+  combined with a then-shared `DATABASE_URL` across environments, very
+  likely applied 11 migrations to production without anyone deciding to).
+
 ## Branching & PRs
 - No direct commits to `main`. One feature branch per unit of work. This is
   enforced by branch protection on `main` (required PR, required checks, no

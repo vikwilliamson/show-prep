@@ -4,6 +4,12 @@
 // production (see VIK-83 / specs — it's a demo branch and must never carry
 // real health data) — this always wipes to an empty schema and rebuilds via
 // migrate + seed, the same way VIK-76 recovered production.
+//
+// Migration is an explicit step here (runMigrations), not something that
+// happens implicitly via getDb()'s cold-start path — see VIK-88. Since
+// lib/db/index.ts no longer migrates Postgres on connect, seeding a wiped
+// schema without this call would just hit assertSchemaUpToDate's fail-closed
+// error.
 
 /** Minimal surface of a `postgres` client this module actually needs. */
 export interface SchemaClient {
@@ -16,6 +22,8 @@ export interface ResetStagingDeps {
   getConnectionString: () => string;
   /** Opens a client against the given connection string. */
   connectSql: (databaseUrl: string) => SchemaClient;
+  /** Applies drizzle migrations against the given connection string. */
+  runMigrations: (databaseUrl: string) => Promise<void>;
   /** Runs the seed script with the given environment. */
   runSeed: (env: NodeJS.ProcessEnv) => void;
 }
@@ -37,8 +45,8 @@ export async function resetStaging(deps: ResetStagingDeps): Promise<void> {
   } finally {
     await sql.end();
   }
-  // Only reached once the wipe has fully succeeded — seed.ts's getDb() call
-  // re-migrates from empty on first connection, so seeding a half-wiped
-  // schema is never possible.
+  // Only reached once the wipe has fully succeeded. Migrate explicitly
+  // before seeding — the wiped schema has no tables until this runs.
+  await deps.runMigrations(databaseUrl);
   deps.runSeed(buildSeedEnv(process.env, databaseUrl));
 }

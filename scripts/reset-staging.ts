@@ -1,7 +1,6 @@
 /**
  * One-command reset for the `staging` Neon branch: wipes it to an empty
- * schema, then lets the normal getDb() cold-start path re-migrate, and
- * finally reseeds with demo data.
+ * schema, explicitly re-migrates it, then reseeds with demo data.
  *
  * Run with: pnpm db:reset-staging
  *
@@ -10,6 +9,7 @@
  */
 import { execFileSync } from "node:child_process";
 import postgres from "postgres";
+import { runMigrations } from "../lib/db/migrate";
 import { resetStaging } from "../lib/reset-staging";
 
 const NEON_PROJECT_ID = "aged-resonance-61061629";
@@ -30,6 +30,7 @@ function runSeed(env: NodeJS.ProcessEnv): void {
 resetStaging({
   getConnectionString,
   connectSql: (databaseUrl) => postgres(databaseUrl, { max: 1, prepare: false }),
+  runMigrations,
   runSeed,
 }).catch((err) => {
   console.error(err);
