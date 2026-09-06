@@ -85,9 +85,9 @@ logic on-device.
   test/*.test.ts`, currently headless unit tests for `mapper.ts`/`sync.
   ts`/`config.ts`) extends to cover the new screen's data-fetching logic;
   full component/rendering tests depend on what RN testing setup exists
-  by the time this is picked up (none currently, per VIK-87's flagged gap
-  in mobile static analysis/tooling — worth checking whether that's
-  closed before starting this).
+  by the time this is picked up (none currently — no RN component-testing
+  framework is configured; this is separate from VIK-87's ESLint gap,
+  which is resolved, see "Further Notes").
 
 ## Out of Scope
 
@@ -107,6 +107,14 @@ logic on-device.
   specifically to make sure real, confirmed gaps don't get silently
   dropped just because they're not urgent for the demo. See `specs/
   mobile-companion-onboarding.md`'s "Further Notes" for the same point.
-- Worth revisiting VIK-87 (mobile workspace has no ESLint/static analysis)
-  before or alongside this — adding a second real screen to a codebase
-  with zero linting is a worse time to discover that gap than now.
+- VIK-87 (mobile workspace had no ESLint/static analysis) is resolved as
+  of 2026-09-05: `mobile/eslint.config.js` adopts `eslint-config-expo/flat`
+  (the standard Expo/RN preset — no custom rule tuning) with a `lint`
+  script and CI step. Deliberately **not** type-aware: no
+  `parserOptions.project`/`projectService`, so
+  `@typescript-eslint/no-floating-promises` is not active. That means 3.7's
+  actual defect (`App.tsx`'s unhandled `loadConfig().then(...)` rejection)
+  is still undetected by lint — type-aware linting was left out of scope
+  for VIK-87 rather than silently assumed to cover it. Wiring up a
+  type-aware tsconfig for lint is a candidate for a future ticket if 3.7 or
+  similar recurs.
