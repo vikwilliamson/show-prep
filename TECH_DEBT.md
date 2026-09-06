@@ -444,13 +444,15 @@ test loudly) but avoidable.
 most likely to introduce build-breaking/ABI changes is the one allowed to
 drift on minor versions.
 
-### 6.5 Embeddings retry loop has no request timeout — `medium`
+### 6.5 Embeddings retry loop has no request timeout — `medium` — RESOLVED 2026-09-06 (VIK-94)
 `lib/ai/embeddings.ts:24-46` — `MAX_ATTEMPTS = 4` and a `22_000 * attempt`
 backoff are reasonable but unconfigurable/unexplained, and there's no
 `AbortController`/timeout on the underlying `fetch`. A stalled (not
 rate-limited, just hanging) Voyage response blocks for as long as the
 platform allows (`maxDuration = 300`) instead of failing fast into the
-existing "best effort" catch blocks.
+existing "best effort" catch blocks. (Also: this was filed under
+"Mobile-specific" but `lib/ai/embeddings.ts` is a web-app file — a filing
+error in the original pass.)
 
 ---
 
