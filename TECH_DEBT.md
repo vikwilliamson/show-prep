@@ -259,13 +259,14 @@ instances racing to run it against the same DB simultaneously. May be a
 deliberate simplicity trade-off at current scale — worth making that an
 explicit written decision rather than an implicit one.
 
-### 3.6 Mobile has zero static analysis — `medium`
-Root `eslint.config.mjs` ignores `mobile/**` with the comment "Mobile
-workspace has its own lint config" — but there is no `.eslintrc`/
-`eslint.config.*` and no `lint` script in `mobile/package.json`. The comment
-describes a setup that doesn't exist; mobile code gets no static analysis
-at all, not even basic unused-vars/floating-promise checks (which would
-have caught 3.7 below).
+### 3.6 Mobile has zero static analysis — `medium` — RESOLVED 2026-09-05 (VIK-87)
+`mobile/` now has a real `eslint.config.js` (`eslint-config-expo/flat`), a
+`lint` script, and its own "Mobile lint" CI step — see `specs/
+mobile-dashboard-view.md`'s "Further Notes" for what was adopted and what
+was deliberately left out. Note the preset is not type-aware
+(no `parserOptions.project`), so `@typescript-eslint/no-floating-promises`
+is not active — 3.7 below is still an open, undetected gap despite this
+fix.
 
 ### 3.7 Mobile: unhandled promise rejections can trap the user on the loading spinner forever — `medium`
 `mobile/App.tsx:31-34` — `loadConfig().then(setConfig)` and
@@ -350,10 +351,9 @@ their own `requestWithSession()`. No shared `tests/helpers.ts` — and the
 child-table cleanup lists already aren't consistent between files. `medium`.
 
 ### 4.10 Mobile: record-mapping boundary opts out of TypeScript entirely
-`mobile/src/mapper.ts:8,10` — `/* eslint-disable
-@typescript-eslint/no-explicit-any */` and `type AnyRecord = Record<string,
-any>` for the whole module; `mobile/src/healthConnect.ts:46-50` defaults to
-an untyped shape too. This is the most safety-critical boundary in the
+`mobile/src/mapper.ts:8` — `type AnyRecord = Record<string, any>` for the
+whole module; `mobile/src/healthConnect.ts:46-50` defaults to an untyped
+shape too. This is the most safety-critical boundary in the
 mobile app (raw native SDK output → server wire contract) with zero
 compile-time protection — a `react-native-health-connect` version bump
 renaming a field would silently produce `undefined`/`NaN` instead of a type

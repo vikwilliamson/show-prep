@@ -41,6 +41,9 @@ jobs:
       - name: Build
         run: pnpm build
 
+      - name: Mobile lint
+        run: pnpm --filter gamma-companion lint
+
       - name: Mobile typecheck
         run: pnpm --filter gamma-companion typecheck
 

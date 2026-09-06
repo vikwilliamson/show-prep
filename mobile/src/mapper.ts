@@ -5,8 +5,6 @@
 //  - Weight comes from Samsung Health (kg) — sent as weightKg, server converts.
 //  - Steps/energy are aggregated into one activity row per local day.
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 type AnyRecord = Record<string, any>;
 
 const MEAL_TYPES: Record<number, string> = {

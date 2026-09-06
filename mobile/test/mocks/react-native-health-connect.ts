@@ -3,8 +3,6 @@
 // here at test time. Datasets and pages are programmable per record type so the
 // full read -> map -> post pipeline can run headlessly.
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 export type ReadRecordsOptions = {
   timeRangeFilter?: { operator: string; startTime: string; endTime: string };
   pageSize?: number;
