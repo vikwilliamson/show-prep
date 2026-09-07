@@ -69,6 +69,7 @@ export default function LoginPage() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Passcode"
+            aria-label="Passcode"
             className="w-full rounded-md border border-borderc bg-background px-3 py-2 text-sm"
           />
           {error && <p className="text-sm text-bad">{error}</p>}

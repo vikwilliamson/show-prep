@@ -19,6 +19,12 @@ describe("ComplianceChart", () => {
     expect(container.querySelector(".recharts-responsive-container")).toBeInTheDocument();
   });
 
+  it("exposes a text alternative for screen readers instead of a blank SVG", () => {
+    const days = [{ date: "2026-08-01", calories: 2100, proteinG: 200, carbsG: 180, fatG: 60 }];
+    render(<ComplianceChart days={days} targets={null} />);
+    expect(screen.getByRole("img", { name: /macro compliance/i })).toBeInTheDocument();
+  });
+
   it("renders without throwing when targets is null", () => {
     const days = [{ date: "2026-08-01", calories: 2100, proteinG: 200, carbsG: 180, fatG: 60 }];
     const { container } = render(<ComplianceChart days={days} targets={null} />);

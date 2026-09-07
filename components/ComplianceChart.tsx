@@ -75,48 +75,56 @@ export function ComplianceChart({
       </p>
     );
   }
+
+  const avgCalories = Math.round(days.reduce((sum, d) => sum + d.calories, 0) / days.length);
+  const summary =
+    `Macro compliance chart, ${days.length} days. Avg ${avgCalories} kcal/day` +
+    (targets?.calories != null ? `, target ${targets.calories} kcal.` : ".");
+
   return (
-    <ResponsiveContainer width="100%" height={240}>
-      <BarChart data={days} margin={{ top: 8, right: 12, bottom: 0, left: -16 }} barCategoryGap="18%">
-        <CartesianGrid stroke="var(--grid)" vertical={false} />
-        <XAxis
-          dataKey="date"
-          tickFormatter={shortMonthDay}
-          tick={{ fill: "var(--muted)", fontSize: 11 }}
-          tickLine={false}
-          axisLine={{ stroke: "var(--border)" }}
-        />
-        <YAxis
-          tick={{ fill: "var(--muted)", fontSize: 11 }}
-          tickLine={false}
-          axisLine={false}
-          width={56}
-        />
-        <Tooltip
-          cursor={{ fill: "var(--grid)", opacity: 0.5 }}
-          content={(props) => <MacroTooltip {...props} targets={targets} />}
-        />
-        {targets?.calories != null && (
-          <ReferenceLine
-            y={targets.calories}
-            stroke="var(--muted)"
-            strokeDasharray="6 4"
-            label={{
-              value: `target ${targets.calories} kcal`,
-              position: "insideTopRight",
-              fill: "var(--muted)",
-              fontSize: 11,
-            }}
+    <div role="img" aria-label={summary}>
+      <ResponsiveContainer width="100%" height={240}>
+        <BarChart data={days} margin={{ top: 8, right: 12, bottom: 0, left: -16 }} barCategoryGap="18%">
+          <CartesianGrid stroke="var(--grid)" vertical={false} />
+          <XAxis
+            dataKey="date"
+            tickFormatter={shortMonthDay}
+            tick={{ fill: "var(--muted)", fontSize: 11 }}
+            tickLine={false}
+            axisLine={{ stroke: "var(--border)" }}
           />
-        )}
-        <Bar
-          name="Calories eaten"
-          dataKey="calories"
-          fill="var(--series-1)"
-          radius={[4, 4, 0, 0]}
-          isAnimationActive={false}
-        />
-      </BarChart>
-    </ResponsiveContainer>
+          <YAxis
+            tick={{ fill: "var(--muted)", fontSize: 11 }}
+            tickLine={false}
+            axisLine={false}
+            width={56}
+          />
+          <Tooltip
+            cursor={{ fill: "var(--grid)", opacity: 0.5 }}
+            content={(props) => <MacroTooltip {...props} targets={targets} />}
+          />
+          {targets?.calories != null && (
+            <ReferenceLine
+              y={targets.calories}
+              stroke="var(--muted)"
+              strokeDasharray="6 4"
+              label={{
+                value: `target ${targets.calories} kcal`,
+                position: "insideTopRight",
+                fill: "var(--muted)",
+                fontSize: 11,
+              }}
+            />
+          )}
+          <Bar
+            name="Calories eaten"
+            dataKey="calories"
+            fill="var(--series-1)"
+            radius={[4, 4, 0, 0]}
+            isAnimationActive={false}
+          />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
   );
 }

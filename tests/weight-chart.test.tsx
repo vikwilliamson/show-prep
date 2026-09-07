@@ -21,6 +21,12 @@ describe("WeightChart", () => {
     expect(container.querySelector(".recharts-responsive-container")).toBeInTheDocument();
   });
 
+  it("exposes a text alternative for screen readers instead of a blank SVG", () => {
+    const series = [{ date: "2026-08-01", weightLbs: 190 }];
+    render(<WeightChart series={series} trend={[]} targetLbs={187} />);
+    expect(screen.getByRole("img", { name: /bodyweight/i })).toBeInTheDocument();
+  });
+
   it("renders without throwing when targetLbs is null (domain math skips the target)", () => {
     const series = [{ date: "2026-08-01", weightLbs: 190 }];
     const { container } = render(<WeightChart series={series} trend={[]} targetLbs={null} />);
