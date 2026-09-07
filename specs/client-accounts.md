@@ -107,6 +107,21 @@ messages:
   The Neon integration's Vercel connection is now narrowed to Preview only,
   so per-preview branch injection can't touch the manually-set
   Production/Development values again.
+- **VIK-96 — settings write scoped by row id only, not accountId.** `PUT
+  /api/settings` fetched `current = await getSettings(session.accountId)`
+  (correctly account-scoped) but wrote with `.where(eq(settings.id,
+  current.id))` — the write's own WHERE clause never restated `accountId`.
+  Not exploitable as shipped, since `current.id` can only ever resolve to
+  the caller's own row; but nothing enforced that at the write site itself,
+  so a future refactor that separated the read from the write (or swapped
+  in an unscoped `getSettings` variant) could silently reopen cross-account
+  writes with no test catching it. Fixed by restating the account filter
+  directly on both the `settings` and `weeklyTargets` updates in the same
+  route — `.where(and(eq(table.id, current.id), eq(table.accountId,
+  session.accountId)))` — matching the belt-and-suspenders pattern already
+  used on `protocols/[id]`'s confirm/supersede UPDATE (VIK-77). Verified
+  with a regression test exercising that exact WHERE-clause shape with a
+  deliberately mismatched id/accountId pair.
 
 ## Test plan (TDD — write these first)
 

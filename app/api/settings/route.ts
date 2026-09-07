@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { getAccountReferenceId, requireAccount } from "@/lib/auth";
 import { CheckinQuestionSchema } from "@/lib/checkin-template";
@@ -16,7 +16,12 @@ export async function GET(req: NextRequest) {
     getTargets(session.accountId),
     getAccountReferenceId(session.accountId),
   ]);
-  return NextResponse.json({ settings: s, targets: t, referenceId, role: session.role });
+  return NextResponse.json({
+    settings: s,
+    targets: t,
+    referenceId,
+    role: session.role,
+  });
 }
 
 const putSchema = z.object({
@@ -61,14 +66,27 @@ export async function PUT(req: NextRequest) {
 
   if (parsed.data.settings && Object.keys(parsed.data.settings).length) {
     const current = await getSettings(session.accountId);
-    await db.update(settings).set(parsed.data.settings).where(eq(settings.id, current.id));
+    await db
+      .update(settings)
+      .set(parsed.data.settings)
+      .where(
+        and(
+          eq(settings.id, current.id),
+          eq(settings.accountId, session.accountId),
+        ),
+      );
   }
   if (parsed.data.targets && Object.keys(parsed.data.targets).length) {
     const current = await getTargets(session.accountId);
     await db
       .update(weeklyTargets)
       .set(parsed.data.targets)
-      .where(eq(weeklyTargets.id, current.id));
+      .where(
+        and(
+          eq(weeklyTargets.id, current.id),
+          eq(weeklyTargets.accountId, session.accountId),
+        ),
+      );
   }
 
   const [s, t] = await Promise.all([
