@@ -155,8 +155,18 @@ export async function PUT(
       updatedAt: new Date(),
       ...(approve ? { status: "approved", approvedAt: new Date() } : {}),
     })
-    .where(eq(coachBriefs.id, existing.id))
+    .where(and(eq(coachBriefs.id, existing.id), eq(coachBriefs.updatedAt, existing.updatedAt)))
     .returning();
+
+  // updatedAt no longer matches what we read — someone else's PUT (or a
+  // regenerating POST) landed in between our read and our write. Last
+  // write wins would silently drop that edit, so reject instead.
+  if (!row) {
+    return NextResponse.json(
+      { error: "Brief was modified since you loaded it — reload and retry" },
+      { status: 409 },
+    );
+  }
 
   return NextResponse.json(row);
 }

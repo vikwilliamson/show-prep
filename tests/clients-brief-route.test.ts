@@ -164,6 +164,31 @@ test("POST passes the client's recent protocol history (active + superseded) to 
   );
 });
 
+test("concurrent PUTs on the same brief don't lose an update — one wins, the other 409s", async () => {
+  const { id: clientId } = await makeAccount("Brief Route Test Client G");
+  generateMock.mockResolvedValue("draft content");
+  await POST(requestWithSession("POST", clientId, "coach", { weekStart: WEEK_START }), ctxFor(clientId));
+
+  const [resA, resB] = await Promise.all([
+    PUT(
+      requestWithSession("PUT", clientId, "coach", { weekStart: WEEK_START, content: "edit A" }),
+      ctxFor(clientId),
+    ),
+    PUT(
+      requestWithSession("PUT", clientId, "coach", { weekStart: WEEK_START, content: "edit B" }),
+      ctxFor(clientId),
+    ),
+  ]);
+
+  const statuses = [resA.status, resB.status].sort();
+  assert.deepEqual(statuses, [200, 409], "exactly one PUT should win, the other should be rejected as a conflict");
+
+  const db = await getDb();
+  const [row] = await db.select().from(coachBriefs).where(eq(coachBriefs.accountId, clientId));
+  const winner = resA.status === 200 ? await resA.json() : await resB.json();
+  assert.equal(row.content, winner.content, "the row must reflect whichever PUT actually won, not a silently lost update");
+});
+
 test("GET returns null when no brief exists yet for the week", async () => {
   const { id: clientId } = await makeAccount("Brief Route Test Client E");
   const res = await GET(requestWithSession("GET", clientId, "coach"), ctxFor(clientId));
