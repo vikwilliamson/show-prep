@@ -18,6 +18,17 @@ async function renderReady() {
   await screen.findByPlaceholderText("Ask about your protocols or program rules…");
 }
 
+describe("ChatPage accessibility", () => {
+  afterEach(() => {
+    fetchJsonMock.mockReset();
+  });
+
+  it("gives the message field an accessible name, not just a placeholder", async () => {
+    await renderReady();
+    expect(screen.getByLabelText("Message")).toBeInTheDocument();
+  });
+});
+
 describe("ChatPage send guard", () => {
   afterEach(() => {
     fetchJsonMock.mockReset();

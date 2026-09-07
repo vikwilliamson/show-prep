@@ -123,6 +123,7 @@ export default function SettingsPage() {
             readOnly
             value={referenceId ?? ""}
             onFocus={(e) => e.target.select()}
+            aria-label="Companion pairing ID"
             className="w-full rounded-md border border-borderc bg-background px-3 py-1.5 font-mono text-sm"
           />
           <button
@@ -353,6 +354,7 @@ function AddClientSection() {
               readOnly
               value={created.passcode}
               onFocus={(e) => e.target.select()}
+              aria-label="New client passcode"
               className="w-full rounded-md border border-borderc bg-surface px-3 py-1.5 font-mono text-sm"
             />
             <button

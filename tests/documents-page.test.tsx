@@ -74,6 +74,27 @@ describe("DocumentsPage tables", () => {
   });
 });
 
+describe("DocumentsPage upload form accessibility", () => {
+  afterEach(() => {
+    fetchJsonMock.mockReset();
+  });
+
+  it("gives every upload-form field an accessible name, not just a placeholder", async () => {
+    const user = userEvent.setup();
+    fetchJsonMock.mockImplementation((url: string) =>
+      Promise.resolve(url === "/api/documents" ? [] : []),
+    );
+    render(<DocumentsPage />);
+
+    await screen.findByLabelText("Document title");
+    expect(screen.getByLabelText("Document category")).toBeInTheDocument();
+    expect(screen.getByLabelText("Document file")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Paste text" }));
+    expect(screen.getByLabelText("Document text")).toBeInTheDocument();
+  });
+});
+
 describe("DocumentsPage mutation guards", () => {
   afterEach(() => {
     fetchJsonMock.mockReset();

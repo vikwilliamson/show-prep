@@ -162,6 +162,7 @@ export default function ChatPage() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Ask about your protocols or program rules…"
+          aria-label="Message"
           className="flex-1 rounded-md border border-borderc bg-surface px-3 py-2 text-sm"
         />
         <button

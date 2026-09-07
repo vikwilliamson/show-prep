@@ -36,6 +36,35 @@ const SETTINGS_RESPONSE = {
   role: "client",
 };
 
+describe("SettingsPage accessibility", () => {
+  afterEach(() => {
+    fetchJsonMock.mockReset();
+  });
+
+  it("gives the read-only pairing ID field an accessible name", async () => {
+    fetchJsonMock.mockResolvedValueOnce(SETTINGS_RESPONSE);
+    render(<SettingsPage />);
+    expect(await screen.findByLabelText("Companion pairing ID")).toBeInTheDocument();
+  });
+
+  it("gives the revealed client passcode field an accessible name", async () => {
+    const user = userEvent.setup();
+    fetchJsonMock.mockResolvedValueOnce({ ...SETTINGS_RESPONSE, role: "coach" });
+    render(<SettingsPage />);
+
+    const nameInput = await screen.findByLabelText("Client name");
+    await user.type(nameInput, "New Client");
+
+    fetchJsonMock.mockResolvedValueOnce({
+      account: { name: "New Client" },
+      passcode: "abc123",
+    });
+    await user.click(screen.getByRole("button", { name: "Add client" }));
+
+    expect(await screen.findByLabelText("New client passcode")).toBeInTheDocument();
+  });
+});
+
 describe("SettingsPage save guard", () => {
   afterEach(() => {
     fetchJsonMock.mockReset();
