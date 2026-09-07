@@ -15,7 +15,7 @@
  *   vercel env ls | grep "DATABASE_URL "
  */
 import { execFileSync } from "node:child_process";
-import { reapplyDbScoping } from "../lib/vercel-db-scoping";
+import { reapplyDbScoping, vercelEnvSetter } from "../lib/vercel-db-scoping";
 
 const NEON_PROJECT_ID = "aged-resonance-61061629";
 
@@ -27,22 +27,12 @@ function getConnectionString(branch: string): string {
   ).trim();
 }
 
-function setVercelEnv(
-  name: string,
-  environment: "production" | "development",
-  value: string,
-): void {
-  execFileSync("vercel", ["env", "add", name, environment, "--value", value, "--yes", "--force"], {
-    stdio: "inherit",
-  });
-}
-
 reapplyDbScoping(
   {
     getProduction: () => getConnectionString("main"),
     getTest: () => getConnectionString("test"),
   },
-  { set: setVercelEnv },
+  vercelEnvSetter(),
 );
 
 console.log("\nDone. Verify with: vercel env ls | grep 'DATABASE_URL '");
