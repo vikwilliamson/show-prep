@@ -333,6 +333,8 @@ export const coachBriefs = pgTable(
   ],
 );
 
+export type CoachBrief = typeof coachBriefs.$inferSelect;
+
 // ---------------------------------------------------------------------------
 // App settings. One row per account (was a hardcoded single row, id = 1,
 // before accounts existed). Includes the coach check-in template.

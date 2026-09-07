@@ -1,5 +1,6 @@
 import { and, asc, desc, eq, gte, lte, sql } from "drizzle-orm";
 import {
+  coachBriefs,
   getDb,
   hydrationEntries,
   nutritionEntries,
@@ -9,6 +10,7 @@ import {
   weeklyTargets,
   weightEntries,
   workouts,
+  type CoachBrief,
   type Protocol,
   type Settings,
   type WeeklyTargets,
@@ -50,6 +52,27 @@ export async function getActiveProtocol(accountId: number): Promise<Protocol | n
     .where(and(eq(protocols.accountId, accountId), eq(protocols.status, "active")))
     .orderBy(desc(protocols.effectiveFrom), desc(protocols.id))
     .limit(1);
+  return row ?? null;
+}
+
+/** The client-facing coach brief for a week — filtered to 'approved' at the
+ *  query layer so an unapproved draft is never a row this can return, not
+ *  just a row the caller happens to hide from rendering. */
+export async function getApprovedCoachBrief(
+  accountId: number,
+  weekStart: string,
+): Promise<CoachBrief | null> {
+  const db = await getDb();
+  const [row] = await db
+    .select()
+    .from(coachBriefs)
+    .where(
+      and(
+        eq(coachBriefs.accountId, accountId),
+        eq(coachBriefs.weekStart, weekStart),
+        eq(coachBriefs.status, "approved"),
+      ),
+    );
   return row ?? null;
 }
 

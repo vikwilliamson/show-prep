@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "vitest";
 import { eq } from "drizzle-orm";
-import { getDb, nutritionEntries, protocols, settings, weightEntries } from "../lib/db";
+import { coachBriefs, getDb, nutritionEntries, protocols, settings, weightEntries } from "../lib/db";
 import {
   dailyMacros,
   dailyWeights,
   effectiveMacroTargets,
   getActiveProtocol,
+  getApprovedCoachBrief,
   getSettings,
   getTargets,
 } from "../lib/stats";
@@ -185,4 +186,34 @@ test("effectiveMacroTargets returns nulls when neither protocol nor manual setti
 
   const result = effectiveMacroTargets(s, null);
   assert.deepEqual(result, { calories: null, proteinG: null, carbsG: null, fatG: null });
+});
+
+test("getApprovedCoachBrief never returns a draft row, even when it's the only one for the week", async () => {
+  const { id: a } = await makeAccount("Stats Test CoachBrief Draft Only");
+  const db = await getDb();
+  await db.insert(coachBriefs).values({
+    accountId: a,
+    weekStart: "2026-02-02",
+    status: "draft",
+    content: "unapproved draft content",
+  });
+
+  const result = await getApprovedCoachBrief(a, "2026-02-02");
+  assert.equal(result, null, "a draft brief must not be returned by the query itself, not just hidden by the caller");
+});
+
+test("getApprovedCoachBrief returns the row once it's approved", async () => {
+  const { id: a } = await makeAccount("Stats Test CoachBrief Approved");
+  const db = await getDb();
+  await db.insert(coachBriefs).values({
+    accountId: a,
+    weekStart: "2026-02-02",
+    status: "approved",
+    content: "approved content",
+    approvedAt: new Date(),
+  });
+
+  const result = await getApprovedCoachBrief(a, "2026-02-02");
+  assert.ok(result);
+  assert.equal(result.content, "approved content");
 });

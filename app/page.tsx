@@ -3,9 +3,9 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { and, eq } from "drizzle-orm";
 import { getCurrentAccount, SESSION_COOKIE } from "@/lib/auth";
-import { checkIns, coachBriefs, getDb } from "@/lib/db";
+import { checkIns, getDb } from "@/lib/db";
 import { mondayOf, todayLocal } from "@/lib/dates";
-import { dashboardData, effectiveMacroTargets, weekStats } from "@/lib/stats";
+import { dashboardData, effectiveMacroTargets, getApprovedCoachBrief, weekStats } from "@/lib/stats";
 import { programTypeLabel } from "@/lib/program-types";
 import { WeightChart } from "@/components/WeightChart";
 import { ComplianceChart } from "@/components/ComplianceChart";
@@ -53,10 +53,7 @@ export default async function Dashboard() {
     .select()
     .from(checkIns)
     .where(and(eq(checkIns.accountId, session.accountId), eq(checkIns.weekStart, weekStart)));
-  const [weekBrief] = await db
-    .select()
-    .from(coachBriefs)
-    .where(and(eq(coachBriefs.accountId, session.accountId), eq(coachBriefs.weekStart, weekStart)));
+  const weekBrief = await getApprovedCoachBrief(session.accountId, weekStart);
 
   const latest = data.latestWeight;
   const toTarget =
