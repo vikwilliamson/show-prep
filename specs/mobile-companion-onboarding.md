@@ -194,6 +194,13 @@ even discover the one piece of information the app needs.
   email. Real need (User Story 7), not fully designed here — flag for
   whoever picks this spec's tickets up, don't silently assume it's
   covered.
+- **A rotatable/revocable per-device credential for `/api/ingest/*`,
+  separate from `referenceId`.** `referenceId` (the pairing ID this spec
+  surfaces) doubles today as the route's de facto write credential with
+  no rotation path — see `specs/phase-2-nutrition.md`'s 2026-09-07
+  addendum (VIK-128) for the full writeup. Decision: defer, triggered by
+  multi-coach support, self-service signup, or QR-code pairing (VIK-101)
+  shipping — not designed here.
 
 ## Further Notes
 
