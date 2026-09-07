@@ -106,6 +106,63 @@ app's config screen sent on every sync. This is also the answer to "how
 does a new tester get paired to their account" for product-testing
 onboarding — copy the ID from Settings, paste it into the app once.
 
+### 2026-09-07 — referenceId-as-credential gap, decision: defer (VIK-128)
+
+An audit pass flagged that `referenceId` — designed above as an identity
+field, deliberately "an opaque UUID, not a secret credential" — has
+functionally become the *only* per-account authorization check on
+`/api/ingest/*`. The shared `INGEST_API_KEY` proves "this is a legitimate
+companion client"; `referenceId` alone proves *whose* data a write belongs
+to. Anyone who obtains one account's `referenceId` (shoulder-surfed off
+Settings, screenshotted, pasted into a support message) plus the one
+API key shared across the entire install base can write nutrition/weight/
+sleep/activity data into that account indefinitely — there's no rotation
+or revocation path if a `referenceId` leaks, unlike the login passcode
+(`hashPasscode`/`verifyPasscode`, `specs/client-accounts.md`) or the
+session cookie (HMAC-signed, time-limited, `lib/auth.ts`), both of which
+already have a real credential model behind them.
+
+**Decision: don't build a rotatable per-device credential now — defer it,
+tied to a concrete trigger, not "someday."**
+
+- **Why not now:** the actual exposure surface today is small and
+  coach-mediated. Accounts are only ever created by the one coach
+  (`specs/client-accounts.md`: "Single coach for now... no multi-coach
+  support until there's a second coach"), `referenceId` is only ever
+  returned to the owning account's own authenticated session (never
+  broadcast, never enumerable), and onboarding is a deliberate one-time
+  handoff (`specs/mobile-companion-onboarding.md`), not self-service
+  signup. Building rotation/revocation infrastructure — a pairing-token
+  exchange, per-device secure storage, a "revoke this device" UI — is
+  real complexity for a threat model (an attacker who's obtained one
+  specific client's pairing ID) that doesn't exist yet at this scale.
+  Matches this repo's existing YAGNI calls on multi-tenancy generally
+  (`specs/client-accounts.md`, `specs/phase-2-nutrition.md`'s own
+  "Explicitly deferred" section on a pluggable-source abstraction).
+- **The trigger to revisit this — any one of:** (1) multi-coach support
+  gets built (the single-coach assumption above stops holding, so "the
+  coach personally vets every client" stops being a real mitigation);
+  (2) self-service account creation replaces coach-gated onboarding;
+  (3) QR-code pairing (VIK-101) ships — scanning instead of typing makes
+  a `referenceId` trivially easy to screenshot-and-share, changing the
+  leak likelihood even though the underlying gap is identical.
+- **What to build when the trigger hits, sketched (not designed in
+  detail here):** keep `referenceId` as the human-facing pairing
+  identifier — it's a fine, low-friction thing for a client to type once
+  — but stop treating it as the credential. On first pairing, the mobile
+  app exchanges `referenceId` + `INGEST_API_KEY` for a separate,
+  server-generated per-device token (stored in the device's secure
+  storage, e.g. `expo-secure-store`, not `AsyncStorage`/plain config);
+  every subsequent sync sends that token instead of resending
+  `referenceId`. A new "revoke this device" action on the coach's
+  Settings page invalidates it, forcing re-pair — the missing piece
+  today, since regenerating `referenceId` itself would also break the
+  value already printed on a past onboarding email
+  (`specs/mobile-companion-onboarding.md`).
+- **Until then:** no code change. This entry is the record required by
+  VIK-128's acceptance criteria — a written decision, not a
+  build-it-now fix.
+
 ## 2. Android — validate and narrow the existing pipeline
 
 Already built, never run against real hardware (`HANDOFF.md`). This pass:
