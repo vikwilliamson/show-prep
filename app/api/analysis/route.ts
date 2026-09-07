@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
-import { getPrimaryCoachAccountId } from "@/lib/auth";
+import { requireAccount } from "@/lib/auth";
 import { checkIns, getDb } from "@/lib/db";
 import { generateWeeklyAnalysis } from "@/lib/ai/analysis";
 import { mondayOf, todayLocal } from "@/lib/dates";
@@ -14,16 +14,16 @@ const schema = z.object({ weekStart: z.iso.date().optional() });
 // POST /api/analysis — AI-written plain-language analysis of a week,
 // persisted on that week's check_ins row.
 export async function POST(req: NextRequest) {
+  const session = requireAccount(req);
+  if (session instanceof NextResponse) return session;
+
   const body = await req.json().catch(() => ({}));
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid weekStart" }, { status: 422 });
   }
 
-  // No session context here yet (Phase 3 wires this route's own account
-  // resolution) — fall back to the sole coach account, matching today's
-  // de facto single-tenant behavior.
-  const accountId = await getPrimaryCoachAccountId();
+  const accountId = session.accountId;
   const settings = await getSettings(accountId);
   const weekStart =
     parsed.data.weekStart ?? mondayOf(todayLocal(settings.timezone));

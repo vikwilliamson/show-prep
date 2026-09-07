@@ -63,7 +63,7 @@ Add a nullable `account_id` FK (→ `accounts.id`) to every existing per-user ta
 - [x] `app/api/chat/route.ts`, `app/chat` — Phase 1 (done via `feat/phase-1-account-scoping`)
 - [x] `app/api/protocols/route.ts`, `app/api/protocols/[id]/route.ts` — never listed here in the first place, the root cause of both gaps (tracked as `TECH_DEBT.md` §1.1); fixed via VIK-77.
 - [x] `app/api/ingest/[type]/route.ts` — **superseded, ahead of this doc.** VIK-19 (`692ecd1`, `4e05412`) resolved the mobile companion's opaque `referenceId` server-side to `accountId` via `getAccountByReferenceId()` and tags every inserted row (`nutritionEntries`, `weightEntries`, etc.) with it — the single-tenant fallback described below never shipped for this route. This section originally said ingest "does NOT tag inserted rows with `account_id`"; that was true when written and is now stale. Left here as history rather than deleted, per the "fix whichever is wrong immediately" rule below — the code moved first, this doc is catching up.
-- [ ] `app/api/analysis/route.ts` — Phase 3. Still on the `getPrimaryCoachAccountId()` fallback; Phase 3 should switch it to real session-based resolution (the route is always called from an already-authenticated dashboard, so this is a smaller lift than ingest's was).
+- [x] `app/api/analysis/route.ts` — switched to `requireAccount(req)` session-based resolution; `getPrimaryCoachAccountId()` deleted (VIK-97). Previously, any logged-in account's "Generate analysis" wrote its result under the earliest-created coach account instead of its own — fixed as part of this change, regression-tested in `tests/analysis-route.test.ts`.
 
 ## Auth-hardening follow-ups (VIK-79, VIK-81, VIK-83)
 
