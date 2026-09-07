@@ -10,16 +10,14 @@
 // come up with auth quietly turned off. Same pattern as lib/db/index.ts's
 // DATABASE_URL guard.
 
+import path from "node:path";
 import { z } from "zod";
 
 const MIN_SECRET_LENGTH = 16;
 
 const secretSchema = z
   .string()
-  .min(
-    MIN_SECRET_LENGTH,
-    `must be at least ${MIN_SECRET_LENGTH} characters`,
-  )
+  .min(MIN_SECRET_LENGTH, `must be at least ${MIN_SECRET_LENGTH} characters`)
   .optional();
 
 const rawEnvSchema = z.object({
@@ -62,8 +60,12 @@ const parsed = parseEnv(process.env);
 export const env = {
   /** Postgres connection string. When unset, an embedded PGlite database is used. */
   databaseUrl: parsed.DATABASE_URL,
-  /** Directory for the embedded PGlite database. */
-  pgliteDir: parsed.PGLITE_DIR ?? ".data/pglite",
+  /** Absolute directory for the embedded PGlite database. */
+  pgliteDir: path.join(process.cwd(), parsed.PGLITE_DIR ?? ".data/pglite"),
+  /** Absolute path to the drizzle migrations folder — the single place
+   *  process.cwd() is resolved for this, rather than independently in each
+   *  of lib/db/index.ts (PGlite path + schema-check) and lib/db/migrate.ts. */
+  migrationsFolder: path.join(process.cwd(), "drizzle"),
   /** Bearer token the mobile companion must send to /api/ingest/*. */
   ingestApiKey: parsed.INGEST_API_KEY,
   /** Claude model for extraction/analysis/chat. */
