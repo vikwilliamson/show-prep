@@ -122,6 +122,31 @@ messages:
   used on `protocols/[id]`'s confirm/supersede UPDATE (VIK-77). Verified
   with a regression test exercising that exact WHERE-clause shape with a
   deliberately mismatched id/accountId pair.
+- **VIK-127 — unauthenticated login's per-row scrypt scan.** `POST
+  /api/session` looked up the matching account by looping every row and
+  calling `verifyPasscode` (scrypt) until one matched — unauthenticated,
+  reachable by anyone, cost scaling linearly with account count. Considered
+  a passcode-indexed lookup (a deterministic HMAC of the passcode as a
+  second, queryable column) instead of rate limiting, but rejected it:
+  building that index requires the plaintext passcode for every *existing*
+  account to backfill it, and per this doc's own storage design, plaintext
+  is deliberately never persisted anywhere past `hashPasscode()` at
+  creation — there's no way to backfill the index without forcing every
+  current account to reset their passcode. Went with the ticket's "more
+  simply" option instead: `lib/rate-limit.ts`, a minimal in-memory
+  fixed-window limiter (10 attempts / 5 min per IP, keyed off
+  `x-forwarded-for`), checked before any DB/scrypt work runs, with the
+  bucket cleared on a correct passcode so a shared household IP isn't
+  punished for someone else's earlier typo. Explicitly a best-effort bound,
+  not a complete fix — each Vercel serverless instance has its own memory,
+  so a distributed attacker spread across many cold starts isn't fully
+  bounded by this alone. Judged sufficient for "isn't a practical
+  CPU-exhaustion vector at this app's current scale" (the ticket's actual
+  acceptance bar), not for withstanding a determined distributed attacker;
+  the timing side-channel the same ticket flagged (early-break-on-match
+  reveals roughly how many rows precede the match) was left unfixed — out
+  of scope for this pass, would need a constant-time full-table scan
+  regardless of match position.
 
 ## Test plan (TDD — write these first)
 
