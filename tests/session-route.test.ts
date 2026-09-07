@@ -23,12 +23,12 @@ afterEach(async () => {
   resetRateLimit();
 });
 
-function postSession(body: unknown, ip?: string) {
+function postSession(body: unknown, ip?: string, extraHeaders?: Record<string, string>) {
   return POST(
     new NextRequest("http://localhost/api/session", {
       method: "POST",
       body: JSON.stringify(body),
-      headers: ip ? { "x-forwarded-for": ip } : undefined,
+      headers: { ...(ip ? { "x-forwarded-for": ip } : {}), ...extraHeaders },
     }),
   );
 }
@@ -80,4 +80,19 @@ test("a different IP is unaffected by another IP's rate limit", async () => {
 
   const res = await postSession({ passcode: "test-coach-passcode-xyz" }, other);
   assert.equal(res.status, 200);
+});
+
+test("x-vercel-forwarded-for is trusted over a spoofed x-forwarded-for, so rotating x-forwarded-for alone can't dodge the limit", async () => {
+  const realIp = "203.0.113.20";
+  for (let i = 0; i < LOGIN_RATE_LIMIT.max; i++) {
+    const res = await postSession({ passcode: "not-the-passcode" }, `10.0.0.${i}`, {
+      "x-vercel-forwarded-for": realIp,
+    });
+    assert.equal(res.status, 401);
+  }
+
+  const res = await postSession({ passcode: "test-coach-passcode-xyz" }, "10.0.0.99", {
+    "x-vercel-forwarded-for": realIp,
+  });
+  assert.equal(res.status, 429);
 });

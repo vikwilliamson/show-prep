@@ -135,9 +135,21 @@ messages:
   current account to reset their passcode. Went with the ticket's "more
   simply" option instead: `lib/rate-limit.ts`, a minimal in-memory
   fixed-window limiter (10 attempts / 5 min per IP, keyed off
-  `x-forwarded-for`), checked before any DB/scrypt work runs, with the
-  bucket cleared on a correct passcode so a shared household IP isn't
-  punished for someone else's earlier typo. Explicitly a best-effort bound,
+  `x-vercel-forwarded-for`/`x-forwarded-for`), checked before any DB/scrypt
+  work runs, with the bucket cleared on a correct passcode so a shared
+  household IP isn't punished for someone else's earlier typo. A review
+  pass flagged the header-missing fallback (shared "unknown" bucket) as a
+  possible bypass; checked against Vercel's own docs
+  (vercel.com/docs/headers/request-headers) rather than assuming — Vercel
+  overwrites `x-forwarded-for` at its edge and never forwards a
+  client-supplied value ("this restriction is in place to prevent IP
+  spoofing"), so on this app's plain Vercel deployment the header is always
+  present and not attacker-controlled; the fallback only fires in local
+  dev/tests. Switched the primary key to `x-vercel-forwarded-for` anyway —
+  Vercel's docs note plain `x-forwarded-for` "could be overwritten if
+  you're using a proxy on top of Vercel," while `x-vercel-forwarded-for`
+  stays accurate regardless — so this doesn't quietly regress if a WAF/CDN
+  ever gets added in front of the app later. Explicitly a best-effort bound,
   not a complete fix — each Vercel serverless instance has its own memory,
   so a distributed attacker spread across many cold starts isn't fully
   bounded by this alone. Judged sufficient for "isn't a practical

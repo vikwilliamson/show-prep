@@ -11,9 +11,18 @@ import { checkRateLimit, resetRateLimit } from "@/lib/rate-limit";
 export const LOGIN_RATE_LIMIT = { windowMs: 5 * 60 * 1000, max: 10 };
 
 function clientIp(req: NextRequest): string {
-  // Vercel sets x-forwarded-for; local dev/tests without it share one
-  // bucket, which is fine at this app's threat model.
-  return req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  // x-vercel-forwarded-for over x-forwarded-for: per Vercel's docs
+  // (vercel.com/docs/headers/request-headers), the latter "could be
+  // overwritten if you're using a proxy on top of Vercel," while the
+  // former stays accurate regardless. Vercel overwrites both at its edge
+  // and never forwards a client-supplied value ("this restriction is in
+  // place to prevent IP spoofing"), so on this app's plain Vercel
+  // deployment (no proxy in front of it) either header is trustworthy
+  // today — this just doesn't regress if a proxy/WAF gets added later.
+  // Local dev/tests without either header share one "unknown" bucket,
+  // which only matters off Vercel and is fine at this app's threat model.
+  const header = req.headers.get("x-vercel-forwarded-for") ?? req.headers.get("x-forwarded-for");
+  return header?.split(",")[0]?.trim() || "unknown";
 }
 
 // POST { passcode } — looks up the account whose passcode matches (each
