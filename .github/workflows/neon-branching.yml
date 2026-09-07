@@ -43,13 +43,47 @@ jobs:
     needs: setup
     runs-on: ubuntu-latest
     steps:
-      - name: Delete Neon Branch
-        uses: neondatabase/delete-branch-action@v3
-        # A PR that never got a Vercel Preview deployment (e.g. closed
-        # immediately, no commits) has no Neon branch to delete — don't let
-        # that redden an otherwise-unrelated PR-closed signal.
-        continue-on-error: true
+      - uses: actions/setup-node@v4
         with:
-          project_id: ${{ vars.NEON_PROJECT_ID }}
-          branch: preview/${{ needs.setup.outputs.branch }}
-          api_key: ${{ secrets.NEON_API_KEY }}
+          node-version: 22
+
+      - name: Delete Neon Branch
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+          NEON_BRANCH: preview/${{ needs.setup.outputs.branch }}
+        # Runs neonctl directly instead of neondatabase/delete-branch-action
+        # (which just shells out to this same CLI, no better error signal
+        # of its own) so the blanket `continue-on-error: true` this replaced
+        # can be gone: that swallowed every failure mode alike — a PR that
+        # never got a Preview deployment (no branch to delete, fine) *and*
+        # an expired API key, a wrong project id, a rate limit, or this
+        # workflow computing the wrong branch name entirely (VIK-120).
+        #
+        # neonctl resolves a branch *name* by listing the project's branches
+        # and matching (src/utils/enrichers.ts's branchIdResolve, called
+        # before any delete API call) — a name with no match throws exactly
+        # `Branch <name> not found.\nAvailable branches: ...` and neonctl
+        # exits 1. That's the one shape of failure this step treats as
+        # non-blocking. Everything else (auth, rate limit, a failure from
+        # the delete call itself) stays a hard, red failure.
+        run: |
+          npm i -g --ignore-scripts neonctl@2.22.0
+
+          set +e
+          output=$(neonctl branches delete "$NEON_BRANCH" --project-id "$NEON_PROJECT_ID" 2>&1)
+          status=$?
+          set -e
+          echo "$output"
+
+          if [ "$status" -eq 0 ]; then
+            exit 0
+          fi
+
+          if echo "$output" | grep -qE '^Branch .+ not found\.$'; then
+            echo "::warning title=Neon branch already gone::${NEON_BRANCH} wasn't found in project ${NEON_PROJECT_ID} — treating this PR close as having nothing to clean up. If this fires on every close (not just for PRs that never got a Preview deployment), the branch name this workflow computes may not match what Vercel's Neon integration actually creates — see specs/ VIK-120."
+            exit 0
+          fi
+
+          echo "::error title=Neon branch delete failed::${NEON_BRANCH} delete failed for a reason other than \"branch not found\" — see the step log above for the real error. This needs a human look: it likely means Neon's branch-cap problem (see this workflow's header comment) is silently recurring again."
+          exit "$status"
