@@ -106,3 +106,5 @@ Coach docs → upload → Claude extraction → pending protocol → user confir
           → active protocol (compliance baseline)
           → chunked + embedded (voyage-4) → doc chat (RAG)
 ```
+
+<!-- throwaway: VIK-120 live verification of neon-branching.yml's cleanup fix, safe to delete this branch after -->
