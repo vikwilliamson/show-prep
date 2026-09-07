@@ -83,6 +83,18 @@ This version has breaking changes — APIs, conventions, and file structure may 
   a decided fix by the VIK-76 incident (implicit cold-start migration,
   combined with a then-shared `DATABASE_URL` across environments, very
   likely applied 11 migrations to production without anyone deciding to).
+- **Any migration adding a `NOT NULL`, unique, or foreign-key constraint
+  must be dry-run against the `test` Neon branch before merge** — not just
+  local dev/PGlite. `pnpm db:reset-test` resets `test` to match its parent
+  (a real clone of production's current schema+data), so `pnpm db:migrate`
+  against it afterward is the actual check: does this constraint hold
+  against production's real data, not just whatever's sitting in local
+  dev. Origin: PR #17's `account_id NOT NULL` migration
+  (`drizzle/0014_tiresome_marvel_apes.sql`) shipped this exact check as
+  acceptance criteria but never ran it — verification was a manual local-
+  dev check (one orphan row found and hand-deleted) plus an assumption
+  that production was empty post-VIK-77. It happened to be fine, but the
+  safety net was tribal knowledge, not anything the process enforced.
 
 ## Branching & PRs
 - No direct commits to `main`. One feature branch per unit of work. This is
