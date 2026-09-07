@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "vitest";
 import { NextRequest } from "next/server";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { accounts, getDb, settings, weeklyTargets } from "../lib/db";
 import { createSessionToken, SESSION_COOKIE } from "../lib/auth";
+import { getSettings } from "../lib/stats";
 import { GET, PUT } from "../app/api/settings/route";
 import { createAccountTracker } from "./helpers";
 
@@ -62,7 +63,9 @@ test("PUT /api/settings only ever updates the caller's own row", async () => {
   const { id: b } = await makeAccount("Settings Route Test Other");
 
   const putRes = await PUT(
-    requestWithSession("PUT", a, { settings: { targetName: "Owner's target" } }),
+    requestWithSession("PUT", a, {
+      settings: { targetName: "Owner's target" },
+    }),
   );
   assert.equal(putRes.status, 200);
 
@@ -79,7 +82,12 @@ test("PUT /api/settings accepts and persists the four manual macro target fields
   const { id: a } = await makeAccount("Settings Route Test Macros");
   const putRes = await PUT(
     requestWithSession("PUT", a, {
-      settings: { targetCalories: 2200, targetProteinG: 180, targetCarbsG: 220, targetFatG: 70 },
+      settings: {
+        targetCalories: 2200,
+        targetProteinG: 180,
+        targetCarbsG: 220,
+        targetFatG: 70,
+      },
     }),
   );
   assert.equal(putRes.status, 200);
@@ -90,8 +98,42 @@ test("PUT /api/settings accepts and persists the four manual macro target fields
   assert.equal(putJson.settings.targetFatG, 70);
 
   const db = await getDb();
-  const [row] = await db.select().from(settings).where(eq(settings.accountId, a));
+  const [row] = await db
+    .select()
+    .from(settings)
+    .where(eq(settings.accountId, a));
   assert.equal(row.targetCalories, 2200);
+});
+
+test("settings UPDATE only matches a row when both id and accountId agree, matching the WHERE clause PUT /api/settings uses", async () => {
+  // Regression test for the write's own WHERE clause (VIK-96), not just the
+  // fact that PUT /api/settings's upstream read is account-scoped: this uses
+  // the exact `and(eq(id), eq(accountId))` shape the route applies, with a
+  // deliberately mismatched id/accountId pair, to prove the accountId half
+  // of the condition actually does work rather than being redundant with the
+  // row id (which is already globally unique).
+  const { id: a } = await makeAccount("Settings Scoping Test A");
+  const { id: b } = await makeAccount("Settings Scoping Test B");
+  const rowA = await getSettings(a);
+  await getSettings(b);
+  const db = await getDb();
+
+  const updated = await db
+    .update(settings)
+    .set({ targetName: "should never apply" })
+    .where(and(eq(settings.id, rowA.id), eq(settings.accountId, b)))
+    .returning();
+  assert.equal(
+    updated.length,
+    0,
+    "a mismatched id/accountId pair must match zero rows",
+  );
+
+  const [stillA] = await db
+    .select()
+    .from(settings)
+    .where(eq(settings.accountId, a));
+  assert.notEqual(stillA.targetName, "should never apply");
 });
 
 test("PUT /api/settings updates the caller's own weekly targets", async () => {
@@ -103,7 +145,10 @@ test("PUT /api/settings updates the caller's own weekly targets", async () => {
   assert.equal(json.targets.waterMlMin, 4000);
 
   const db = await getDb();
-  const [row] = await db.select().from(weeklyTargets).where(eq(weeklyTargets.accountId, a));
+  const [row] = await db
+    .select()
+    .from(weeklyTargets)
+    .where(eq(weeklyTargets.accountId, a));
   assert.equal(row.waterMlMin, 4000);
 });
 
@@ -132,7 +177,9 @@ test("PUT /api/settings accepts and persists a valid checkinTemplate, and GET re
 });
 
 test("PUT /api/settings rejects a checkinTemplate entry missing question", async () => {
-  const { id: a } = await makeAccount("Settings Route Test Checkin Template Invalid");
+  const { id: a } = await makeAccount(
+    "Settings Route Test Checkin Template Invalid",
+  );
   const res = await PUT(
     requestWithSession("PUT", a, {
       settings: { checkinTemplate: [{ key: "sleep_quality", type: "manual" }] },
@@ -142,11 +189,15 @@ test("PUT /api/settings rejects a checkinTemplate entry missing question", async
 });
 
 test("PUT /api/settings rejects a checkinTemplate entry with an invalid type", async () => {
-  const { id: a } = await makeAccount("Settings Route Test Checkin Template Bad Type");
+  const { id: a } = await makeAccount(
+    "Settings Route Test Checkin Template Bad Type",
+  );
   const res = await PUT(
     requestWithSession("PUT", a, {
       settings: {
-        checkinTemplate: [{ key: "sleep_quality", question: "How was your sleep?", type: "ai" }],
+        checkinTemplate: [
+          { key: "sleep_quality", question: "How was your sleep?", type: "ai" },
+        ],
       },
     }),
   );
