@@ -15,7 +15,9 @@ const COACH_LINKS = [{ href: "/clients", label: "Clients" }];
 
 export function NavLinks({ isCoach = false }: { isCoach?: boolean }) {
   const pathname = usePathname();
-  const links = isCoach ? [...LINKS.slice(0, 1), ...COACH_LINKS, ...LINKS.slice(1)] : LINKS;
+  const links = isCoach
+    ? [...LINKS.slice(0, 1), ...COACH_LINKS, ...LINKS.slice(1)]
+    : LINKS;
   return (
     <nav className="flex flex-wrap items-center gap-1">
       {links.map(({ href, label }) => {
@@ -25,6 +27,7 @@ export function NavLinks({ isCoach = false }: { isCoach?: boolean }) {
           <Link
             key={href}
             href={href}
+            aria-current={active ? "page" : undefined}
             className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
               active
                 ? "bg-accent/15 text-accent"

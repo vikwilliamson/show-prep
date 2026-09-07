@@ -12,20 +12,40 @@ describe("NavLinks", () => {
   it("marks the current route's link active and leaves others inactive", () => {
     vi.mocked(usePathname).mockReturnValue("/documents");
     render(<NavLinks />);
-    expect(screen.getByRole("link", { name: "Documents" })).toHaveClass("bg-accent/15");
-    expect(screen.getByRole("link", { name: "Settings" })).not.toHaveClass("bg-accent/15");
+    expect(screen.getByRole("link", { name: "Documents" })).toHaveClass(
+      "bg-accent/15",
+    );
+    expect(screen.getByRole("link", { name: "Settings" })).not.toHaveClass(
+      "bg-accent/15",
+    );
+  });
+
+  it("sets aria-current=page on the active link only", () => {
+    vi.mocked(usePathname).mockReturnValue("/documents");
+    render(<NavLinks />);
+    expect(screen.getByRole("link", { name: "Documents" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(screen.getByRole("link", { name: "Settings" })).not.toHaveAttribute(
+      "aria-current",
+    );
   });
 
   it("does not mark Dashboard active on a nested route", () => {
     vi.mocked(usePathname).mockReturnValue("/documents");
     render(<NavLinks />);
-    expect(screen.getByRole("link", { name: "Dashboard" })).not.toHaveClass("bg-accent/15");
+    expect(screen.getByRole("link", { name: "Dashboard" })).not.toHaveClass(
+      "bg-accent/15",
+    );
   });
 
   it("marks Dashboard active only on an exact match", () => {
     vi.mocked(usePathname).mockReturnValue("/");
     render(<NavLinks />);
-    expect(screen.getByRole("link", { name: "Dashboard" })).toHaveClass("bg-accent/15");
+    expect(screen.getByRole("link", { name: "Dashboard" })).toHaveClass(
+      "bg-accent/15",
+    );
   });
 
   it("inserts the Clients link right after Dashboard when isCoach is true", () => {
@@ -45,6 +65,8 @@ describe("NavLinks", () => {
   it("omits the Clients link when isCoach is false", () => {
     vi.mocked(usePathname).mockReturnValue("/");
     render(<NavLinks />);
-    expect(screen.queryByRole("link", { name: "Clients" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Clients" }),
+    ).not.toBeInTheDocument();
   });
 });
