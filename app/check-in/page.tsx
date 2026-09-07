@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { errorMessage, fetchJson } from "@/lib/client-fetch";
+import { addDays } from "@/lib/dates";
 import { FormField } from "@/components/FormField";
 
 interface CheckinData {
@@ -27,12 +28,6 @@ const DATA_ANSWER_KEYS: Record<string, string> = {
   workouts_cardio: "workouts_cardio",
   next_target: "next_target",
 };
-
-function shiftWeek(weekStart: string, weeks: number): string {
-  const [y, m, d] = weekStart.split("-").map(Number);
-  const dt = new Date(Date.UTC(y, m - 1, d + weeks * 7));
-  return dt.toISOString().slice(0, 10);
-}
 
 export default function CheckInPage() {
   const [data, setData] = useState<CheckinData | null>(null);
@@ -167,13 +162,13 @@ export default function CheckInPage() {
         </h1>
         <div className="flex gap-2 text-sm">
           <button
-            onClick={() => load(shiftWeek(weekStart, -1))}
+            onClick={() => load(addDays(weekStart, -7))}
             className="rounded-md border border-borderc px-2 py-1 hover:bg-borderc/30"
           >
             ← previous week
           </button>
           <button
-            onClick={() => load(shiftWeek(weekStart, 1))}
+            onClick={() => load(addDays(weekStart, 7))}
             className="rounded-md border border-borderc px-2 py-1 hover:bg-borderc/30"
           >
             next week →

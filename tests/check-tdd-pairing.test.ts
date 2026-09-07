@@ -203,3 +203,35 @@ test("passes when a scripts/*.sh file is paired with its test (non-.ts source ex
   const { status } = runScript();
   assert.equal(status, 0);
 });
+
+// React components in this repo are conventionally PascalCase
+// (components/ComplianceChart.tsx) while tests/ is conventionally
+// kebab-case (tests/compliance-chart.test.tsx) — every real components/
+// test file follows this (ai-badge, form-field, weekly-analysis, ...).
+// Without PascalCase->kebab-case normalization, "ComplianceChart" never
+// token-matches "compliance-chart" at all, so VIK-91 found this gate
+// rejecting every multi-word component regardless of test coverage.
+
+test("passes when a PascalCase component is paired with its kebab-case test (real repo convention)", () => {
+  stageFile("components/ComplianceChart.tsx", "export function ComplianceChart() { return null; }\n");
+  stageFile("tests/compliance-chart.test.tsx", "// covers ComplianceChart\n");
+
+  const { status } = runScript();
+  assert.equal(status, 0);
+});
+
+test("passes for a two-letter-prefix PascalCase component (AiBadge -> ai-badge)", () => {
+  stageFile("components/AiBadge.tsx", "export function AiBadge() { return null; }\n");
+  stageFile("tests/ai-badge.test.tsx", "// covers AiBadge\n");
+
+  const { status } = runScript();
+  assert.equal(status, 0);
+});
+
+test("still fails a PascalCase component with no related test at all", () => {
+  stageFile("components/ComplianceChart.tsx", "export function ComplianceChart() { return null; }\n");
+  stageFile("tests/rag.test.ts", "// unrelated area entirely\n");
+
+  const { status } = runScript();
+  assert.equal(status, 1);
+});

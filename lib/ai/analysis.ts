@@ -1,7 +1,7 @@
 import type { CheckinQuestion } from "../checkin-template";
 import type { Settings } from "../db/schema";
 import { effectiveMacroTargets, type WeekStats } from "../stats";
-import { getAnthropic, MODEL } from "./client";
+import { AI_MESSAGE_DEFAULTS, extractText, getAnthropic, MODEL } from "./client";
 
 // Plain-language weekly analysis + coach check-in draft. Both are grounded in
 // the computed WeekStats snapshot — the model narrates the numbers, it never
@@ -47,8 +47,7 @@ export async function generateWeeklyAnalysis(
   const client = getAnthropic();
   const response = await client.messages.create({
     model: MODEL,
-    max_tokens: 16000,
-    thinking: { type: "adaptive" },
+    ...AI_MESSAGE_DEFAULTS,
     system: [
       "You are a knowledgeable coaching assistant writing a weekly analysis for a coaching client.",
       "Write 2-4 short paragraphs of plain language: how the week went vs the active protocol, weight trend vs target weight and time remaining, and one or two concrete focus points for next week.",
@@ -56,10 +55,7 @@ export async function generateWeeklyAnalysis(
     ].join("\n"),
     messages: [{ role: "user", content: `Week data:\n${statsBrief(stats, settings)}` }],
   });
-  return response.content
-    .filter((b) => b.type === "text")
-    .map((b) => b.text)
-    .join("\n");
+  return extractText(response);
 }
 
 export interface ManualAnswers {
@@ -150,8 +146,7 @@ export async function generateCheckinDraft(input: {
   const client = getAnthropic();
   const response = await client.messages.create({
     model: MODEL,
-    max_tokens: 16000,
-    thinking: { type: "adaptive" },
+    ...AI_MESSAGE_DEFAULTS,
     system: [
       "You draft a weekly check-in message from a coaching client to their coach.",
       "You are given the coach's exact question list, computed data answers, and the client's own subjective notes.",
@@ -185,8 +180,5 @@ export async function generateCheckinDraft(input: {
     ],
   });
 
-  return response.content
-    .filter((b) => b.type === "text")
-    .map((b) => b.text)
-    .join("\n");
+  return extractText(response);
 }

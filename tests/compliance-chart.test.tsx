@@ -24,4 +24,13 @@ describe("ComplianceChart", () => {
     const { container } = render(<ComplianceChart days={days} targets={null} />);
     expect(container.querySelector(".recharts-responsive-container")).toBeInTheDocument();
   });
+
+  it("renders without throwing across a month boundary (exercises the shared lib/dates tick formatter)", () => {
+    const days = [
+      { date: "2026-07-31", calories: 2100, proteinG: 200, carbsG: 180, fatG: 60 },
+      { date: "2026-08-01", calories: 2050, proteinG: 195, carbsG: 175, fatG: 58 },
+    ];
+    const { container } = render(<ComplianceChart days={days} targets={null} />);
+    expect(container.querySelector(".recharts-responsive-container")).toBeInTheDocument();
+  });
 });

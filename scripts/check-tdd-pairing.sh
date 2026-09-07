@@ -46,6 +46,19 @@ else
   CHANGED=$(git diff --cached --name-only --diff-filter=ACM)
 fi
 
+# React components are conventionally PascalCase (components/ComplianceChart.tsx)
+# while this repo's tests/ directory is conventionally kebab-case
+# (tests/compliance-chart.test.tsx) — confirmed by every existing components/
+# test (ai-badge, coach-brief-card, form-field, weekly-analysis, ...). Without
+# this, a PascalCase segment never token-matches its kebab-case test slug at
+# all (not even the first token: "ComplianceChart" vs "compliance"), so every
+# multi-word component would fail this gate regardless of test coverage.
+to_kebab() {
+  local s
+  s=$(printf '%s' "$1" | sed -E 's/([a-z0-9])([A-Z])/\1-\2/g')
+  printf '%s' "$s" | tr '[:upper:]' '[:lower:]'
+}
+
 # Emits one slug per line: the "keep" variant always, and a "drop" variant
 # too when the path has a bracketed segment (e.g. "[id]" or "[accountId]").
 emit_source_slugs() {
@@ -75,11 +88,11 @@ emit_source_slugs() {
         has_bracket=true
         stripped="${seg#\[}"
         stripped="${stripped%\]}"
-        keep_parts+=("$stripped")
+        keep_parts+=("$(to_kebab "$stripped")")
         ;;
       *)
-        keep_parts+=("$seg")
-        drop_parts+=("$seg")
+        keep_parts+=("$(to_kebab "$seg")")
+        drop_parts+=("$(to_kebab "$seg")")
         ;;
     esac
   done

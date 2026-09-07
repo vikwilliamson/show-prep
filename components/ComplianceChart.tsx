@@ -15,6 +15,7 @@ import type {
   NameType,
   ValueType,
 } from "recharts/types/component/DefaultTooltipContent";
+import { shortMonthDay } from "@/lib/dates";
 
 export interface ComplianceDay {
   date: string;
@@ -22,11 +23,6 @@ export interface ComplianceDay {
   proteinG: number;
   carbsG: number;
   fatG: number;
-}
-
-function fmtDate(d: string) {
-  const [, m, day] = d.split("-");
-  return `${Number(m)}/${Number(day)}`;
 }
 
 function MacroTooltip({
@@ -85,7 +81,7 @@ export function ComplianceChart({
         <CartesianGrid stroke="var(--grid)" vertical={false} />
         <XAxis
           dataKey="date"
-          tickFormatter={fmtDate}
+          tickFormatter={shortMonthDay}
           tick={{ fill: "var(--muted)", fontSize: 11 }}
           tickLine={false}
           axisLine={{ stroke: "var(--border)" }}

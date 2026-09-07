@@ -11,6 +11,12 @@ const { createMock } = vi.hoisted(() => ({ createMock: vi.fn() }));
 vi.mock("../lib/ai/client", () => ({
   getAnthropic: () => ({ messages: { create: createMock } }),
   MODEL: "test-model",
+  AI_MESSAGE_DEFAULTS: { max_tokens: 16000, thinking: { type: "adaptive" } },
+  extractText: (response: { content: { type: string; text?: string }[] }) =>
+    response.content
+      .filter((b) => b.type === "text")
+      .map((b) => b.text)
+      .join("\n"),
 }));
 
 const { generateCoachBrief } = await import("../lib/ai/brief");

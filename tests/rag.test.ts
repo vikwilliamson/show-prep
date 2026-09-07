@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { afterEach, test, vi } from "vitest";
 import { eq, sql } from "drizzle-orm";
-import { chunkText, indexDocument, retrieve } from "../lib/rag";
+import { answerQuestion, chunkText, indexDocument, retrieve } from "../lib/rag";
 import { documentChunks, documents, getDb } from "../lib/db";
 import { embed } from "../lib/ai/embeddings";
 import { createAccountTracker } from "./helpers";
@@ -16,6 +16,22 @@ vi.mock("../lib/ai/embeddings", () => ({
       return v;
     }),
   ),
+}));
+
+// answerQuestion() calls client.messages.create() — mock at that seam, the
+// same approach tests/brief.test.ts and tests/analysis.test.ts use, so this
+// test doesn't need a real API key.
+const { createMock } = vi.hoisted(() => ({ createMock: vi.fn() }));
+
+vi.mock("../lib/ai/client", () => ({
+  getAnthropic: () => ({ messages: { create: createMock } }),
+  MODEL: "test-model",
+  AI_MESSAGE_DEFAULTS: { max_tokens: 16000, thinking: { type: "adaptive" } },
+  extractText: (response: { content: { type: string; text?: string }[] }) =>
+    response.content
+      .filter((b) => b.type === "text")
+      .map((b) => b.text)
+      .join("\n"),
 }));
 
 test("short text yields one chunk", () => {
@@ -56,7 +72,10 @@ test("empty text yields no chunks", () => {
 });
 
 const { makeAccount, cleanup } = createAccountTracker();
-afterEach(cleanup);
+afterEach(() => {
+  createMock.mockClear();
+  return cleanup();
+});
 
 // The mocked query embedding is a one-hot vector at index 0. Chunks whose
 // embedding matches it exactly are equally similar regardless of account —
@@ -115,6 +134,52 @@ test("retrieve() never returns another account's chunks", async () => {
   for (const r of results) {
     assert.equal(r.documentId, docA.id, "leaked a chunk from another account");
   }
+});
+
+test("answerQuestion returns the model's text and cites deduplicated sources", async () => {
+  const db = await getDb();
+  const account = await makeAccount("RAG Chat Account");
+  const [doc] = await db
+    .insert(documents)
+    .values({
+      accountId: account.id,
+      title: "Coach protocol",
+      sourceType: "txt",
+      contentText: "irrelevant",
+    })
+    .returning();
+
+  await db.insert(documentChunks).values([
+    {
+      accountId: account.id,
+      documentId: doc.id,
+      chunkIndex: 0,
+      content: "2100 kcal per day.",
+      embedding: MATCHING_VECTOR,
+    },
+    {
+      accountId: account.id,
+      documentId: doc.id,
+      chunkIndex: 1,
+      content: "210g protein per day.",
+      embedding: MATCHING_VECTOR,
+    },
+  ]);
+
+  createMock.mockResolvedValueOnce({
+    content: [{ type: "text", text: "Your target is 2100 kcal and 210g protein." }],
+  });
+
+  const result = await answerQuestion(account.id, "What are my macros?", []);
+
+  assert.equal(result.answer, "Your target is 2100 kcal and 210g protein.");
+  assert.equal(result.sources.length, 1, "both matching chunks came from the same document");
+  assert.equal(result.sources[0].documentId, doc.id);
+
+  const params = createMock.mock.calls[0][0];
+  assert.equal(params.max_tokens, 16000);
+  const payload = JSON.stringify(params);
+  assert.ok(payload.includes("2100 kcal per day."), "prompt should ground in the retrieved excerpt");
 });
 
 test("indexDocument leaves existing chunks and embeddedAt untouched when the insert fails partway", async () => {
