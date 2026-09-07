@@ -10,7 +10,6 @@ import {
   getAccountReferenceId,
   getClientAccount,
   getCurrentAccount,
-  getPrimaryCoachAccountId,
   hashPasscode,
   listClientAccounts,
   listClientsNeedingBrief,
@@ -153,22 +152,6 @@ test("getAccountReferenceId returns a known account's referenceId", async () => 
 
 test("getAccountReferenceId returns null for an unknown accountId", async () => {
   assert.equal(await getAccountReferenceId(-1), null);
-});
-
-test("getPrimaryCoachAccountId resolves to an existing coach account", async () => {
-  const db = await getDb();
-  const passcodeHash = await hashPasscode("primary-coach-fallback-test");
-  const [row] = await db
-    .insert(accounts)
-    .values({ name: "Primary Coach Fallback Test", role: "coach", passcodeHash })
-    .returning();
-  try {
-    const id = await getPrimaryCoachAccountId();
-    const [resolved] = await db.select().from(accounts).where(eq(accounts.id, id));
-    assert.equal(resolved.role, "coach");
-  } finally {
-    await db.delete(accounts).where(eq(accounts.id, row.id));
-  }
 });
 
 test("deleteAccount removes the account and cascades to its data", async () => {

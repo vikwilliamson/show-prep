@@ -202,28 +202,6 @@ export async function getClientAccount(
   return row ?? null;
 }
 
-/** Single-tenant fallback for /api/analysis, the one route not yet migrated
- *  to real account resolution (Phase 3 wires this properly — it's always
- *  called from an already-authenticated dashboard, so there's no
- *  ingest-style auth-mechanism blocker). Resolves to the earliest-created
- *  coach account, mirroring today's de facto behavior where there's exactly
- *  one coach and everything implicitly belongs to them. */
-export async function getPrimaryCoachAccountId(): Promise<number> {
-  const db = await getDb();
-  const [row] = await db
-    .select({ id: accounts.id })
-    .from(accounts)
-    .where(eq(accounts.role, "coach"))
-    .orderBy(asc(accounts.id))
-    .limit(1);
-  if (!row) {
-    throw new Error(
-      "No coach account exists yet — run scripts/backfill-accounts.ts first.",
-    );
-  }
-  return row.id;
-}
-
 /** Deletes an account and, via ON DELETE CASCADE (VIK-78), every row it
  *  owns across all 14 account-scoped tables in one statement — no more
  *  hand-ordering per-table deletes. Returns whether an account was actually
