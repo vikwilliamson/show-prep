@@ -11,16 +11,12 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { shortMonthDay } from "@/lib/dates";
 
 interface Point {
   date: string;
   weightLbs: number | null;
   trendLbs: number | null;
-}
-
-function fmtDate(d: string) {
-  const [, m, day] = d.split("-");
-  return `${Number(m)}/${Number(day)}`;
 }
 
 export function WeightChart({
@@ -57,7 +53,7 @@ export function WeightChart({
         <CartesianGrid stroke="var(--grid)" vertical={false} />
         <XAxis
           dataKey="date"
-          tickFormatter={fmtDate}
+          tickFormatter={shortMonthDay}
           tick={{ fill: "var(--muted)", fontSize: 11 }}
           tickLine={false}
           axisLine={{ stroke: "var(--border)" }}

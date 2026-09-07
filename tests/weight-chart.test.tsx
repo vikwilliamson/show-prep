@@ -26,4 +26,13 @@ describe("WeightChart", () => {
     const { container } = render(<WeightChart series={series} trend={[]} targetLbs={null} />);
     expect(container.querySelector(".recharts-responsive-container")).toBeInTheDocument();
   });
+
+  it("renders without throwing across a month boundary (exercises the shared lib/dates tick formatter)", () => {
+    const series = [
+      { date: "2026-07-31", weightLbs: 190 },
+      { date: "2026-08-01", weightLbs: 189.5 },
+    ];
+    const { container } = render(<WeightChart series={series} trend={[]} targetLbs={187} />);
+    expect(container.querySelector(".recharts-responsive-container")).toBeInTheDocument();
+  });
 });

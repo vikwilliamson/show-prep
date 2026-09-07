@@ -1,7 +1,7 @@
 import { and, cosineDistance, desc, eq, gt, sql } from "drizzle-orm";
 import { documentChunks, documents, getDb, type Document } from "./db";
 import { embed } from "./ai/embeddings";
-import { getAnthropic, MODEL } from "./ai/client";
+import { AI_MESSAGE_DEFAULTS, extractText, getAnthropic, MODEL } from "./ai/client";
 import { getActiveProtocol, getSettings } from "./stats";
 
 // -- Chunking ---------------------------------------------------------------
@@ -166,8 +166,7 @@ export async function answerQuestion(
   const client = getAnthropic();
   const response = await client.messages.create({
     model: MODEL,
-    max_tokens: 16000,
-    thinking: { type: "adaptive" },
+    ...AI_MESSAGE_DEFAULTS,
     system: `${CHAT_SYSTEM}\n\n${now}`,
     messages: [
       ...history.slice(-8),
@@ -178,10 +177,7 @@ export async function answerQuestion(
     ],
   });
 
-  const answer = response.content
-    .filter((b) => b.type === "text")
-    .map((b) => b.text)
-    .join("\n");
+  const answer = extractText(response);
 
   // De-duplicate sources by document.
   const seen = new Set<number>();

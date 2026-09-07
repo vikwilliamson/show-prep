@@ -1,7 +1,7 @@
 import type { Settings } from "../db/schema";
 import type { WeekStats } from "../stats";
 import { statsBrief } from "./analysis";
-import { getAnthropic, MODEL } from "./client";
+import { AI_MESSAGE_DEFAULTS, extractText, getAnthropic, MODEL } from "./client";
 
 // Phase 3's coach-facing weekly brief (specs/phase-3-ai-weekly-coach-brief.md
 // §2) — written TO the coach ABOUT one client. Distinct from
@@ -44,8 +44,7 @@ export async function generateCoachBrief(
     : "";
   const response = await client.messages.create({
     model: MODEL,
-    max_tokens: 16000,
-    thinking: { type: "adaptive" },
+    ...AI_MESSAGE_DEFAULTS,
     system: [
       "You are writing an internal weekly brief for a coach about one of their clients.",
       `The client's name is ${clientName}. Refer to them by name, third person — this is written to the coach, not to the client.`,
@@ -56,8 +55,5 @@ export async function generateCoachBrief(
     ].join("\n"),
     messages: [{ role: "user", content: `Week data:\n${statsBrief(stats, settings)}${historyBlock}` }],
   });
-  return response.content
-    .filter((b) => b.type === "text")
-    .map((b) => b.text)
-    .join("\n");
+  return extractText(response);
 }
