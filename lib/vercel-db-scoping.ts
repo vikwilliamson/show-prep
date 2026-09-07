@@ -7,6 +7,7 @@
 // integration. Any future disconnect/reconnect of that integration, or a
 // stray `vercel env rm`, can wipe those two manual values. This gives a
 // single command to restore them rather than another multi-step fire drill.
+import { execFileSync } from "node:child_process";
 
 export interface EnvSetter {
   /** Sets NAME for the given Vercel environment (overwriting any existing value). */
@@ -21,4 +22,19 @@ export interface ConnectionStrings {
 export function reapplyDbScoping(conn: ConnectionStrings, setter: EnvSetter): void {
   setter.set("DATABASE_URL", "production", conn.getProduction());
   setter.set("DATABASE_URL", "development", conn.getTest());
+}
+
+/** Real EnvSetter backed by the `vercel` CLI. The secret is written to the
+ *  child process's stdin rather than passed as a CLI argument — argv is
+ *  visible to any other process on the same machine (e.g. via `ps`), stdin
+ *  isn't. */
+export function vercelEnvSetter(): EnvSetter {
+  return {
+    set(name, environment, value) {
+      execFileSync("vercel", ["env", "add", name, environment, "--yes", "--force"], {
+        input: value,
+        stdio: ["pipe", "inherit", "inherit"],
+      });
+    },
+  };
 }
