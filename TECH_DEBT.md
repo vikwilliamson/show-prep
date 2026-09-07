@@ -456,11 +456,17 @@ error in the original pass.)
 ## 7. Low-priority grab bag
 
 - **`lib/db/schema.ts` unique-index naming is inconsistent** with table
-  names (`workouts` → `workout_hc_uid_idx`, `sleep_sessions` →
-  `sleep_hc_uid_idx`, `daily_activity` → `activity_*_idx`, vs.
+  names — RESOLVED 2026-09-07 (VIK-95). Was: (`workouts` →
+  `workout_hc_uid_idx`, `sleep_sessions` → `sleep_hc_uid_idx`,
+  `daily_activity` → `activity_*_idx`, vs.
   `nutrition_entries`/`weight_entries`/`hydration_entries` → consistently
-  drop "entries"). Cosmetic, but makes index names unpredictable when
-  grepping migrations/`EXPLAIN` output.
+  drop "entries"). Cosmetic, but made index names unpredictable when
+  grepping migrations/`EXPLAIN` output. The fix also caught two more
+  inconsistent indexes the original pass missed: `checkin_account_week_idx`
+  (table is `check_ins`) and `coach_brief_account_week_idx` (table is
+  `coach_briefs`, plural). Every index is now prefixed with its exact table
+  name (`drizzle/0017_consistent_index_names.sql`, pure `ALTER INDEX ...
+  RENAME TO ...`).
 - **`@types/node` is pinned to `^20`** while `engines.node`/`.nvmrc`/CI all
   target Node 22 (`package.json`) — TypeScript checks against the wrong
   Node API surface. Cheap fix: bump to `^22`.
@@ -469,8 +475,10 @@ error in the original pass.)
   first runtime API call via an opaque error, not at boot.
 - **`lib/db/index.ts` resolves `process.cwd()` independently in two
   places** (PGlite data dir, migrations folder) rather than once via
-  `lib/env.ts`. Fine as long as everything's invoked from the repo root
-  (true today).
+  `lib/env.ts` — RESOLVED 2026-09-07 (VIK-95). Turned out to be three
+  places, not two: `lib/db/migrate.ts` resolved its own migrations folder
+  the same way and was missed by the original pass. All three now go
+  through `lib/env.ts`'s `migrationsFolder`/`pgliteDir` (both absolute).
 - **`scripts/check-tdd-pairing.sh`'s source-changed pattern doesn't cover
   `scripts/*`** — `scripts/seed.ts` has substantial non-delegated logic
   (data generation, the `SEED_AI` branch) that can change without
@@ -481,7 +489,8 @@ error in the original pass.)
   alongside real seed/demo data.
 - **README.md:29 still says "next competition"** in the check-in feature
   description — one leftover bodybuilding-era term the terminology sweep
-  missed (see AGENTS.md's "what not to do" list).
+  missed (see AGENTS.md's "what not to do" list) — RESOLVED 2026-09-07
+  (VIK-95).
 - **`scripts/seed.ts:362`'s `as any`** in the generic upsert helper — has
   an eslint-disable already, pre-existing, genuinely awkward to type
   around a shared helper over 5 different table types. Not urgent.
