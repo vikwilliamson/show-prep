@@ -19,6 +19,15 @@ function checkinResponse(weekStart: string) {
   return { weekStart, checkIn: null, dataAnswers: {}, template: [] };
 }
 
+function checkinResponseWithDraft(weekStart: string) {
+  return {
+    weekStart,
+    checkIn: { generatedDraft: "Here's my week…" },
+    dataAnswers: {},
+    template: [],
+  };
+}
+
 describe("CheckInPage week navigation", () => {
   afterEach(() => {
     fetchJsonMock.mockReset();
@@ -46,5 +55,44 @@ describe("CheckInPage week navigation", () => {
 
     await waitFor(() => screen.getByText(/week of 2026-09-07/));
     expect(fetchJsonMock).toHaveBeenLastCalledWith("/api/checkins?weekStart=2026-09-07");
+  });
+});
+
+describe("CheckInPage markSent guard", () => {
+  afterEach(() => {
+    fetchJsonMock.mockReset();
+  });
+
+  it("disables 'Mark as sent' while the PUT is in flight, so a rapid double-click only fires one request", async () => {
+    const user = userEvent.setup();
+    fetchJsonMock.mockResolvedValueOnce(checkinResponseWithDraft("2026-08-24"));
+    render(<CheckInPage />);
+
+    const markSentButton = await screen.findByRole("button", { name: "Mark as sent" });
+
+    let resolvePut!: (value: unknown) => void;
+    const putPromise = new Promise((resolve) => {
+      resolvePut = resolve;
+    });
+    fetchJsonMock.mockReturnValueOnce(putPromise);
+
+    await user.click(markSentButton);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Marking…" })).toBeDisabled();
+    });
+
+    await user.click(screen.getByRole("button", { name: "Marking…" }));
+    expect(
+      fetchJsonMock.mock.calls.filter(
+        ([url, init]) => url === "/api/checkins" && (init as RequestInit)?.method === "PUT",
+      ),
+    ).toHaveLength(1);
+
+    resolvePut(undefined);
+    fetchJsonMock.mockResolvedValueOnce(checkinResponseWithDraft("2026-08-24"));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Mark as sent" })).not.toBeDisabled();
+    });
   });
 });
