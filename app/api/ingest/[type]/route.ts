@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
+import type { AnyPgColumn, AnyPgTable } from "drizzle-orm/pg-core";
 import {
   dailyActivity,
   getDb,
@@ -12,7 +13,17 @@ import {
 } from "@/lib/db";
 import { localDateOf } from "@/lib/dates";
 import { checkIngestAuth } from "@/lib/ingest/auth";
-import { batchSchema, isCardioType, type IngestType } from "@/lib/ingest/schemas";
+import {
+  activityRecord,
+  batchSchema,
+  exerciseRecord,
+  hydrationRecord,
+  isCardioType,
+  nutritionRecord,
+  sleepRecord,
+  weightRecord,
+  type IngestType,
+} from "@/lib/ingest/schemas";
 import { getAccountByReferenceId } from "@/lib/auth";
 import { getSettings } from "@/lib/stats";
 
@@ -60,163 +71,125 @@ export async function POST(
   let accepted = 0;
 
   try {
-    switch (ingestType) {
-      case "nutrition": {
-        for (const r of records as z.infer<ReturnType<typeof batchSchema<"nutrition">>>["records"]) {
-          await db
-            .insert(nutritionEntries)
-            .values({
-              accountId,
-              hcUid: r.hcUid,
-              source,
-              localDate: localDateOf(r.startTime, tz),
-              mealType: r.mealType,
-              calories: r.calories,
-              proteinG: r.proteinG,
-              carbsG: r.carbsG,
-              fatG: r.fatG,
-              fiberG: r.fiberG ?? null,
-              sugarG: r.sugarG ?? null,
-              sodiumMg: r.sodiumMg ?? null,
-              saturatedFatG: r.saturatedFatG ?? null,
-            })
-            .onConflictDoUpdate({
-              target: [nutritionEntries.accountId, nutritionEntries.hcUid],
-              set: {
-                localDate: localDateOf(r.startTime, tz),
-                mealType: r.mealType,
-                calories: r.calories,
-                proteinG: r.proteinG,
-                carbsG: r.carbsG,
-                fatG: r.fatG,
-                fiberG: r.fiberG ?? null,
-                sugarG: r.sugarG ?? null,
-                sodiumMg: r.sodiumMg ?? null,
-                saturatedFatG: r.saturatedFatG ?? null,
-              },
-            });
-          accepted++;
-        }
-        break;
-      }
-      case "weight": {
-        for (const r of records as z.infer<ReturnType<typeof batchSchema<"weight">>>["records"]) {
-          const values = {
+    for (const r of records) {
+      // Each case only defines what's unique to that record type — the
+      // shared insert/upsert boilerplate lives once, below the switch.
+      let table: AnyPgTable;
+      let target: AnyPgColumn[];
+      let values: Record<string, unknown>;
+
+      switch (ingestType) {
+        case "nutrition": {
+          const rec = r as z.infer<typeof nutritionRecord>;
+          table = nutritionEntries;
+          target = [nutritionEntries.accountId, nutritionEntries.hcUid];
+          values = {
             accountId,
-            hcUid: r.hcUid,
+            hcUid: rec.hcUid,
             source,
-            measuredAt: new Date(r.time),
-            localDate: localDateOf(r.time, tz),
-            weightLbs: Math.round(r.weightKg * KG_TO_LBS * 10) / 10,
-            bodyFatPct: r.bodyFatPct ?? null,
+            localDate: localDateOf(rec.startTime, tz),
+            mealType: rec.mealType,
+            calories: rec.calories,
+            proteinG: rec.proteinG,
+            carbsG: rec.carbsG,
+            fatG: rec.fatG,
+            fiberG: rec.fiberG ?? null,
+            sugarG: rec.sugarG ?? null,
+            sodiumMg: rec.sodiumMg ?? null,
+            saturatedFatG: rec.saturatedFatG ?? null,
           };
-          await db
-            .insert(weightEntries)
-            .values(values)
-            .onConflictDoUpdate({
-              target: [weightEntries.accountId, weightEntries.hcUid],
-              set: values,
-            });
-          accepted++;
+          break;
         }
-        break;
-      }
-      case "hydration": {
-        for (const r of records as z.infer<ReturnType<typeof batchSchema<"hydration">>>["records"]) {
-          const values = {
+        case "weight": {
+          const rec = r as z.infer<typeof weightRecord>;
+          table = weightEntries;
+          target = [weightEntries.accountId, weightEntries.hcUid];
+          values = {
             accountId,
-            hcUid: r.hcUid,
+            hcUid: rec.hcUid,
             source,
-            localDate: localDateOf(r.startTime, tz),
-            volumeMl: r.volumeMl,
+            measuredAt: new Date(rec.time),
+            localDate: localDateOf(rec.time, tz),
+            weightLbs: Math.round(rec.weightKg * KG_TO_LBS * 10) / 10,
+            bodyFatPct: rec.bodyFatPct ?? null,
           };
-          await db
-            .insert(hydrationEntries)
-            .values(values)
-            .onConflictDoUpdate({
-              target: [hydrationEntries.accountId, hydrationEntries.hcUid],
-              set: values,
-            });
-          accepted++;
+          break;
         }
-        break;
-      }
-      case "sleep": {
-        for (const r of records as z.infer<ReturnType<typeof batchSchema<"sleep">>>["records"]) {
-          const start = new Date(r.startTime);
-          const end = new Date(r.endTime);
-          const values = {
+        case "hydration": {
+          const rec = r as z.infer<typeof hydrationRecord>;
+          table = hydrationEntries;
+          target = [hydrationEntries.accountId, hydrationEntries.hcUid];
+          values = {
             accountId,
-            hcUid: r.hcUid,
+            hcUid: rec.hcUid,
+            source,
+            localDate: localDateOf(rec.startTime, tz),
+            volumeMl: rec.volumeMl,
+          };
+          break;
+        }
+        case "sleep": {
+          const rec = r as z.infer<typeof sleepRecord>;
+          const start = new Date(rec.startTime);
+          const end = new Date(rec.endTime);
+          table = sleepSessions;
+          target = [sleepSessions.accountId, sleepSessions.hcUid];
+          values = {
+            accountId,
+            hcUid: rec.hcUid,
             source,
             // A night's sleep is attributed to the wake-up date.
             localDate: localDateOf(end, tz),
             startedAt: start,
             endedAt: end,
             durationMin: Math.round((end.getTime() - start.getTime()) / 60_000),
-            stages: r.stages ?? null,
+            stages: rec.stages ?? null,
           };
-          await db
-            .insert(sleepSessions)
-            .values(values)
-            .onConflictDoUpdate({
-              target: [sleepSessions.accountId, sleepSessions.hcUid],
-              set: values,
-            });
-          accepted++;
+          break;
         }
-        break;
-      }
-      case "exercise": {
-        for (const r of records as z.infer<ReturnType<typeof batchSchema<"exercise">>>["records"]) {
-          const values = {
+        case "exercise": {
+          const rec = r as z.infer<typeof exerciseRecord>;
+          table = workouts;
+          target = [workouts.accountId, workouts.hcUid];
+          values = {
             accountId,
-            hcUid: r.hcUid,
+            hcUid: rec.hcUid,
             source,
-            localDate: localDateOf(r.startTime, tz),
-            startedAt: new Date(r.startTime),
-            endedAt: r.endTime ? new Date(r.endTime) : null,
-            exerciseType: r.exerciseType,
-            isCardio: r.isCardio ?? isCardioType(r.exerciseType),
-            caloriesBurned: r.caloriesBurned ?? null,
-            title: r.title ?? null,
+            localDate: localDateOf(rec.startTime, tz),
+            startedAt: new Date(rec.startTime),
+            endedAt: rec.endTime ? new Date(rec.endTime) : null,
+            exerciseType: rec.exerciseType,
+            isCardio: rec.isCardio ?? isCardioType(rec.exerciseType),
+            caloriesBurned: rec.caloriesBurned ?? null,
+            title: rec.title ?? null,
           };
-          await db
-            .insert(workouts)
-            .values(values)
-            .onConflictDoUpdate({
-              target: [workouts.accountId, workouts.hcUid],
-              set: values,
-            });
-          accepted++;
+          break;
         }
-        break;
-      }
-      case "activity": {
-        for (const r of records as z.infer<ReturnType<typeof batchSchema<"activity">>>["records"]) {
-          const values = {
-            accountId,
-            hcUid: r.hcUid,
-            source,
-            localDate: r.date,
-            steps: r.steps ?? null,
-            activeCalories: r.activeCalories ?? null,
-            totalCalories: r.totalCalories ?? null,
-          };
-          // The unique constraint is on (account_id, local_date) — one row per
-          // account per day, not on hc_uid. Upsert on that composite so
+        case "activity": {
+          const rec = r as z.infer<typeof activityRecord>;
+          table = dailyActivity;
+          // The unique constraint is on (account_id, local_date) — one row
+          // per account per day, not on hc_uid. Upsert on that composite so
           // re-syncing the same day overwrites rather than conflicting.
-          await db
-            .insert(dailyActivity)
-            .values(values)
-            .onConflictDoUpdate({
-              target: [dailyActivity.accountId, dailyActivity.localDate],
-              set: values,
-            });
-          accepted++;
+          target = [dailyActivity.accountId, dailyActivity.localDate];
+          values = {
+            accountId,
+            hcUid: rec.hcUid,
+            source,
+            localDate: rec.date,
+            steps: rec.steps ?? null,
+            activeCalories: rec.activeCalories ?? null,
+            totalCalories: rec.totalCalories ?? null,
+          };
+          break;
         }
-        break;
       }
+
+      await db
+        .insert(table)
+        .values(values)
+        .onConflictDoUpdate({ target, set: values });
+      accepted++;
     }
 
     await db.insert(syncLog).values({

@@ -6,6 +6,7 @@ import { extractPrescriptions } from "@/lib/ai/extract";
 import { indexDocument } from "@/lib/rag";
 import { todayLocal } from "@/lib/dates";
 import { getSettings } from "@/lib/stats";
+import { saveExtractedProtocols } from "@/lib/protocols";
 
 // Allow long-running Claude/Voyage calls on Vercel (clamped to the plan's max).
 export const maxDuration = 300;
@@ -135,26 +136,11 @@ export async function POST(req: NextRequest) {
         text: doc.contentText,
         uploadedAtLocalDate: todayLocal(settings.timezone),
       });
-      if (extraction.has_prescription && extraction.prescriptions.length > 0) {
-        createdProtocols = await db
-          .insert(protocols)
-          .values(
-            extraction.prescriptions.map((p) => ({
-              documentId: doc.id,
-              accountId: session.accountId,
-              status: "pending" as const,
-              effectiveFrom: p.effective_date ?? todayLocal(settings.timezone),
-              calories: p.calories != null ? Math.round(p.calories) : null,
-              proteinG: p.protein_g != null ? Math.round(p.protein_g) : null,
-              carbsG: p.carbs_g != null ? Math.round(p.carbs_g) : null,
-              fatG: p.fat_g != null ? Math.round(p.fat_g) : null,
-              cardioPlan: p.cardio_plan,
-              notes: p.notes,
-              extractedJson: { ...p, summary: extraction.summary },
-            })),
-          )
-          .returning();
-      }
+      createdProtocols = await saveExtractedProtocols(extraction, {
+        documentId: doc.id,
+        accountId: session.accountId,
+        today: todayLocal(settings.timezone),
+      });
     } catch (err) {
       warnings.push(
         `Prescription extraction failed: ${err instanceof Error ? err.message : err}`,
