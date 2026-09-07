@@ -81,7 +81,7 @@ jobs:
           fi
 
           if echo "$output" | grep -qE '^Branch .+ not found\.$'; then
-            echo "::warning title=Neon branch already gone::${NEON_BRANCH} wasn't found in project ${NEON_PROJECT_ID} — treating this PR close as having nothing to clean up. If this fires on every close (not just for PRs that never got a Preview deployment), the branch name this workflow computes may not match what Vercel's Neon integration actually creates — see specs/ VIK-120."
+            echo "::warning title=Neon branch already gone::${NEON_BRANCH} wasn't found in project ${NEON_PROJECT_ID} — treating this PR close as having nothing to clean up. If this fires on every close (not just for PRs that never got a Preview deployment), the branch name this workflow computes may not match what Vercel's Neon integration actually creates."
             exit 0
           fi
 
