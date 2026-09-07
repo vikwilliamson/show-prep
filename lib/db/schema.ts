@@ -153,7 +153,7 @@ export const nutritionEntries = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (t) => [uniqueIndex("nutrition_hc_uid_idx").on(t.accountId, t.hcUid)],
+  (t) => [uniqueIndex("nutrition_entries_hc_uid_idx").on(t.accountId, t.hcUid)],
 );
 
 export const weightEntries = pgTable(
@@ -168,7 +168,7 @@ export const weightEntries = pgTable(
     weightLbs: real("weight_lbs").notNull(),
     bodyFatPct: real("body_fat_pct"),
   },
-  (t) => [uniqueIndex("weight_hc_uid_idx").on(t.accountId, t.hcUid)],
+  (t) => [uniqueIndex("weight_entries_hc_uid_idx").on(t.accountId, t.hcUid)],
 );
 
 export const hydrationEntries = pgTable(
@@ -181,7 +181,7 @@ export const hydrationEntries = pgTable(
     localDate: date("local_date").notNull(),
     volumeMl: real("volume_ml").notNull(),
   },
-  (t) => [uniqueIndex("hydration_hc_uid_idx").on(t.accountId, t.hcUid)],
+  (t) => [uniqueIndex("hydration_entries_hc_uid_idx").on(t.accountId, t.hcUid)],
 );
 
 export const workouts = pgTable(
@@ -199,7 +199,7 @@ export const workouts = pgTable(
     caloriesBurned: real("calories_burned"),
     title: text("title"),
   },
-  (t) => [uniqueIndex("workout_hc_uid_idx").on(t.accountId, t.hcUid)],
+  (t) => [uniqueIndex("workouts_hc_uid_idx").on(t.accountId, t.hcUid)],
 );
 
 export const sleepSessions = pgTable(
@@ -215,7 +215,7 @@ export const sleepSessions = pgTable(
     durationMin: real("duration_min").notNull(),
     stages: jsonb("stages"),
   },
-  (t) => [uniqueIndex("sleep_hc_uid_idx").on(t.accountId, t.hcUid)],
+  (t) => [uniqueIndex("sleep_sessions_hc_uid_idx").on(t.accountId, t.hcUid)],
 );
 
 export const dailyActivity = pgTable(
@@ -231,8 +231,8 @@ export const dailyActivity = pgTable(
     totalCalories: real("total_calories"),
   },
   (t) => [
-    uniqueIndex("activity_hc_uid_idx").on(t.accountId, t.hcUid),
-    uniqueIndex("activity_local_date_idx").on(t.accountId, t.localDate),
+    uniqueIndex("daily_activity_hc_uid_idx").on(t.accountId, t.hcUid),
+    uniqueIndex("daily_activity_local_date_idx").on(t.accountId, t.localDate),
   ],
 );
 
@@ -261,7 +261,9 @@ export const weeklyTargets = pgTable(
     waterMlMin: integer("water_ml_min").notNull().default(3000), // per day
     sleepHoursMin: real("sleep_hours_min").notNull().default(7), // per night
     workoutsPerWeekMin: integer("workouts_per_week_min").notNull().default(3),
-    cardioSessionsPerWeek: integer("cardio_sessions_per_week").notNull().default(0), // 0 = not prescribed
+    cardioSessionsPerWeek: integer("cardio_sessions_per_week")
+      .notNull()
+      .default(0), // 0 = not prescribed
   },
   (t) => [uniqueIndex("weekly_targets_account_idx").on(t.accountId)],
 );
@@ -295,7 +297,9 @@ export const checkIns = pgTable(
       .defaultNow(),
     sentAt: timestamp("sent_at", { withTimezone: true }),
   },
-  (t) => [uniqueIndex("checkin_account_week_idx").on(t.accountId, t.weekStart)],
+  (t) => [
+    uniqueIndex("check_ins_account_week_idx").on(t.accountId, t.weekStart),
+  ],
 );
 
 // ---------------------------------------------------------------------------
@@ -324,7 +328,9 @@ export const coachBriefs = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (t) => [uniqueIndex("coach_brief_account_week_idx").on(t.accountId, t.weekStart)],
+  (t) => [
+    uniqueIndex("coach_briefs_account_week_idx").on(t.accountId, t.weekStart),
+  ],
 );
 
 // ---------------------------------------------------------------------------

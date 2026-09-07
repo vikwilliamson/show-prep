@@ -1,5 +1,4 @@
 import { sql } from "drizzle-orm";
-import path from "node:path";
 import { env } from "../env";
 import * as schema from "./schema";
 import { assertSchemaUpToDate } from "./schema-check";
@@ -23,13 +22,12 @@ import type { PgliteDatabase } from "drizzle-orm/pglite";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 
 export type Db =
-  | PgliteDatabase<typeof schema>
-  | PostgresJsDatabase<typeof schema>;
+  PgliteDatabase<typeof schema> | PostgresJsDatabase<typeof schema>;
 
 const globalForDb = globalThis as unknown as { __gammaDb?: Promise<Db> };
 
 async function initDb(): Promise<Db> {
-  const migrationsFolder = path.join(process.cwd(), "drizzle");
+  const migrationsFolder = env.migrationsFolder;
   let db: Db;
 
   if (!env.databaseUrl && process.env.VERCEL) {
@@ -54,7 +52,7 @@ async function initDb(): Promise<Db> {
     const { vector } = await import("@electric-sql/pglite-pgvector");
     const { drizzle } = await import("drizzle-orm/pglite");
     const { migrate } = await import("drizzle-orm/pglite/migrator");
-    const dataDir = path.join(process.cwd(), env.pgliteDir);
+    const dataDir = env.pgliteDir;
     const { mkdirSync } = await import("node:fs");
     mkdirSync(dataDir, { recursive: true });
     const client = new PGlite(dataDir, { extensions: { vector } });

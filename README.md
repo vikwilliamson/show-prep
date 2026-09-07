@@ -26,7 +26,7 @@ Monorepo layout (pnpm workspaces):
   and an AI-written plain-language weekly analysis.
 - **Check-in** — answers your coach's exact template (stored as app config):
   data-backed questions (macro adherence, bodyweight, water ≥3L, sleep ≥7h,
-  workouts ≥3/wk & cardio, next competition) are pre-filled from ingested
+  workouts ≥3/wk & cardio, next target date) are pre-filled from ingested
   data; subjective ones (waist, strength, digestion, change requests) are
   manual fields saved to `check_ins`. Thresholds live in the `weekly_targets`
   table (Settings page). Output: a copyable/mailable filled-in template.

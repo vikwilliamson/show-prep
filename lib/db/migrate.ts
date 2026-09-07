@@ -1,8 +1,8 @@
 import { sql } from "drizzle-orm";
-import path from "node:path";
+import { env } from "../env";
 import * as schema from "./schema";
 
-const migrationsFolder = path.join(process.cwd(), "drizzle");
+const migrationsFolder = env.migrationsFolder;
 
 // The only place migrations are applied to a real Postgres database now
 // (see VIK-88 / AGENTS.md's "Migrations" section) — lib/db/index.ts's

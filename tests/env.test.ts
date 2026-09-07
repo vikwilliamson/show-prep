@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import path from "node:path";
 import { afterEach, test, vi } from "vitest";
 
 // lib/env.ts validates at module load, so each scenario needs its own fresh
@@ -46,6 +47,15 @@ test("prod: boots when both secrets are set and long enough", async () => {
   const { env } = await loadEnv();
   assert.equal(env.sessionSecret, "a-perfectly-fine-session-secret");
   assert.equal(env.ingestApiKey, "a-perfectly-fine-ingest-key");
+});
+
+test("resolves migrationsFolder and pgliteDir off process.cwd() once, centrally", async () => {
+  vi.stubEnv("VERCEL", undefined);
+  vi.stubEnv("PGLITE_DIR", undefined);
+
+  const { env } = await loadEnv();
+  assert.equal(env.migrationsFolder, path.join(process.cwd(), "drizzle"));
+  assert.equal(env.pgliteDir, path.join(process.cwd(), ".data/pglite"));
 });
 
 test("rejects a secret shorter than the minimum length, even in dev", async () => {
