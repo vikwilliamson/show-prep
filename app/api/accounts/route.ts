@@ -7,7 +7,10 @@ import { accounts, getDb } from "@/lib/db";
 // server-generated passcode (never coach-chosen, per specs/phase-1-followups.md
 // §B) and returns it in plaintext exactly once; it's never re-derivable from
 // the stored hash after this response.
-const postSchema = z.object({ name: z.string().trim().min(1) });
+const postSchema = z.object({
+  name: z.string().trim().min(1),
+  email: z.string().trim().toLowerCase().pipe(z.email()).nullable().optional(),
+});
 
 export async function POST(req: NextRequest) {
   const authError = requireCoach(req.cookies.get(SESSION_COOKIE)?.value);
@@ -26,7 +29,12 @@ export async function POST(req: NextRequest) {
   const db = await getDb();
   const [row] = await db
     .insert(accounts)
-    .values({ name: parsed.data.name, role: "client", passcodeHash })
+    .values({
+      name: parsed.data.name,
+      email: parsed.data.email ?? null,
+      role: "client",
+      passcodeHash,
+    })
     .returning();
   const account = {
     id: row.id,

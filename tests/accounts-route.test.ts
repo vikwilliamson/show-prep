@@ -58,6 +58,42 @@ test("POST /api/accounts rejects a missing name", async () => {
   assert.equal(res.status, 422);
 });
 
+test("POST /api/accounts persists an optional email address, trimmed and lowercased", async () => {
+  const res = await postAccount(
+    requestAsRole("coach", { name: "Emailed Client", email: "  Client@Example.com  " }),
+  );
+  assert.equal(res.status, 201);
+  const json = await res.json();
+  createdAccountIds.push(json.account.id);
+  assert.equal(json.account.email, "client@example.com");
+
+  const db = await getDb();
+  const [row] = await db.select().from(accounts).where(eq(accounts.id, json.account.id));
+  assert.equal(row.email, "client@example.com");
+});
+
+test("POST /api/accounts treats a null email as no email", async () => {
+  const res = await postAccount(requestAsRole("coach", { name: "No Email Client", email: null }));
+  assert.equal(res.status, 201);
+  const json = await res.json();
+  createdAccountIds.push(json.account.id);
+  assert.equal(json.account.email, null);
+});
+
+test("POST /api/accounts rejects a malformed email", async () => {
+  const res = await postAccount(requestAsRole("coach", { name: "Bad Email Client", email: "not-an-email" }));
+  assert.equal(res.status, 422);
+});
+
+test("POST /api/accounts response includes the new client's pairing ID", async () => {
+  const res = await postAccount(requestAsRole("coach", { name: "Pairing ID Client" }));
+  assert.equal(res.status, 201);
+  const json = await res.json();
+  createdAccountIds.push(json.account.id);
+  assert.equal(typeof json.account.referenceId, "string");
+  assert.ok(json.account.referenceId.length > 0);
+});
+
 test("the returned passcode logs the new client in via /api/session", async () => {
   const createRes = await postAccount(requestAsRole("coach", { name: "Login Round-Trip Client" }));
   const created = await createRes.json();
