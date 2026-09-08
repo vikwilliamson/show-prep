@@ -38,21 +38,54 @@ pnpm android           # build + install on a connected device (Galaxy S25)
 Requirements: Android 14+ (Health Connect built in), MyFitnessPal and Samsung
 Health both connected to Health Connect on the phone.
 
-In the app:
+**Server URL and Ingest API key are baked into the build, not typed in the
+app** — see "EAS environment variables" below for the one-time setup. In the
+app, a client only ever does:
 
-1. Set **Server URL** (e.g. `http://<your-mac-ip>:3210` on the same Wi-Fi, or
-   your deployed URL — must be HTTPS off-LAN).
-2. Set the **Ingest API key** if the server has `INGEST_API_KEY` configured.
-3. Set **Pairing ID** — copy it from the web app's **Settings** page
-   ("Companion pairing ID" section, top of the page). This is how the
+1. Set **Pairing ID** — copy it from the web app's **Settings** page
+   ("Companion pairing ID" section, top of the page), or from the "Add a
+   client" screen if you're the coach handing it to them. This is how the
    server knows which account your synced data belongs to; syncing without
    it fails immediately with "Pairing ID not configured."
-4. Tap **Grant HC permissions**, approve all read permissions.
-5. Tap **Sync now**.
+2. Tap **Grant HC permissions**, approve all read permissions.
+3. Tap **Sync now**.
 
 > Health Connect only exposes data from up to 30 days before permission was
 > first granted, and background reads require the app to have been used
 > recently. Open the app and manual-sync if background sync looks stale.
+
+## EAS environment variables
+
+`app.config.js` reads `SERVER_URL`/`INGEST_API_KEY` from `process.env` at
+build time and bakes them into `extra` (see `mobile/src/config.ts`'s
+`loadConfig()`) — set them once per EAS environment, never in a
+git-committed file:
+
+```bash
+eas env:set --name SERVER_URL --value https://show-prep-gamma.vercel.app \
+  --environment production --visibility plaintext
+
+eas env:set --name INGEST_API_KEY --value <value from Vercel> \
+  --environment production --visibility sensitive
+```
+
+`INGEST_API_KEY` must be `sensitive`, not `secret` — secret-visibility
+variables aren't available during config resolution, so `app.config.js`
+would silently see `""` instead. `sensitive` still keeps it out of git and
+off the EAS dashboard's plain listing; it's just readable locally during a
+build, which is unavoidable since the value has to end up in the built APK
+either way.
+
+All three `eas.json` build profiles (`preview`, `development`, `production`)
+currently point at the `production` EAS environment — there's one real
+deployment at pilot scale, so `preview` (the profile testers' APKs are built
+with) and `production` share it. If you want the "physical Samsung e2e,
+never hit production" workflow in "On-device / emulator verification" below
+back the way it was, create a separate `development`-scoped EAS environment
+with its own `SERVER_URL`/`INGEST_API_KEY` and point `eas.json`'s
+`development` profile's `"environment"` field at it, then build a fresh
+`development` APK — the server URL is fixed at build time now, not
+something you can retype in the app anymore.
 
 ## Fast iteration: dev client (avoid reinstalling for every JS change)
 
@@ -126,23 +159,20 @@ pnpm prebuild             # generates android/ with the HC permissions from app.
 pnpm android              # builds + installs on the USB-connected S25
 ```
 
-### 3. Point it at the Vercel demo
+### 3. Set the Pairing ID
 
-Launch **Gamma Companion** on the phone and set:
+Server URL and Ingest API key are already baked into this build (see "EAS
+environment variables" above) — pointed at `https://show-prep-gamma.vercel.app`
+via the `production` EAS environment. Launch **Gamma Companion** on the phone
+and set only:
 
-- **Server URL:** `https://show-prep-gamma.vercel.app`
-  (off-LAN requires HTTPS — Vercel is HTTPS, so this is fine.)
-- **Ingest API key:** the `INGEST_API_KEY` value from the Vercel project
-  (Vercel dashboard → the `show-prep` project → Settings → Environment
-  Variables → `INGEST_API_KEY` → Reveal). The production ingest API is
-  bearer-gated, so this is required.
 - **Pairing ID:** on **show-prep-gamma.vercel.app**, sign in and open
   **Settings** — copy the "Companion pairing ID" value at the top of the
   page and paste it in. This says whose account your synced rows belong to;
   sync fails immediately without it.
 
-Leave **Device ID** as the auto-generated `galaxy-…` value — it tags your rows'
-provenance so you can tell them apart from seed data.
+Device ID is auto-generated (`galaxy-…`) and no longer user-editable — it
+tags your rows' provenance so you can tell them apart from seed data.
 
 ### 4. Grant permissions & sync
 
@@ -218,10 +248,12 @@ Two lanes:
    it won't reflect MFP/Samsung.
 2. **Physical Samsung (true e2e)** — the only way to validate the full
    MFP/Samsung Health → HC → ingest path. Safe workflow:
-   - Point **Server URL** at a throwaway/dev deployment (or your Mac's LAN IP),
-     never production, so seed and real data never mix.
-   - Use a distinct `deviceId` and, if the server sets `INGEST_API_KEY`, a
-     dev-only key.
+   - Server URL/API key are baked in at build time now (see "EAS environment
+     variables" above) — if you want this build hitting a throwaway/dev
+     deployment instead of production, set up a separate `development`-scoped
+     EAS environment first and build a fresh `development` APK against it.
+     There's no in-app field to redirect it anymore.
+   - Device ID is auto-generated — no longer something you set per build.
    - The app requests **read-only** HC permissions — it never writes to Health
      Connect, so your MFP/Samsung data is never modified.
    - First sync backfills 30 days; watch the on-screen per-type result lines,

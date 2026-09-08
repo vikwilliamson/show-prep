@@ -4,6 +4,7 @@ import { loadStatus, saveConfig, setCursor, getCursor } from "../src/config";
 import { FETCH_TIMEOUT_MS, runSync } from "../src/sync";
 import { __reset as resetStorage } from "./mocks/async-storage";
 import { __readCalls, __reset as resetHc, __setRecords } from "./mocks/react-native-health-connect";
+import { __reset as resetConstants, __setExtra } from "./mocks/expo-constants";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const recent = () => new Date(Date.now() - 3_600_000).toISOString();
@@ -76,6 +77,7 @@ function seedLegacyNonNutritionTypes() {
 beforeEach(() => {
   resetStorage();
   resetHc();
+  resetConstants();
   originalFetch = globalThis.fetch;
 });
 afterEach(() => {
@@ -83,6 +85,9 @@ afterEach(() => {
 });
 
 test("refuses to sync when the server URL is unset", async () => {
+  // serverUrl is normally baked in via app.json's extra config (VIK-113) —
+  // simulate the defensive case of a build shipped without it.
+  __setExtra({});
   const calls = installFetch();
   const result = await runSync();
   assert.deepEqual(result, { ok: false, detail: "Server URL not configured." });
