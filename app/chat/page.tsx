@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { errorMessage, fetchJson } from "@/lib/client-fetch";
+import { AiBadge } from "@/components/AiBadge";
 
 const markdownComponents: Components = {
   p: ({ ...props }) => <p className="mb-2 last:mb-0" {...props} />,
@@ -139,9 +140,15 @@ export default function ChatPage() {
             }`}
           >
             {m.role === "assistant" ? (
-              <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-                {m.content}
-              </ReactMarkdown>
+              <>
+                <AiBadge
+                  className="mb-1.5"
+                  detail="Grounded in your uploaded documents, with sources cited below."
+                />
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                  {m.content}
+                </ReactMarkdown>
+              </>
             ) : (
               m.content
             )}

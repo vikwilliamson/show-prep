@@ -88,3 +88,25 @@ describe("ChatPage send guard", () => {
     await screen.findByText("Hi!");
   });
 });
+
+describe("ChatPage AI transparency badge", () => {
+  afterEach(() => {
+    fetchJsonMock.mockReset();
+  });
+
+  it("shows the AI-assisted badge on assistant bubbles but not the user's own messages", async () => {
+    fetchJsonMock.mockResolvedValueOnce([
+      { id: 1, role: "user", content: "What's my sodium target?", sources: null },
+      { id: 2, role: "assistant", content: "Aim for under 2,300mg.", sources: null },
+    ]);
+    render(<ChatPage />);
+
+    await screen.findByText("Aim for under 2,300mg.");
+    expect(screen.getAllByText("AI-assisted")).toHaveLength(1);
+  });
+
+  it("shows no badge in the empty state before any messages exist", async () => {
+    await renderReady();
+    expect(screen.queryByText("AI-assisted")).not.toBeInTheDocument();
+  });
+});

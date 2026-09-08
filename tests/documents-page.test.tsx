@@ -182,3 +182,26 @@ describe("DocumentsPage mutation guards", () => {
     });
   });
 });
+
+describe("DocumentsPage AI transparency badge", () => {
+  afterEach(() => {
+    fetchJsonMock.mockReset();
+  });
+
+  it("shows the AI-assisted badge on a pending extraction row", async () => {
+    fetchJsonMock.mockImplementation((url: string) =>
+      Promise.resolve(url === "/api/documents" ? [DOC] : [PENDING_PROTOCOL]),
+    );
+    render(<DocumentsPage />);
+    await screen.findByText("AI-assisted");
+  });
+
+  it("shows no badge on a confirmed history row", async () => {
+    fetchJsonMock.mockImplementation((url: string) =>
+      Promise.resolve(url === "/api/documents" ? [DOC] : [HISTORY_PROTOCOL]),
+    );
+    render(<DocumentsPage />);
+    await screen.findAllByRole("table");
+    expect(screen.queryByText("AI-assisted")).not.toBeInTheDocument();
+  });
+});

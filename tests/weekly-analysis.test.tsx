@@ -55,4 +55,14 @@ describe("WeeklyAnalysis", () => {
     await waitFor(() => expect(screen.getByText(/something went wrong/i)).toBeInTheDocument());
     expect(screen.getByRole("button", { name: "Generate analysis" })).toBeEnabled();
   });
+
+  it("shows no AI-assisted badge before any analysis exists", () => {
+    render(<WeeklyAnalysis weekStart="2026-08-31" initialAnalysis={null} />);
+    expect(screen.queryByText("AI-assisted")).not.toBeInTheDocument();
+  });
+
+  it("shows the AI-assisted badge once an analysis exists", () => {
+    render(<WeeklyAnalysis weekStart="2026-08-31" initialAnalysis="Great week overall." />);
+    expect(screen.getByText("AI-assisted")).toBeInTheDocument();
+  });
 });
