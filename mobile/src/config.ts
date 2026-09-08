@@ -4,7 +4,7 @@ import Constants from "expo-constants";
 // Persistent companion settings + per-record-type sync cursors.
 
 export interface CompanionConfig {
-  serverUrl: string; // baked into the app build (mobile/app.json's expo.extra) — not user-editable
+  serverUrl: string; // baked into the app build via app.config.js, from EAS env vars — not user-editable
   apiKey: string; // baked into the app build, same as serverUrl
   referenceId: string; // pairing ID the client enters — says whose account this is
   deviceId: string;
