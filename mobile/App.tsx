@@ -89,43 +89,13 @@ export default function App() {
         Now after logging meals.
       </Text>
 
-      <Text style={styles.label}>Server URL</Text>
-      <TextInput
-        style={styles.input}
-        value={config.serverUrl}
-        onChangeText={(v) => update({ serverUrl: v })}
-        placeholder="http://192.168.1.10:3210"
-        placeholderTextColor="#666"
-        autoCapitalize="none"
-        keyboardType="url"
-      />
-
-      <Text style={styles.label}>Ingest API key (optional)</Text>
-      <TextInput
-        style={styles.input}
-        value={config.apiKey}
-        onChangeText={(v) => update({ apiKey: v })}
-        placeholder="INGEST_API_KEY from the server"
-        placeholderTextColor="#666"
-        autoCapitalize="none"
-        secureTextEntry
-      />
-
       <Text style={styles.label}>Pairing ID</Text>
       <TextInput
         style={styles.input}
         value={config.referenceId}
         onChangeText={(v) => update({ referenceId: v })}
-        placeholder="Copy from the server's Settings page"
+        placeholder="From your coach — paste it here"
         placeholderTextColor="#666"
-        autoCapitalize="none"
-      />
-
-      <Text style={styles.label}>Device ID</Text>
-      <TextInput
-        style={styles.input}
-        value={config.deviceId}
-        onChangeText={(v) => update({ deviceId: v })}
         autoCapitalize="none"
       />
 

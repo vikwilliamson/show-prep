@@ -37,7 +37,9 @@
     "extra": {
       "eas": {
         "projectId": "a6b7f1d8-15f8-450b-bf93-800a1153d68a"
-      }
+      },
+      "serverUrl": "REPLACE_WITH_PRODUCTION_SERVER_URL",
+      "apiKey": "REPLACE_WITH_PRODUCTION_INGEST_API_KEY"
     }
   }
 }

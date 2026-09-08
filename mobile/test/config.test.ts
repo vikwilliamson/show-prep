@@ -9,15 +9,27 @@ import {
   setCursor,
 } from "../src/config";
 import { __reset } from "./mocks/async-storage";
+import { __reset as __resetConstants, __setExtra } from "./mocks/expo-constants";
 
-beforeEach(() => __reset());
+beforeEach(() => {
+  __reset();
+  __resetConstants();
+});
 
-test("loadConfig returns empty defaults with a generated deviceId", async () => {
+test("loadConfig defaults serverUrl/apiKey from the baked-in expo-constants extra config, not empty strings", async () => {
+  __setExtra({ serverUrl: "https://prep.example.com", apiKey: "test-api-key" });
+  const config = await loadConfig();
+  assert.equal(config.serverUrl, "https://prep.example.com");
+  assert.equal(config.apiKey, "test-api-key");
+  assert.equal(config.referenceId, "");
+  assert.match(config.deviceId, /^galaxy-[a-z0-9]{1,6}$/);
+});
+
+test("loadConfig falls back to empty strings when the baked-in extra config is missing serverUrl/apiKey", async () => {
+  __setExtra({});
   const config = await loadConfig();
   assert.equal(config.serverUrl, "");
   assert.equal(config.apiKey, "");
-  assert.equal(config.referenceId, "");
-  assert.match(config.deviceId, /^galaxy-[a-z0-9]{1,6}$/);
 });
 
 test("saveConfig round-trips through storage", async () => {

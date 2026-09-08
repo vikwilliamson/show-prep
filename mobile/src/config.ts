@@ -1,23 +1,29 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import Constants from "expo-constants";
 
 // Persistent companion settings + per-record-type sync cursors.
 
 export interface CompanionConfig {
-  serverUrl: string; // e.g. https://prep.example.com or http://192.168.1.10:3210
-  apiKey: string; // INGEST_API_KEY on the server ("" if the server is open)
-  referenceId: string; // pairing ID from the server's Settings page — says whose account this is
+  serverUrl: string; // baked into the app build (mobile/app.json's expo.extra) — not user-editable
+  apiKey: string; // baked into the app build, same as serverUrl
+  referenceId: string; // pairing ID the client enters — says whose account this is
   deviceId: string;
 }
 
 const CONFIG_KEY = "companion.config";
 const CURSOR_PREFIX = "companion.cursor."; // + ingest type -> ISO instant
 
+function bakedInDefault(key: "serverUrl" | "apiKey"): string {
+  const value = Constants.expoConfig?.extra?.[key];
+  return typeof value === "string" ? value : "";
+}
+
 export async function loadConfig(): Promise<CompanionConfig> {
   const raw = await AsyncStorage.getItem(CONFIG_KEY);
   if (raw) return JSON.parse(raw);
   return {
-    serverUrl: "",
-    apiKey: "",
+    serverUrl: bakedInDefault("serverUrl"),
+    apiKey: bakedInDefault("apiKey"),
     referenceId: "",
     deviceId: `galaxy-${Math.random().toString(36).slice(2, 8)}`,
   };
