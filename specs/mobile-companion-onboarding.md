@@ -94,17 +94,21 @@ even discover the one piece of information the app needs.
 
 ## Implementation Decisions
 
-- **Config baking.** `mobile/app.json`'s `expo.extra` gains `serverUrl`
-  and `apiKey` fields (matching the existing pattern that already holds
-  the EAS `projectId`). `mobile/src/config.ts`'s `loadConfig()` reads
-  defaults for `serverUrl`/`apiKey` from `expo-constants`'s
-  `Constants.expoConfig?.extra` instead of defaulting to empty strings.
-  `mobile/App.tsx` drops the Server URL, Ingest API Key, and Device ID
-  input fields entirely — only the Pairing ID field (and the existing
-  "Grant HC permissions" / "Sync now" buttons) remain user-facing. Takes
-  effect on the next EAS build (config/`app.json` changes always require
-  one, same as every other native-config change already in this app per
-  `mobile/README.md`).
+- **Config baking.** **Superseded by the 2026-09-08 addendum below** —
+  `serverUrl`/`apiKey` end up in `expo.extra` the same way, but via a
+  dynamic `mobile/app.config.js` reading EAS environment variables at
+  build time, not hardcoded directly into the committed `mobile/app.json`.
+  Original plan, for history: `mobile/app.json`'s `expo.extra` gains
+  `serverUrl` and `apiKey` fields (matching the existing pattern that
+  already holds the EAS `projectId`). `mobile/src/config.ts`'s
+  `loadConfig()` reads defaults for `serverUrl`/`apiKey` from
+  `expo-constants`'s `Constants.expoConfig?.extra` instead of defaulting
+  to empty strings — this part shipped as planned. `mobile/App.tsx` drops
+  the Server URL, Ingest API Key, and Device ID input fields entirely —
+  only the Pairing ID field (and the existing "Grant HC permissions" /
+  "Sync now" buttons) remain user-facing. Takes effect on the next EAS
+  build (config/`app.json` changes always require one, same as every
+  other native-config change already in this app per `mobile/README.md`).
 - **Add-client form.** `app/settings/page.tsx`'s `AddClientSection` gains
   an email input alongside the existing name input. `app/api/accounts/
   route.ts`'s `POST` handler accepts and stores `email` on the new
@@ -216,3 +220,57 @@ even discover the one piece of information the app needs.
   onboarding doc) should be written against the *new* flow, not the old
   one — don't let that doc get written against a flow this spec is about
   to replace.
+
+---
+
+## 2026-09-08 — EAS environment variables supersede committed app.json values
+
+While implementing VIK-113, hardcoding `serverUrl`/`apiKey` directly into
+`mobile/app.json`'s `expo.extra` (the original plan above) turned out to be
+the wrong call once actually building it: `app.json` is a plain
+git-committed file, so `apiKey` — the real `INGEST_API_KEY` bearer secret —
+would have landed in git history in plaintext, readable by anyone with repo
+access forever, not just extractable from a compiled APK the way a baked-in
+value unavoidably is.
+
+**Decision:** `mobile/app.json`'s `extra` block stays limited to the
+non-secret EAS `projectId`. A new `mobile/app.config.js` (Expo's dynamic
+config layer, which receives the config loaded from `app.json` and can
+return a modified version) reads `SERVER_URL`/`INGEST_API_KEY` from
+`process.env` at build time and merges them into `extra` — populated via
+[EAS environment variables](https://docs.expo.dev/eas/environment-variables/)
+(`eas env:set`), never committed anywhere. `mobile/src/config.ts`'s
+`loadConfig()` is unchanged — it still just reads `Constants.expoConfig
+?.extra`, unaware of whether that came from a static file or a dynamic one.
+
+Two things worth remembering if this gets touched again:
+
+- **`INGEST_API_KEY` must be created with `--visibility sensitive`, not
+  `--visibility secret`.** Secret-visibility EAS env vars are never
+  readable during config resolution — `app.config.js` would silently see
+  `""` instead of the real key, no error. `sensitive` is the correct
+  middle ground: kept out of git and off the plain EAS dashboard listing,
+  but still locally readable at build time, which is unavoidable anyway
+  since the value ends up embedded in the shipped APK either way.
+- **All three `eas.json` build profiles (`preview`, `development`,
+  `production`) currently point at one shared `production` EAS
+  environment** — there's a single real deployment at pilot scale, and
+  `preview` is the profile testers' APKs actually get built with. If a
+  genuine dev/staging split is ever needed (e.g. the "physical Samsung
+  e2e, never hit production" workflow `mobile/README.md`'s device-testing
+  section describes), that means standing up a separate
+  `development`-scoped EAS environment with its own `SERVER_URL`/
+  `INGEST_API_KEY` and pointing `eas.json`'s `development` profile's
+  `environment` field at it — not something split out today.
+
+This surfaced from an unrelated real-world snag, not a design review: Vercel
+now defaults new secret-looking values to its own "Sensitive" env var type,
+which is write-only — once set, its value can never be read back via
+dashboard, CLI, or API, by design (Vercel's own post-incident hardening).
+The existing production `INGEST_API_KEY` had been marked Sensitive, so the
+original plan of "copy the value out of Vercel and paste it into
+`app.json`" was never going to work — there is no way to *read* a
+Sensitive Vercel value, only to overwrite it. That forced rotating the key
+(safe here — no real device depended on the old value yet) and, in the same
+pass, choosing not to write the new value into a committed file this time
+either. See PR #75 for the actual rotation trail.
