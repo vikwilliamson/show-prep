@@ -56,12 +56,36 @@ describe("SettingsPage accessibility", () => {
     await user.type(nameInput, "New Client");
 
     fetchJsonMock.mockResolvedValueOnce({
-      account: { name: "New Client" },
+      account: { name: "New Client", referenceId: "new-client-ref-id" },
       passcode: "abc123",
     });
     await user.click(screen.getByRole("button", { name: "Add client" }));
 
     expect(await screen.findByLabelText("New client passcode")).toBeInTheDocument();
+  });
+
+  it("gives the client email field an accessible name", async () => {
+    fetchJsonMock.mockResolvedValueOnce({ ...SETTINGS_RESPONSE, role: "coach" });
+    render(<SettingsPage />);
+    expect(await screen.findByLabelText("Client email (optional)")).toBeInTheDocument();
+  });
+
+  it("shows the new client's pairing ID alongside their passcode, both copyable", async () => {
+    const user = userEvent.setup();
+    fetchJsonMock.mockResolvedValueOnce({ ...SETTINGS_RESPONSE, role: "coach" });
+    render(<SettingsPage />);
+
+    const nameInput = await screen.findByLabelText("Client name");
+    await user.type(nameInput, "New Client");
+
+    fetchJsonMock.mockResolvedValueOnce({
+      account: { name: "New Client", referenceId: "new-client-ref-id" },
+      passcode: "abc123",
+    });
+    await user.click(screen.getByRole("button", { name: "Add client" }));
+
+    const pairingIdField = await screen.findByLabelText("New client pairing ID");
+    expect(pairingIdField).toHaveValue("new-client-ref-id");
   });
 });
 
