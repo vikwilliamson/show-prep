@@ -286,12 +286,16 @@ function AddClientSection() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [created, setCreated] = useState<{
+    id: number;
     name: string;
+    email: string | null;
     passcode: string;
     referenceId: string;
   } | null>(null);
   const [copiedPasscode, setCopiedPasscode] = useState(false);
   const [copiedReferenceId, setCopiedReferenceId] = useState(false);
+  const [emailBusy, setEmailBusy] = useState(false);
+  const [emailNote, setEmailNote] = useState<string | null>(null);
 
   async function addClient(e: React.FormEvent) {
     e.preventDefault();
@@ -300,7 +304,7 @@ function AddClientSection() {
     setError(null);
     try {
       const json = await fetchJson<{
-        account: { name: string; referenceId: string };
+        account: { id: number; name: string; email: string | null; referenceId: string };
         passcode: string;
       }>("/api/accounts", {
         method: "POST",
@@ -308,16 +312,37 @@ function AddClientSection() {
         body: JSON.stringify({ name, email: email.trim() || null }),
       });
       setCreated({
+        id: json.account.id,
         name: json.account.name,
+        email: json.account.email,
         passcode: json.passcode,
         referenceId: json.account.referenceId,
       });
+      setEmailNote(null);
       setName("");
       setEmail("");
     } catch (err) {
       setError(errorMessage(err, "Couldn't create client."));
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function sendOnboardingEmail() {
+    if (!created) return;
+    setEmailBusy(true);
+    setEmailNote(null);
+    try {
+      await fetchJson(`/api/accounts/${created.id}/onboarding-email`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ passcode: created.passcode }),
+      });
+      setEmailNote(`Onboarding email sent to ${created.email}.`);
+    } catch (err) {
+      setEmailNote(errorMessage(err, "Couldn't send the onboarding email."));
+    } finally {
+      setEmailBusy(false);
     }
   }
 
@@ -406,6 +431,23 @@ function AddClientSection() {
                 {copiedReferenceId ? "Copied" : "Copy"}
               </button>
             </div>
+          </div>
+          <div>
+            {created.email ? (
+              <button
+                type="button"
+                onClick={sendOnboardingEmail}
+                disabled={emailBusy}
+                className="rounded-md border border-borderc px-3 py-1.5 text-sm hover:bg-surface disabled:opacity-50"
+              >
+                {emailBusy ? "Sending…" : "Send onboarding email"}
+              </button>
+            ) : (
+              <p className="text-xs text-muted">
+                Add an email address above to send an onboarding email.
+              </p>
+            )}
+            {emailNote && <p className="mt-2 text-xs text-muted">{emailNote}</p>}
           </div>
         </div>
       )}

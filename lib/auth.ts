@@ -189,13 +189,26 @@ export async function listClientsNeedingBrief(): Promise<
 /** Resolves accountId to its account row only if it's a client account —
  *  the coach dashboard's per-client routes use this so a coach hitting a
  *  non-client accountId (another coach's, or a nonexistent one) 404s
- *  instead of silently working. */
-export async function getClientAccount(
-  accountId: number,
-): Promise<{ id: number; name: string } | null> {
+ *  instead of silently working. Includes email/referenceId/passcodeHash for
+ *  the onboarding-email route (app/api/accounts/[accountId]/onboarding-
+ *  email/route.ts) — safe for other callers to ignore, they just don't
+ *  destructure those fields. */
+export async function getClientAccount(accountId: number): Promise<{
+  id: number;
+  name: string;
+  email: string | null;
+  referenceId: string;
+  passcodeHash: string;
+} | null> {
   const db = await getDb();
   const [row] = await db
-    .select({ id: accounts.id, name: accounts.name })
+    .select({
+      id: accounts.id,
+      name: accounts.name,
+      email: accounts.email,
+      referenceId: accounts.referenceId,
+      passcodeHash: accounts.passcodeHash,
+    })
     .from(accounts)
     .where(and(eq(accounts.id, accountId), eq(accounts.role, "client")))
     .limit(1);

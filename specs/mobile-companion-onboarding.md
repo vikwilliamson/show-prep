@@ -274,3 +274,38 @@ Sensitive Vercel value, only to overwrite it. That forced rotating the key
 (safe here — no real device depended on the old value yet) and, in the same
 pass, choosing not to write the new value into a committed file this time
 either. See PR #75 for the actual rotation trail.
+
+---
+
+## 2026-09-07 — Onboarding email implementation decisions (VIK-115)
+
+The spec above left the onboarding-email route's shape and the install/
+setup-guide link source unspecified. Decisions made while implementing:
+
+- **Route: `POST /api/accounts/[accountId]/onboarding-email`, body
+  `{ passcode }`.** The plaintext passcode is never persisted
+  (`app/api/accounts/route.ts` returns it once, at creation), so the route
+  can't look it up server-side — the caller supplies its own client-side
+  copy, captured at creation time. The route re-verifies that passcode
+  against the stored hash (`verifyPasscode`) before sending, so a stale or
+  mistyped value can't go out in an email that looks authoritative. Same
+  `getClientAccount` 404-on-non-real-client scoping as the rest of the
+  coach-dashboard routes; 422s if the client has no email on file.
+- **`lib/auth.ts`'s `getClientAccount` widened** to also return `email`,
+  `referenceId`, `passcodeHash` (previously just `id`/`name`) rather than
+  adding a second, parallel lookup in the new route — every existing caller
+  just doesn't destructure the new fields.
+- **`appInstallUrl`/`setupGuideUrl` come from new optional env vars**
+  (`APP_INSTALL_URL`, `SETUP_GUIDE_URL`), not hardcoded — both are
+  per-deployment config (an EAS build's download page; an externally-hosted
+  guide), the same reasoning as `RESEND_API_KEY` itself. Empty string when
+  unset — matches `RESEND_API_KEY`'s non-fatal/convenience-feature framing
+  rather than hard-failing account creation.
+- **The "Send onboarding email" button lives in the post-creation reveal
+  block** (`AddClientSection`, alongside the one-time passcode/pairing-ID
+  display), not as a persistent per-client action in a client list —
+  because the plaintext passcode only ever exists in that block's
+  client-side state. A "resend" flow (User Story 7) would need a different
+  mechanism (e.g. a passcode-reset endpoint that both rotates the hash and
+  returns a fresh plaintext value) — still not built, per the spec's
+  existing "Out of Scope" note on reissuing/rotating a passcode.

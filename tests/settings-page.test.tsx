@@ -89,6 +89,75 @@ describe("SettingsPage accessibility", () => {
   });
 });
 
+describe("SettingsPage onboarding email", () => {
+  afterEach(() => {
+    fetchJsonMock.mockReset();
+  });
+
+  async function addClientWithEmail(email: string | null) {
+    const user = userEvent.setup();
+    fetchJsonMock.mockResolvedValueOnce({ ...SETTINGS_RESPONSE, role: "coach" });
+    render(<SettingsPage />);
+
+    await user.type(await screen.findByLabelText("Client name"), "New Client");
+    if (email) {
+      await user.type(screen.getByLabelText("Client email (optional)"), email);
+    }
+
+    fetchJsonMock.mockResolvedValueOnce({
+      account: { id: 42, name: "New Client", email, referenceId: "new-client-ref-id" },
+      passcode: "abc123",
+    });
+    await user.click(screen.getByRole("button", { name: "Add client" }));
+    await screen.findByLabelText("New client pairing ID");
+    return user;
+  }
+
+  it("shows a 'Send onboarding email' button once a client with an email is created", async () => {
+    await addClientWithEmail("client@example.com");
+    expect(screen.getByRole("button", { name: "Send onboarding email" })).toBeInTheDocument();
+  });
+
+  it("omits the button and shows a hint when the new client has no email", async () => {
+    await addClientWithEmail(null);
+    expect(screen.queryByRole("button", { name: "Send onboarding email" })).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Add an email address above to send an onboarding email."),
+    ).toBeInTheDocument();
+  });
+
+  it("posts the account id and passcode, then shows a confirmation", async () => {
+    const user = await addClientWithEmail("client@example.com");
+
+    fetchJsonMock.mockResolvedValueOnce({ ok: true });
+    await user.click(screen.getByRole("button", { name: "Send onboarding email" }));
+
+    await waitFor(() => {
+      expect(fetchJsonMock).toHaveBeenCalledWith(
+        "/api/accounts/42/onboarding-email",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ passcode: "abc123" }),
+        }),
+      );
+    });
+    expect(
+      await screen.findByText("Onboarding email sent to client@example.com."),
+    ).toBeInTheDocument();
+  });
+
+  it("shows an error message when sending fails", async () => {
+    const user = await addClientWithEmail("client@example.com");
+
+    fetchJsonMock.mockRejectedValueOnce(new Error("Email isn't configured (missing RESEND_API_KEY)."));
+    await user.click(screen.getByRole("button", { name: "Send onboarding email" }));
+
+    expect(
+      await screen.findByText("Email isn't configured (missing RESEND_API_KEY)."),
+    ).toBeInTheDocument();
+  });
+});
+
 describe("SettingsPage save guard", () => {
   afterEach(() => {
     fetchJsonMock.mockReset();
