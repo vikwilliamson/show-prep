@@ -80,6 +80,12 @@ test("404s a nonexistent client account", async () => {
   assert.equal(sendMock.mock.calls.length, 0);
 });
 
+test("422s a malformed body before looking up the account — a bad body on a nonexistent accountId still 422s, not 404", async () => {
+  const res = await POST(requestAsRole("coach", -1, {}), ctx(-1));
+  assert.equal(res.status, 422);
+  assert.equal(sendMock.mock.calls.length, 0);
+});
+
 test("404s a coach account (not a client)", async () => {
   const passcodeHash = await hashPasscode("coach-passcode");
   const db = await getDb();

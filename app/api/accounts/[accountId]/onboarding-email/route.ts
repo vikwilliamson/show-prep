@@ -17,10 +17,6 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ accountId:
   const authError = requireCoach(req.cookies.get(SESSION_COOKIE)?.value);
   if (authError) return authError;
 
-  const { accountId } = await ctx.params;
-  const client = await getClientAccount(Number(accountId));
-  if (!client) return NextResponse.json({ error: "Not found" }, { status: 404 });
-
   const parsed = postSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json(
@@ -28,6 +24,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ accountId:
       { status: 422 },
     );
   }
+
+  const { accountId } = await ctx.params;
+  const client = await getClientAccount(Number(accountId));
+  if (!client) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   if (!client.email) {
     return NextResponse.json(
