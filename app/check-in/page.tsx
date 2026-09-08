@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { errorMessage, fetchJson } from "@/lib/client-fetch";
 import { addDays } from "@/lib/dates";
 import { FormField } from "@/components/FormField";
+import { AiBadge } from "@/components/AiBadge";
 
 interface CheckinData {
   weekStart: string;
@@ -277,6 +278,10 @@ export default function CheckInPage() {
           </h2>
           {draft ? (
             <>
+              <AiBadge
+                className="mb-2 self-start"
+                detail="Grounded in this week's synced data and your own notes."
+              />
               <textarea
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}

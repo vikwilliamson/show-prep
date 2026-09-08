@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { errorMessage, fetchJson } from "@/lib/client-fetch";
+import { AiBadge } from "@/components/AiBadge";
 
 export function WeeklyAnalysis({
   weekStart,
@@ -34,7 +35,10 @@ export function WeeklyAnalysis({
   return (
     <div className="space-y-3">
       {analysis ? (
-        <div className="whitespace-pre-wrap text-sm leading-relaxed">{analysis}</div>
+        <>
+          <AiBadge detail="Grounded in this week's synced macro, weight, water, and sleep data." />
+          <div className="whitespace-pre-wrap text-sm leading-relaxed">{analysis}</div>
+        </>
       ) : (
         <p className="text-sm text-muted">
           No analysis yet for the week of {weekStart}.

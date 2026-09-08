@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { errorMessage, fetchJson } from "@/lib/client-fetch";
+import { AiBadge } from "@/components/AiBadge";
 
 interface DocRow {
   id: number;
@@ -264,6 +265,10 @@ export default function DocumentsPage() {
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
+                      <AiBadge
+                        className="mb-1"
+                        detail="Extracted from the uploaded document — review before confirming."
+                      />
                       <p className="text-sm font-medium">
                         {p.calories != null
                           ? `${p.calories} kcal`

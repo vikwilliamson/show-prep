@@ -96,3 +96,22 @@ describe("CheckInPage markSent guard", () => {
     });
   });
 });
+
+describe("CheckInPage AI transparency badge", () => {
+  afterEach(() => {
+    fetchJsonMock.mockReset();
+  });
+
+  it("shows the AI-assisted badge once a draft exists", async () => {
+    fetchJsonMock.mockResolvedValueOnce(checkinResponseWithDraft("2026-08-24"));
+    render(<CheckInPage />);
+    await screen.findByText("AI-assisted");
+  });
+
+  it("shows no badge before a draft has been generated", async () => {
+    fetchJsonMock.mockResolvedValueOnce(checkinResponse("2026-08-24"));
+    render(<CheckInPage />);
+    await waitFor(() => screen.getByText(/week of 2026-08-24/));
+    expect(screen.queryByText("AI-assisted")).not.toBeInTheDocument();
+  });
+});
