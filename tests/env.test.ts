@@ -65,3 +65,29 @@ test("rejects a secret shorter than the minimum length, even in dev", async () =
 
   await assert.rejects(loadEnv(), /SESSION_SECRET/);
 });
+
+test("RESEND_API_KEY, APP_INSTALL_URL, SETUP_GUIDE_URL are optional, even on Vercel", async () => {
+  vi.stubEnv("VERCEL", "1");
+  vi.stubEnv("SESSION_SECRET", "a-perfectly-fine-session-secret");
+  vi.stubEnv("INGEST_API_KEY", "a-perfectly-fine-ingest-key");
+  vi.stubEnv("RESEND_API_KEY", undefined);
+  vi.stubEnv("APP_INSTALL_URL", undefined);
+  vi.stubEnv("SETUP_GUIDE_URL", undefined);
+
+  const { env } = await loadEnv();
+  assert.equal(env.resendApiKey, undefined);
+  assert.equal(env.appInstallUrl, "");
+  assert.equal(env.setupGuideUrl, "");
+});
+
+test("RESEND_API_KEY, APP_INSTALL_URL, SETUP_GUIDE_URL pass through when set", async () => {
+  vi.stubEnv("VERCEL", undefined);
+  vi.stubEnv("RESEND_API_KEY", "re_test_key");
+  vi.stubEnv("APP_INSTALL_URL", "https://expo.dev/example/build");
+  vi.stubEnv("SETUP_GUIDE_URL", "https://example.com/setup-guide");
+
+  const { env } = await loadEnv();
+  assert.equal(env.resendApiKey, "re_test_key");
+  assert.equal(env.appInstallUrl, "https://expo.dev/example/build");
+  assert.equal(env.setupGuideUrl, "https://example.com/setup-guide");
+});

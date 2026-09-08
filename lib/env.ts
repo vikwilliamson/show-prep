@@ -28,6 +28,9 @@ const rawEnvSchema = z.object({
   VOYAGE_API_KEY: z.string().optional(),
   VOYAGE_MODEL: z.string().optional(),
   SESSION_SECRET: secretSchema,
+  RESEND_API_KEY: z.string().optional(),
+  APP_INSTALL_URL: z.string().optional(),
+  SETUP_GUIDE_URL: z.string().optional(),
 });
 
 const REQUIRED_IN_PROD = ["SESSION_SECRET", "INGEST_API_KEY"] as const;
@@ -75,4 +78,15 @@ export const env = {
   voyageModel: parsed.VOYAGE_MODEL ?? "voyage-4",
   /** Secret used to sign per-account session cookies (see lib/auth.ts). When unset, the login gate is disabled. */
   sessionSecret: parsed.SESSION_SECRET,
+  /** Resend API key for the client onboarding email (see lib/email.ts).
+   *  Optional/non-fatal when unset — a convenience feature, not an
+   *  auth/security gate like sessionSecret/ingestApiKey. */
+  resendApiKey: parsed.RESEND_API_KEY,
+  /** Link to the companion app's install page, sent in the onboarding
+   *  email. Per-deployment config (e.g. an EAS internal-distribution build
+   *  page), not app data. */
+  appInstallUrl: parsed.APP_INSTALL_URL ?? "",
+  /** Link to the externally-hosted Health Connect/MyFitnessPal setup guide,
+   *  sent in the onboarding email. Built and hosted outside this repo. */
+  setupGuideUrl: parsed.SETUP_GUIDE_URL ?? "",
 };
