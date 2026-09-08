@@ -282,10 +282,16 @@ export default function SettingsPage() {
 
 function AddClientSection() {
   const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [created, setCreated] = useState<{ name: string; passcode: string } | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [created, setCreated] = useState<{
+    name: string;
+    passcode: string;
+    referenceId: string;
+  } | null>(null);
+  const [copiedPasscode, setCopiedPasscode] = useState(false);
+  const [copiedReferenceId, setCopiedReferenceId] = useState(false);
 
   async function addClient(e: React.FormEvent) {
     e.preventDefault();
@@ -293,16 +299,21 @@ function AddClientSection() {
     setBusy(true);
     setError(null);
     try {
-      const json = await fetchJson<{ account: { name: string }; passcode: string }>(
-        "/api/accounts",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name }),
-        },
-      );
-      setCreated({ name: json.account.name, passcode: json.passcode });
+      const json = await fetchJson<{
+        account: { name: string; referenceId: string };
+        passcode: string;
+      }>("/api/accounts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email: email.trim() || null }),
+      });
+      setCreated({
+        name: json.account.name,
+        passcode: json.passcode,
+        referenceId: json.account.referenceId,
+      });
       setName("");
+      setEmail("");
     } catch (err) {
       setError(errorMessage(err, "Couldn't create client."));
     } finally {
@@ -310,14 +321,13 @@ function AddClientSection() {
     }
   }
 
-  async function copyPasscode() {
-    if (!created) return;
+  async function copyValue(value: string, setCopied: (v: boolean) => void) {
     try {
-      await navigator.clipboard.writeText(created.passcode);
+      await navigator.clipboard.writeText(value);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Clipboard permission denied — passcode is still selectable text.
+      // Clipboard permission denied — value is still selectable text.
     }
   }
 
@@ -326,12 +336,21 @@ function AddClientSection() {
       <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted">
         Add a client
       </h2>
-      <form onSubmit={addClient} className="flex items-end gap-2">
+      <form onSubmit={addClient} className="flex flex-wrap items-end gap-2">
         <label className="block flex-1 text-sm">
           <span className="mb-1 block text-muted">Client name</span>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
+            className="w-full rounded-md border border-borderc bg-background px-3 py-1.5"
+          />
+        </label>
+        <label className="block flex-1 text-sm">
+          <span className="mb-1 block text-muted">Client email (optional)</span>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
             className="w-full rounded-md border border-borderc bg-background px-3 py-1.5"
           />
         </label>
@@ -344,26 +363,49 @@ function AddClientSection() {
       </form>
       {error && <p className="mt-2 text-sm text-muted">{error}</p>}
       {created && (
-        <div className="mt-3 rounded-md border border-borderc bg-background p-3">
-          <p className="mb-2 text-xs text-muted">
-            {created.name}&apos;s passcode — shown once, relay it out-of-band
-            (text/call). It can&apos;t be shown again after you leave this page.
-          </p>
-          <div className="flex items-center gap-2">
-            <input
-              readOnly
-              value={created.passcode}
-              onFocus={(e) => e.target.select()}
-              aria-label="New client passcode"
-              className="w-full rounded-md border border-borderc bg-surface px-3 py-1.5 font-mono text-sm"
-            />
-            <button
-              type="button"
-              onClick={copyPasscode}
-              className="shrink-0 rounded-md border border-borderc px-3 py-1.5 text-sm hover:bg-surface"
-            >
-              {copied ? "Copied" : "Copy"}
-            </button>
+        <div className="mt-3 space-y-3 rounded-md border border-borderc bg-background p-3">
+          <div>
+            <p className="mb-2 text-xs text-muted">
+              {created.name}&apos;s passcode — shown once, relay it out-of-band
+              (text/call). It can&apos;t be shown again after you leave this page.
+            </p>
+            <div className="flex items-center gap-2">
+              <input
+                readOnly
+                value={created.passcode}
+                onFocus={(e) => e.target.select()}
+                aria-label="New client passcode"
+                className="w-full rounded-md border border-borderc bg-surface px-3 py-1.5 font-mono text-sm"
+              />
+              <button
+                type="button"
+                onClick={() => copyValue(created.passcode, setCopiedPasscode)}
+                className="shrink-0 rounded-md border border-borderc px-3 py-1.5 text-sm hover:bg-surface"
+              >
+                {copiedPasscode ? "Copied" : "Copy"}
+              </button>
+            </div>
+          </div>
+          <div>
+            <p className="mb-2 text-xs text-muted">
+              Their pairing ID — the one thing they enter in the companion app.
+            </p>
+            <div className="flex items-center gap-2">
+              <input
+                readOnly
+                value={created.referenceId}
+                onFocus={(e) => e.target.select()}
+                aria-label="New client pairing ID"
+                className="w-full rounded-md border border-borderc bg-surface px-3 py-1.5 font-mono text-sm"
+              />
+              <button
+                type="button"
+                onClick={() => copyValue(created.referenceId, setCopiedReferenceId)}
+                className="shrink-0 rounded-md border border-borderc px-3 py-1.5 text-sm hover:bg-surface"
+              >
+                {copiedReferenceId ? "Copied" : "Copy"}
+              </button>
+            </div>
           </div>
         </div>
       )}
