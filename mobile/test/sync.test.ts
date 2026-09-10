@@ -135,6 +135,11 @@ test("the sync plan is narrowed to nutrition only", async () => {
 });
 
 test("happy path posts nutrition and records status + cursor", async () => {
+  // serverUrl/apiKey are build-baked (VIK-113/VIK-130) — loadConfig() always
+  // reads them from Constants.expoConfig.extra, never from what's saved
+  // here, so the Authorization header this test asserts on has to be
+  // controlled via __setExtra, not saveConfig.
+  __setExtra({ serverUrl: "https://prep.example.com", apiKey: "k" });
   await saveConfig({
     serverUrl: "https://prep.example.com",
     apiKey: "k",
@@ -165,6 +170,7 @@ test("happy path posts nutrition and records status + cursor", async () => {
 });
 
 test("omits the Authorization header when no API key is set", async () => {
+  __setExtra({ serverUrl: "https://prep.example.com", apiKey: "" });
   await saveConfig({
     serverUrl: "https://prep.example.com",
     apiKey: "",
@@ -178,6 +184,7 @@ test("omits the Authorization header when no API key is set", async () => {
 });
 
 test("trims a trailing slash from the server URL", async () => {
+  __setExtra({ serverUrl: "https://prep.example.com/", apiKey: "" });
   await saveConfig({
     serverUrl: "https://prep.example.com/",
     apiKey: "",

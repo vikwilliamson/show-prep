@@ -18,19 +18,32 @@ function bakedInDefault(key: "serverUrl" | "apiKey"): string {
   return typeof value === "string" ? value : "";
 }
 
+// Only referenceId/deviceId are ever persisted — serverUrl/apiKey are
+// build-baked (see CompanionConfig's field comments) and must always come
+// from the current build's Constants.expoConfig.extra, never from storage.
+// A device upgrading from a pre-VIK-113 install (when Server URL/API key
+// were manually-typed fields) would otherwise keep a stale full config
+// blob in AsyncStorage forever, silently sending sync requests to whatever
+// dev URL was typed in months ago.
+interface StoredConfig {
+  referenceId: string;
+  deviceId: string;
+}
+
 export async function loadConfig(): Promise<CompanionConfig> {
   const raw = await AsyncStorage.getItem(CONFIG_KEY);
-  if (raw) return JSON.parse(raw);
+  const stored: Partial<StoredConfig> = raw ? JSON.parse(raw) : {};
   return {
     serverUrl: bakedInDefault("serverUrl"),
     apiKey: bakedInDefault("apiKey"),
-    referenceId: "",
-    deviceId: `galaxy-${Math.random().toString(36).slice(2, 8)}`,
+    referenceId: stored.referenceId ?? "",
+    deviceId: stored.deviceId ?? `galaxy-${Math.random().toString(36).slice(2, 8)}`,
   };
 }
 
 export async function saveConfig(config: CompanionConfig): Promise<void> {
-  await AsyncStorage.setItem(CONFIG_KEY, JSON.stringify(config));
+  const stored: StoredConfig = { referenceId: config.referenceId, deviceId: config.deviceId };
+  await AsyncStorage.setItem(CONFIG_KEY, JSON.stringify(stored));
 }
 
 export async function getCursor(type: string): Promise<string | null> {
