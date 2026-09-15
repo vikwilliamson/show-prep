@@ -113,8 +113,8 @@ End-to-end test of the real MyFitnessPal / Samsung Health → Health Connect →
 ingest path on your own phone, syncing into the deployed demo at
 **https://show-prep-gamma.vercel.app**.
 
-> ⚠️ **Shared demo database.** The Vercel deploy is the public portfolio demo,
-> seeded with sample data. Your real device data is upserted *alongside* those
+> ⚠️ **Shared demo database.** The Vercel deploy is the public demo, seeded
+> with sample data. Your real device data is upserted *alongside* those
 > seed rows (they never collide — seed rows use `seed-*` UIDs, yours use real
 > Health Connect UIDs), so the dashboard will show a mix. See
 > [Resetting the demo](#resetting-the-demo) to clean up afterward. The app only
@@ -184,9 +184,9 @@ tags your rows' provenance so you can tell them apart from seed data.
 
 ### 5. Verify on the dashboard
 
-Open **https://show-prep-gamma.vercel.app**, click **Enter demo** (or use the
-demo password), and confirm your synced weigh-ins / meals / hydration now appear
-in the dashboard trends and the current week's compliance.
+Open **https://show-prep-gamma.vercel.app**, log in with the demo passcode,
+and confirm your synced weigh-ins / meals / hydration now appear in the
+dashboard trends and the current week's compliance.
 
 > Background sync runs roughly hourly via WorkManager and only when the OS
 > allows it. If numbers look stale, just open the app and tap **Sync now** — the

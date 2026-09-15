@@ -410,11 +410,12 @@ E.g. `app/check-in/page.tsx:88-92,111-115`, `app/documents/page.tsx:74,
 into user-facing strings (`app/api/documents/route.ts:160,170`). Low risk
 for a single-operator app; worth tracking if it's ever opened to more users.
 
-### 5.8 Demo passcode shipped via a `NEXT_PUBLIC_PASSWORD`-named env var — `low`
-`app/login/page.tsx:9` reads `NEXT_PUBLIC_DEMO_PASSWORD`, which Next.js
-inlines client-side. Intentional and harmless today (the value is already
-shown on the login screen), but the `NEXT_PUBLIC_` + "PASSWORD" naming
-pattern is a footgun if ever reused for a real credential.
+### 5.8 Demo passcode shipped via a `NEXT_PUBLIC_PASSWORD`-named env var — `low` — RESOLVED 2026-09-14 (VIK-132)
+`app/login/page.tsx`'s `NEXT_PUBLIC_DEMO_PASSWORD`-gated one-click demo
+button is removed entirely — the passcode field is the only login path now,
+so there's no client-exposed credential left to name badly. The demo
+account itself still exists, seeded via `SEED_COACH_PASSCODE`/
+`SEED_CLIENT_PASSCODE` (server-side only, see `.env.example`).
 
 ---
 
