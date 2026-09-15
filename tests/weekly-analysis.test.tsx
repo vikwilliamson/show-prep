@@ -65,4 +65,16 @@ describe("WeeklyAnalysis", () => {
     render(<WeeklyAnalysis weekStart="2026-08-31" initialAnalysis="Great week overall." />);
     expect(screen.getByText("AI-assisted")).toBeInTheDocument();
   });
+
+  it("renders Markdown formatting instead of literal syntax characters", () => {
+    render(
+      <WeeklyAnalysis
+        weekStart="2026-08-31"
+        initialAnalysis={"## Heading\n\n- list item\n\n**bold text**"}
+      />,
+    );
+    expect(screen.getByRole("heading", { level: 2, name: "Heading" })).toBeInTheDocument();
+    expect(screen.getByRole("listitem")).toHaveTextContent("list item");
+    expect(screen.getByText("bold text").tagName).toBe("STRONG");
+  });
 });

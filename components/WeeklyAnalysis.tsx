@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { errorMessage, fetchJson } from "@/lib/client-fetch";
 import { AiBadge } from "@/components/AiBadge";
+import { MarkdownContent } from "@/components/MarkdownContent";
 
 export function WeeklyAnalysis({
   weekStart,
@@ -37,7 +38,9 @@ export function WeeklyAnalysis({
       {analysis ? (
         <>
           <AiBadge detail="Grounded in this week's synced macro, weight, water, and sleep data." />
-          <div className="whitespace-pre-wrap text-sm leading-relaxed">{analysis}</div>
+          <div className="text-sm leading-relaxed">
+            <MarkdownContent content={analysis} />
+          </div>
         </>
       ) : (
         <p className="text-sm text-muted">

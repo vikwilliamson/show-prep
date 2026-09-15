@@ -4,6 +4,7 @@ import { useState } from "react";
 import { errorMessage, fetchJson } from "@/lib/client-fetch";
 import { localDateOf } from "@/lib/dates";
 import { AiBadge } from "@/components/AiBadge";
+import { MarkdownContent } from "@/components/MarkdownContent";
 
 type BriefRow = {
   status: string;
@@ -78,12 +79,22 @@ export function CoachBrief({
     <div className="space-y-3">
       {hasBrief && <AiBadge detail="Grounded in this week's synced data." />}
       {hasBrief ? (
-        <textarea
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          rows={10}
-          className="w-full rounded-md border border-borderc bg-surface p-2 text-sm leading-relaxed"
-        />
+        <>
+          <textarea
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            rows={10}
+            className="w-full rounded-md border border-borderc bg-surface p-2 text-sm leading-relaxed"
+          />
+          <div>
+            <h3 className="mb-1 text-xs font-semibold tracking-wide text-muted uppercase">
+              Preview — what the client will see
+            </h3>
+            <div className="rounded-md border border-borderc bg-background p-2 text-sm leading-relaxed">
+              <MarkdownContent content={content} />
+            </div>
+          </div>
+        </>
       ) : (
         <p className="text-sm text-muted">No brief yet for the week of {weekStart}.</p>
       )}

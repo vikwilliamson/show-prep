@@ -39,6 +39,28 @@ describe("CoachBrief", () => {
     expect(screen.getByText("AI-assisted")).toBeInTheDocument();
   });
 
+  it("renders a live Markdown preview alongside the raw-text textarea, updating as the coach types", async () => {
+    render(
+      <CoachBrief
+        accountId={1}
+        weekStart="2026-08-31"
+        initialBrief={{ status: "draft", content: "## Heading\n\n- list item", approvedAt: null }}
+      />,
+    );
+
+    // The textarea holds the raw markdown source, unrendered.
+    expect(screen.getByRole("textbox")).toHaveValue("## Heading\n\n- list item");
+    // The preview renders it as actual DOM elements.
+    expect(screen.getByRole("heading", { level: 2, name: "Heading" })).toBeInTheDocument();
+    expect(screen.getByRole("listitem")).toHaveTextContent("list item");
+
+    const textarea = screen.getByRole("textbox");
+    await userEvent.clear(textarea);
+    await userEvent.type(textarea, "**bold now**");
+
+    expect(screen.getByText("bold now").tagName).toBe("STRONG");
+  });
+
   it("shows 'Approved {date}' and a disabled Approve control once already approved, but keeps the textarea editable", () => {
     render(
       <CoachBrief
@@ -70,7 +92,7 @@ describe("CoachBrief", () => {
     expect(screen.getByRole("button", { name: "Writing brief…" })).toBeDisabled();
 
     resolveFetch(jsonResponse(200, { status: "draft", content: "New draft text.", approvedAt: null }));
-    await waitFor(() => expect(screen.getByText("New draft text.")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("textbox")).toHaveValue("New draft text."));
     expect(screen.getByRole("button", { name: "Regenerate brief" })).toBeEnabled();
     expect(screen.getByText("AI-assisted")).toBeInTheDocument();
   });

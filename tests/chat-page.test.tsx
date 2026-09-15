@@ -110,3 +110,25 @@ describe("ChatPage AI transparency badge", () => {
     expect(screen.queryByText("AI-assisted")).not.toBeInTheDocument();
   });
 });
+
+describe("ChatPage markdown rendering", () => {
+  afterEach(() => {
+    fetchJsonMock.mockReset();
+  });
+
+  it("renders Markdown formatting in assistant replies instead of literal syntax characters", async () => {
+    fetchJsonMock.mockResolvedValueOnce([
+      {
+        id: 1,
+        role: "assistant",
+        content: "## Heading\n\n- list item\n\n**bold text**",
+        sources: null,
+      },
+    ]);
+    render(<ChatPage />);
+
+    expect(await screen.findByRole("heading", { level: 2, name: "Heading" })).toBeInTheDocument();
+    expect(screen.getByRole("listitem")).toHaveTextContent("list item");
+    expect(screen.getByText("bold text").tagName).toBe("STRONG");
+  });
+});

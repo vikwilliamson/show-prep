@@ -28,4 +28,15 @@ describe("CoachBriefCard", () => {
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
+
+  it("renders Markdown formatting instead of literal syntax characters", () => {
+    render(
+      <CoachBriefCard
+        brief={{ status: "approved", content: "## Heading\n\n- list item\n\n**bold text**" }}
+      />,
+    );
+    expect(screen.getByRole("heading", { level: 2, name: "Heading" })).toBeInTheDocument();
+    expect(screen.getByRole("listitem")).toHaveTextContent("list item");
+    expect(screen.getByText("bold text").tagName).toBe("STRONG");
+  });
 });
