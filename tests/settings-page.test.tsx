@@ -158,6 +158,43 @@ describe("SettingsPage onboarding email", () => {
   });
 });
 
+describe("SettingsPage coach-only sections", () => {
+  afterEach(() => {
+    fetchJsonMock.mockReset();
+  });
+
+  it("hides the Nutrition target and Weekly targets sections from a client-role session", async () => {
+    fetchJsonMock.mockResolvedValueOnce(SETTINGS_RESPONSE);
+    render(<SettingsPage />);
+
+    await screen.findByLabelText("Companion pairing ID");
+    expect(screen.queryByText("Nutrition target")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Weekly targets (check-in thresholds)"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("still shows the Target section and Save button to a client-role session", async () => {
+    fetchJsonMock.mockResolvedValueOnce(SETTINGS_RESPONSE);
+    render(<SettingsPage />);
+
+    expect(await screen.findByLabelText("Target name")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Save settings" }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the Nutrition target and Weekly targets sections to a coach-role session", async () => {
+    fetchJsonMock.mockResolvedValueOnce({ ...SETTINGS_RESPONSE, role: "coach" });
+    render(<SettingsPage />);
+
+    expect(await screen.findByText("Nutrition target")).toBeInTheDocument();
+    expect(
+      screen.getByText("Weekly targets (check-in thresholds)"),
+    ).toBeInTheDocument();
+  });
+});
+
 describe("SettingsPage save guard", () => {
   afterEach(() => {
     fetchJsonMock.mockReset();
