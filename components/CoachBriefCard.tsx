@@ -4,6 +4,7 @@
 // internal coach-facing document, not something the client sees.
 
 import { AiBadge } from "@/components/AiBadge";
+import { MarkdownContent } from "@/components/MarkdownContent";
 
 export function CoachBriefCard({
   brief,
@@ -19,7 +20,9 @@ export function CoachBriefCard({
       </h2>
       <div className="space-y-3">
         <AiBadge detail="Grounded in this week's synced data." />
-        <div className="whitespace-pre-wrap text-sm leading-relaxed">{brief.content}</div>
+        <div className="text-sm leading-relaxed">
+          <MarkdownContent content={brief.content} />
+        </div>
       </div>
     </section>
   );
