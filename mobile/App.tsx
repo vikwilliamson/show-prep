@@ -259,18 +259,19 @@ function DashboardView({
 
       <View style={styles.statusBox}>
         <Text style={styles.statusTitle}>
-          {data.protocol ? "Active protocol" : "Nutrition target"}
+          {data.nutritionTarget?.source === "protocol" ? "Active protocol" : "Nutrition target"}
         </Text>
-        {data.protocol ? (
+        {data.nutritionTarget ? (
           <>
-            <Text style={styles.statusText}>{data.protocol.calories ?? "—"} kcal</Text>
+            <Text style={styles.statusText}>{data.nutritionTarget.calories ?? "—"} kcal</Text>
             <Text style={styles.statusDetail}>
-              {data.protocol.proteinG ?? "?"}P / {data.protocol.carbsG ?? "?"}C /{" "}
-              {data.protocol.fatG ?? "?"}F
+              {data.nutritionTarget.proteinG ?? "?"}P / {data.nutritionTarget.carbsG ?? "?"}C /{" "}
+              {data.nutritionTarget.fatG ?? "?"}F
+              {data.nutritionTarget.source === "manual" && " · manual target, no active coach protocol"}
             </Text>
           </>
         ) : (
-          <Text style={styles.statusText}>No active protocol set</Text>
+          <Text style={styles.statusText}>No nutrition target set</Text>
         )}
       </View>
 

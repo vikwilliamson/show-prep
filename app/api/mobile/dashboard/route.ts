@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getAccountByReferenceId } from "@/lib/auth";
 import { checkIngestAuth } from "@/lib/ingest/auth";
 import { mondayOf, todayLocal } from "@/lib/dates";
-import { dashboardData, weekStats } from "@/lib/stats";
+import { dashboardData, effectiveMacroTargets, weekStats } from "@/lib/stats";
 
 // GET /api/mobile/dashboard?referenceId=<uuid> — the companion app's
 // counterpart to /api/clients/[accountId]/dashboard. Same dashboardData()/
@@ -28,6 +28,24 @@ export async function GET(req: NextRequest) {
   const weekStart = mondayOf(todayLocal(dashboard.settings.timezone));
   const stats = await weekStats(accountId, weekStart);
 
+  // Mirrors app/page.tsx's web dashboard: an active protocol's macros win
+  // when one exists, otherwise fall back to the account's manual Settings
+  // target (VIK-138) — a client with no active protocol still sees the
+  // coach-set target they can no longer edit themselves (VIK-136).
+  const macroTargets = effectiveMacroTargets(dashboard.settings, dashboard.protocol);
+  const fromProtocol = dashboard.protocol?.calories != null;
+  const nutritionTarget =
+    macroTargets.calories != null
+      ? {
+          calories: macroTargets.calories,
+          proteinG: macroTargets.proteinG,
+          carbsG: macroTargets.carbsG,
+          fatG: macroTargets.fatG,
+          source: fromProtocol ? ("protocol" as const) : ("manual" as const),
+          effectiveFrom: fromProtocol ? dashboard.protocol!.effectiveFrom : null,
+        }
+      : null;
+
   // dashboardData()/weekStats() compute far more than the mobile screen
   // shows (90-day weightSeries/weightTrend, 13-day compliance, per-day
   // water/sleep/training arrays, raw settings/protocol rows) — trim to what
@@ -39,15 +57,7 @@ export async function GET(req: NextRequest) {
         targetDate: dashboard.settings.targetDate,
         targetWeightLbs: dashboard.settings.targetWeightLbs,
       },
-      protocol: dashboard.protocol
-        ? {
-            calories: dashboard.protocol.calories,
-            proteinG: dashboard.protocol.proteinG,
-            carbsG: dashboard.protocol.carbsG,
-            fatG: dashboard.protocol.fatG,
-            effectiveFrom: dashboard.protocol.effectiveFrom,
-          }
-        : null,
+      nutritionTarget,
       daysToTarget: dashboard.daysToTarget,
       latestWeight: dashboard.latestWeight
         ? { weightLbs: dashboard.latestWeight.weightLbs }

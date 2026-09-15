@@ -15,11 +15,12 @@ const baseConfig: CompanionConfig = {
 const apiPayload = {
   dashboard: {
     settings: { targetName: "Beach trip", targetDate: "2026-12-01", targetWeightLbs: 180 },
-    protocol: {
+    nutritionTarget: {
       calories: 2100,
       proteinG: 210,
       carbsG: 185,
       fatG: 55,
+      source: "protocol" as const,
       effectiveFrom: "2026-07-06",
     },
     daysToTarget: 30,
@@ -120,11 +121,12 @@ test("summarizes the API response into the screen's flat shape", async () => {
     currentWeightLbs: 185.5,
     weeklyChangeLbs: -0.6,
     targetWeightLbs: 180,
-    protocol: {
+    nutritionTarget: {
       calories: 2100,
       proteinG: 210,
       carbsG: 185,
       fatG: 55,
+      source: "protocol",
       effectiveFrom: "2026-07-06",
     },
     water: apiPayload.stats.water,
@@ -133,18 +135,39 @@ test("summarizes the API response into the screen's flat shape", async () => {
   });
 });
 
-test("handles no active protocol and no synced weight yet", async () => {
+test("handles no nutrition target at all and no synced weight yet", async () => {
   installFetch(() => ({
     ok: true,
     json: {
       ...apiPayload,
-      dashboard: { ...apiPayload.dashboard, protocol: null, latestWeight: null },
+      dashboard: { ...apiPayload.dashboard, nutritionTarget: null, latestWeight: null },
     },
   }));
 
   const summary = await fetchDashboard(baseConfig);
-  assert.equal(summary.protocol, null);
+  assert.equal(summary.nutritionTarget, null);
   assert.equal(summary.currentWeightLbs, null);
+});
+
+test("passes through a manual-source nutrition target (no active protocol)", async () => {
+  const manualTarget = {
+    calories: 2200,
+    proteinG: 180,
+    carbsG: 220,
+    fatG: 70,
+    source: "manual" as const,
+    effectiveFrom: null,
+  };
+  installFetch(() => ({
+    ok: true,
+    json: {
+      ...apiPayload,
+      dashboard: { ...apiPayload.dashboard, nutritionTarget: manualTarget },
+    },
+  }));
+
+  const summary = await fetchDashboard(baseConfig);
+  assert.deepEqual(summary.nutritionTarget, manualTarget);
 });
 
 test("a non-ok response throws with status and body", async () => {

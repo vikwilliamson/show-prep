@@ -101,6 +101,38 @@ logic on-device.
   phase-2-nutrition.md`'s §3 iOS spike is itself unstarted); this spec is
   Android-only by inheritance, not by a separate decision.
 
+## 2026-09-15 update (VIK-138)
+
+Surfaced by a PR review comment on VIK-136 (which gated the "Nutrition
+target"/"Weekly targets" sections in `/settings` behind `role === "coach"`):
+once a client can't see those fields in Settings, the dashboard becomes the
+*only* place they can see a coach-set nutrition target — so both dashboards
+need to actually show it.
+
+Audited both: the web dashboard (`app/page.tsx`) was already correct —
+`effectiveMacroTargets(settings, protocol)` (`lib/stats.ts`) falls back to
+the manual Settings target when there's no active protocol, and weekly
+targets are shown via `weekStats()` regardless. The mobile dashboard
+(this spec, shipped as VIK-117) had the weekly-targets half right but
+passed the *active protocol's* macros through verbatim with no fallback —
+a client with no active protocol and only a manual Settings target saw
+nothing.
+
+Fixed by having `app/api/mobile/dashboard/route.ts` compute
+`effectiveMacroTargets(dashboard.settings, dashboard.protocol)` itself
+(same call `app/page.tsx` already makes) instead of forwarding
+`dashboard.protocol` raw, and reshaping the response field from `protocol`
+to `nutritionTarget: { calories, proteinG, carbsG, fatG, source: "protocol"
+| "manual", effectiveFrom }` — `source` lets the screen keep showing
+"Active protocol" vs. "Nutrition target" the same way the web app
+distinguishes the two, without the mobile screen needing its own
+protocol-vs-manual precedence logic (that stays server-side, in
+`effectiveMacroTargets()`, the single source of truth both dashboards now
+call). `mobile/src/dashboard.ts` and `mobile/App.tsx`'s `DashboardView`
+updated to match; `mobile/test/dashboard.test.ts` and
+`tests/mobile-dashboard-route.test.ts` extended to cover the
+protocol-wins-when-both-exist and manual-fallback-when-no-protocol cases.
+
 ## Further Notes
 
 - This is the second of two specs the same grill session produced
