@@ -41,6 +41,7 @@ export default async function Dashboard() {
   const jar = await cookies();
   const session = getCurrentAccount(jar.get(SESSION_COOKIE)?.value);
   if (!session) redirect("/login");
+  if (session.role === "coach") redirect("/clients");
 
   const data = await dashboardData(session.accountId);
   const { settings, protocol } = data;
