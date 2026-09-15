@@ -63,6 +63,12 @@ test("client session hitting / is unaffected — still renders the dashboard", a
   const ui = await Dashboard();
   assert.equal(redirectedTo, undefined);
   render(ui);
+
+  assert.equal(
+    screen.queryByRole("link", { name: /coach check-in/i }),
+    null,
+    "the dead /check-in drafting flow's link must not render on the dashboard",
+  );
 });
 
 test("dashboard never renders an unapproved coach-brief draft's content", async () => {

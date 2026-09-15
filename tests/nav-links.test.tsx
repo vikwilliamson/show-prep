@@ -56,7 +56,6 @@ describe("NavLinks", () => {
       "Dashboard",
       "Clients",
       "Documents",
-      "Check-In",
       "Doc Chat",
       "Settings",
     ]);

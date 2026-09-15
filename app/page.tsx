@@ -227,14 +227,6 @@ export default async function Dashboard() {
               </li>
             )}
           </ul>
-          <div className="mt-4">
-            <Link
-              href="/check-in"
-              className="inline-block rounded-md border border-borderc px-3 py-1.5 text-sm font-medium hover:bg-borderc/30"
-            >
-              Draft this week&apos;s coach check-in →
-            </Link>
-          </div>
         </Card>
       </div>
     </div>
