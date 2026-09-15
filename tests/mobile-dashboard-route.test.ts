@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
+import { eq } from "drizzle-orm";
 import { afterEach, test } from "vitest";
 import { NextRequest } from "next/server";
-import { getDb, weightEntries } from "../lib/db";
+import { getDb, protocols, settings, weightEntries } from "../lib/db";
 import { todayLocal } from "../lib/dates";
+import { getSettings } from "../lib/stats";
 import { GET } from "../app/api/mobile/dashboard/route";
 import { createAccountTracker } from "./helpers";
 
@@ -57,7 +59,7 @@ test("GET /api/mobile/dashboard trims the response to the fields the companion a
   assert.deepEqual(Object.keys(json.dashboard).sort(), [
     "daysToTarget",
     "latestWeight",
-    "protocol",
+    "nutritionTarget",
     "settings",
     "weeklyChangeLbs",
   ]);
@@ -104,4 +106,62 @@ test("GET /api/mobile/dashboard scopes stats/weekStats to the resolved account o
   assert.equal(res.status, 200);
   const json = await res.json();
   assert.notEqual(json.dashboard.latestWeight?.weightLbs, 999, "must not leak another account's data");
+});
+
+test("GET /api/mobile/dashboard returns a null nutritionTarget when there's no active protocol and no manual target", async () => {
+  const account = await makeAccount("Mobile Dashboard Route Test No Target");
+  const res = await GET(requestWithReferenceId(account.referenceId));
+  const json = await res.json();
+  assert.equal(json.dashboard.nutritionTarget, null);
+});
+
+test("GET /api/mobile/dashboard falls back to the manual settings target when there's no active protocol", async () => {
+  const account = await makeAccount("Mobile Dashboard Route Test Manual Target");
+  const db = await getDb();
+  await getSettings(account.id); // bootstraps the default row so UPDATE has one to match
+  await db
+    .update(settings)
+    .set({ targetCalories: 2200, targetProteinG: 180, targetCarbsG: 220, targetFatG: 70 })
+    .where(eq(settings.accountId, account.id));
+
+  const res = await GET(requestWithReferenceId(account.referenceId));
+  const json = await res.json();
+  assert.deepEqual(json.dashboard.nutritionTarget, {
+    calories: 2200,
+    proteinG: 180,
+    carbsG: 220,
+    fatG: 70,
+    source: "manual",
+    effectiveFrom: null,
+  });
+});
+
+test("GET /api/mobile/dashboard prefers the active protocol's macros over a manual target when both exist", async () => {
+  const account = await makeAccount("Mobile Dashboard Route Test Protocol Wins");
+  const db = await getDb();
+  await getSettings(account.id); // bootstraps the default row so UPDATE has one to match
+  await db
+    .update(settings)
+    .set({ targetCalories: 2200, targetProteinG: 180, targetCarbsG: 220, targetFatG: 70 })
+    .where(eq(settings.accountId, account.id));
+  await db.insert(protocols).values({
+    accountId: account.id,
+    status: "active",
+    effectiveFrom: "2026-01-01",
+    calories: 2100,
+    proteinG: 210,
+    carbsG: 185,
+    fatG: 55,
+  });
+
+  const res = await GET(requestWithReferenceId(account.referenceId));
+  const json = await res.json();
+  assert.deepEqual(json.dashboard.nutritionTarget, {
+    calories: 2100,
+    proteinG: 210,
+    carbsG: 185,
+    fatG: 55,
+    source: "protocol",
+    effectiveFrom: "2026-01-01",
+  });
 });

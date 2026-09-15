@@ -14,11 +14,17 @@ export interface DashboardSummary {
   currentWeightLbs: number | null;
   weeklyChangeLbs: number | null;
   targetWeightLbs: number | null;
-  protocol: {
+  // An active coach protocol's macros when one exists, otherwise the
+  // account's manual Settings target (`source` says which) — mirrors the
+  // web dashboard's effectiveMacroTargets() fallback (VIK-138), so a client
+  // with no active protocol still sees the coach-set target they can no
+  // longer edit from /settings themselves (VIK-136).
+  nutritionTarget: {
     calories: number | null;
     proteinG: number | null;
     carbsG: number | null;
     fatG: number | null;
+    source: "protocol" | "manual";
     effectiveFrom: string | null;
   } | null;
   water: { daysLogged: number; daysMet: number; avgLiters: number | null; targetLiters: number };
@@ -34,7 +40,7 @@ export interface DashboardSummary {
 interface DashboardApiResponse {
   dashboard: {
     settings: { targetName: string | null; targetDate: string | null; targetWeightLbs: number | null };
-    protocol: DashboardSummary["protocol"];
+    nutritionTarget: DashboardSummary["nutritionTarget"];
     daysToTarget: number | null;
     latestWeight: { weightLbs: number } | null;
     weeklyChangeLbs: number | null;
@@ -80,7 +86,7 @@ export async function fetchDashboard(config: CompanionConfig): Promise<Dashboard
     currentWeightLbs: dashboard.latestWeight?.weightLbs ?? null,
     weeklyChangeLbs: dashboard.weeklyChangeLbs,
     targetWeightLbs: dashboard.settings.targetWeightLbs,
-    protocol: dashboard.protocol,
+    nutritionTarget: dashboard.nutritionTarget,
     water: stats.water,
     sleep: stats.sleep,
     training: stats.training,
