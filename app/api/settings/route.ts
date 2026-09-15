@@ -51,6 +51,17 @@ const putSchema = z.object({
     .optional(),
 });
 
+// Nutrition target and weekly targets are coaching decisions, not something
+// a client sets for themselves (VIK-136) — a client session's write to
+// these fields is silently ignored rather than rejected, since the fields
+// aren't exposed in the client-role UI in the first place.
+const CLIENT_RESTRICTED_SETTINGS_FIELDS = [
+  "targetCalories",
+  "targetProteinG",
+  "targetCarbsG",
+  "targetFatG",
+] as const;
+
 export async function PUT(req: NextRequest) {
   const session = requireAccount(req);
   if (session instanceof NextResponse) return session;
@@ -63,12 +74,21 @@ export async function PUT(req: NextRequest) {
     );
   }
   const db = await getDb();
+  const isClient = session.role === "client";
 
-  if (parsed.data.settings && Object.keys(parsed.data.settings).length) {
+  const settingsUpdate = { ...parsed.data.settings };
+  if (isClient) {
+    for (const field of CLIENT_RESTRICTED_SETTINGS_FIELDS) {
+      delete settingsUpdate[field];
+    }
+  }
+  const targetsUpdate = isClient ? {} : { ...parsed.data.targets };
+
+  if (Object.keys(settingsUpdate).length) {
     const current = await getSettings(session.accountId);
     await db
       .update(settings)
-      .set(parsed.data.settings)
+      .set(settingsUpdate)
       .where(
         and(
           eq(settings.id, current.id),
@@ -76,11 +96,11 @@ export async function PUT(req: NextRequest) {
         ),
       );
   }
-  if (parsed.data.targets && Object.keys(parsed.data.targets).length) {
+  if (Object.keys(targetsUpdate).length) {
     const current = await getTargets(session.accountId);
     await db
       .update(weeklyTargets)
-      .set(parsed.data.targets)
+      .set(targetsUpdate)
       .where(
         and(
           eq(weeklyTargets.id, current.id),

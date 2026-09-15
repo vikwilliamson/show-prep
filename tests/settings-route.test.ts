@@ -15,8 +15,9 @@ function requestWithSession(
   method: "GET" | "PUT",
   accountId: number,
   body?: unknown,
+  role: "coach" | "client" = "client",
 ) {
-  const token = createSessionToken({ accountId, role: "client" });
+  const token = createSessionToken({ accountId, role });
   return new NextRequest("http://localhost/api/settings", {
     method,
     headers: {
@@ -81,14 +82,19 @@ test("PUT /api/settings only ever updates the caller's own row", async () => {
 test("PUT /api/settings accepts and persists the four manual macro target fields, scoped to the caller's account", async () => {
   const { id: a } = await makeAccount("Settings Route Test Macros");
   const putRes = await PUT(
-    requestWithSession("PUT", a, {
-      settings: {
-        targetCalories: 2200,
-        targetProteinG: 180,
-        targetCarbsG: 220,
-        targetFatG: 70,
+    requestWithSession(
+      "PUT",
+      a,
+      {
+        settings: {
+          targetCalories: 2200,
+          targetProteinG: 180,
+          targetCarbsG: 220,
+          targetFatG: 70,
+        },
       },
-    }),
+      "coach",
+    ),
   );
   assert.equal(putRes.status, 200);
   const putJson = await putRes.json();
@@ -103,6 +109,66 @@ test("PUT /api/settings accepts and persists the four manual macro target fields
     .from(settings)
     .where(eq(settings.accountId, a));
   assert.equal(row.targetCalories, 2200);
+});
+
+test("PUT /api/settings silently ignores nutrition-target fields for a client-role session, even alongside an allowed field in the same request", async () => {
+  const { id: a } = await makeAccount("Settings Route Test Client Nutrition Guard");
+  const putRes = await PUT(
+    requestWithSession("PUT", a, {
+      settings: {
+        targetName: "Client-set name",
+        targetCalories: 2200,
+        targetProteinG: 180,
+        targetCarbsG: 220,
+        targetFatG: 70,
+      },
+    }),
+  );
+  assert.equal(putRes.status, 200);
+  const putJson = await putRes.json();
+  assert.equal(putJson.settings.targetName, "Client-set name");
+  assert.equal(putJson.settings.targetCalories, null);
+  assert.equal(putJson.settings.targetProteinG, null);
+  assert.equal(putJson.settings.targetCarbsG, null);
+  assert.equal(putJson.settings.targetFatG, null);
+});
+
+test("PUT /api/settings silently ignores weekly-target fields for a client-role session", async () => {
+  const { id: a } = await makeAccount("Settings Route Test Client Weekly Guard");
+  const putRes = await PUT(
+    requestWithSession("PUT", a, {
+      targets: { waterMlMin: 5000 },
+    }),
+  );
+  assert.equal(putRes.status, 200);
+  const putJson = await putRes.json();
+  assert.equal(putJson.targets.waterMlMin, 3000);
+
+  const db = await getDb();
+  const [row] = await db
+    .select()
+    .from(weeklyTargets)
+    .where(eq(weeklyTargets.accountId, a));
+  assert.equal(row.waterMlMin, 3000);
+});
+
+test("PUT /api/settings allows a coach-role session to change nutrition-target and weekly-target fields", async () => {
+  const { id: a } = await makeAccount("Settings Route Test Coach Allowed");
+  const res = await PUT(
+    requestWithSession(
+      "PUT",
+      a,
+      {
+        settings: { targetCalories: 2200 },
+        targets: { waterMlMin: 5000 },
+      },
+      "coach",
+    ),
+  );
+  assert.equal(res.status, 200);
+  const json = await res.json();
+  assert.equal(json.settings.targetCalories, 2200);
+  assert.equal(json.targets.waterMlMin, 5000);
 });
 
 test("settings UPDATE only matches a row when both id and accountId agree, matching the WHERE clause PUT /api/settings uses", async () => {
@@ -139,7 +205,7 @@ test("settings UPDATE only matches a row when both id and accountId agree, match
 test("PUT /api/settings updates the caller's own weekly targets", async () => {
   const { id: a } = await makeAccount("Settings Route Test Targets");
   const res = await PUT(
-    requestWithSession("PUT", a, { targets: { waterMlMin: 4000 } }),
+    requestWithSession("PUT", a, { targets: { waterMlMin: 4000 } }, "coach"),
   );
   const json = await res.json();
   assert.equal(json.targets.waterMlMin, 4000);

@@ -160,6 +160,28 @@ messages:
   of scope for this pass, would need a constant-time full-table scan
   regardless of match position.
 
+- **VIK-136 — settings UI/API exposed coach-only fields to client sessions.**
+  `app/settings/page.tsx` showed the "Nutrition target" and "Weekly targets
+  (check-in thresholds)" sections to both roles, and `PUT /api/settings` had
+  no role check at all — a client session could already write
+  `targetCalories`/`targetProteinG`/`waterMlMin`/etc. via a direct API call,
+  the UI just didn't expose a way to do it. Fixed both: the two sections are
+  now gated behind `role === "coach"` in the page component, matching the
+  existing `AddClientSection` pattern; and the route strips
+  `targetCalories`/`targetProteinG`/`targetCarbsG`/`targetFatG` from the
+  `settings` update and drops the entire `targets` (weekly-targets) update
+  when the session role is `client`, before either UPDATE runs. Decision:
+  **silently ignore rather than reject** — since these fields aren't visible
+  in the client-role UI at all, a client-role request touching them is
+  either a stale/replayed payload from before this fix or a direct API
+  call, and a 4xx response wouldn't give a legitimate client-role user (who
+  can't see the fields) anything actionable to fix. Coach-role sessions are
+  unaffected — both sections and both writes stay unrestricted for
+  `role === "coach"`. Regression-tested in `tests/settings-route.test.ts`
+  (client PUT ignores restricted fields even alongside an allowed field in
+  the same request; coach PUT still changes them) and
+  `tests/settings-page.test.tsx` (sections present/absent by role).
+
 ## Test plan (TDD — write these first)
 
 - `lib/auth.ts`: unit tests for `getCurrentAccount`/`requireCoach` against valid, missing, expired, and tampered session cookies, and both roles.
