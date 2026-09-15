@@ -19,13 +19,15 @@ import {
   type SeedAccountConfig,
 } from "../lib/seed-data";
 
-// The demo login (app/login) advertises NEXT_PUBLIC_DEMO_PASSWORD as a
-// one-click credential when set — reuse it here so seeded data is reachable
-// through that same account out of the box.
+// SEED_COACH_PASSCODE only sets the passcode the *first* time this account
+// is created (findOrCreateAccount() is name-keyed and never overwrites an
+// existing row's passcode) — it has no effect once "Demo Coach" already
+// exists. To change an already-seeded demo account's passcode, use
+// `pnpm reset-demo-passcodes` instead.
 const COACH_CONFIG: SeedAccountConfig = {
   name: "Demo Coach",
   role: "coach",
-  passcode: process.env.NEXT_PUBLIC_DEMO_PASSWORD || "demo-coach-passcode",
+  passcode: process.env.SEED_COACH_PASSCODE || "demo-coach-passcode",
   targetName: "Summer Physique Shoot",
   targetNote: "first milestone of the year, building toward the next phase",
   programType: "physique_prep",

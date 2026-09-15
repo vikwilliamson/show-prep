@@ -15,6 +15,7 @@
     "db:migrate": "tsx scripts/migrate.ts",
     "seed": "node --env-file-if-exists=.env --env-file-if-exists=.env.local --import tsx scripts/seed.ts",
     "backfill-accounts": "node --env-file-if-exists=.env --env-file-if-exists=.env.local --import tsx scripts/backfill-accounts.ts",
+    "reset-demo-passcodes": "node --env-file-if-exists=.env --env-file-if-exists=.env.local --import tsx scripts/reset-demo-passcodes.ts",
     "db:reset-test": "neonctl branches reset test --parent --project-id aged-resonance-61061629",
     "db:reset-staging": "tsx scripts/reset-staging.ts",
     "fix:vercel-db-scoping": "tsx scripts/fix-vercel-db-scoping.ts",
