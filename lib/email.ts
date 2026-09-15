@@ -51,8 +51,8 @@ function renderOnboardingEmail({
       <strong>Pairing ID:</strong> ${escapeHtml(referenceId)}
     </p>
     <ol>
-      <li><a href="${appInstallUrl}">Install the app</a></li>
-      <li><a href="${setupGuideUrl}">Connect Health Connect / MyFitnessPal</a></li>
+      <li><a href="${escapeHtml(appInstallUrl)}">Install the app</a></li>
+      <li><a href="${escapeHtml(setupGuideUrl)}">Connect Health Connect / MyFitnessPal</a></li>
       <li>Open the app, log in with your passcode, then enter your pairing ID.</li>
     </ol>
   `.trim();
