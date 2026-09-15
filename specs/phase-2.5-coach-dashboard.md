@@ -93,3 +93,28 @@ route directly once it exists.
 - `GET /api/clients/[accountId]/dashboard` for a nonexistent or
   non-client account ID 404s rather than erroring or returning empty data
   silently.
+
+## 2026-09-15 addendum — client account Edit/Delete (VIK-134)
+
+`app/settings/page.tsx`'s `AddClientSection` covered create; there was no
+way to fix a typo in a client's name/email or to remove a client account
+entirely. Added `PATCH`/`DELETE /api/accounts/[accountId]`
+(`requireCoach()` + `getClientAccount()` scoping, same pattern as
+`app/api/accounts/[accountId]/onboarding-email/route.ts`) and a
+`ClientActions` component on `/clients/[accountId]`.
+
+- **Edit is scoped to name/email only** — passcode and role are
+  intentionally excluded. Passcode rotation is already flagged as
+  unbuilt/out-of-scope in `specs/mobile-companion-onboarding.md`'s "Out of
+  Scope" section; this pass doesn't fold it in. Role isn't editable because
+  nothing in the product needs to promote a client to coach (or vice
+  versa) — the single-coach assumption noted above means that's not a
+  supported operation at all right now.
+- **Delete requires typing the client's exact name** before the real
+  delete button enables, not just a single confirm click — this is a
+  cascading, irreversible destruction of every record tied to the account
+  (nutrition, weight, documents, briefs, everything) via VIK-78's
+  `ON DELETE CASCADE`. No "undo."
+- No new schema or `lib/auth.ts` changes — `deleteAccount()` already
+  existed (VIK-78) but was only exercised by tests until this ticket wired
+  it up to a real route and UI action.

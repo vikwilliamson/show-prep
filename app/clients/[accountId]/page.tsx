@@ -10,6 +10,7 @@ import { programTypeLabel } from "@/lib/program-types";
 import { WeightChart } from "@/components/WeightChart";
 import { ComplianceChart } from "@/components/ComplianceChart";
 import { CoachBrief } from "@/components/CoachBrief";
+import { ClientActions } from "@/components/ClientActions";
 
 export const dynamic = "force-dynamic";
 
@@ -76,6 +77,8 @@ export default async function ClientDashboard({
           ← All clients
         </Link>
       </div>
+
+      <ClientActions accountId={client.id} name={client.name} email={client.email} />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Card>
