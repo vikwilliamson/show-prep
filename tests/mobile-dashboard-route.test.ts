@@ -41,9 +41,50 @@ test("GET /api/mobile/dashboard returns the referenceId-resolved account's scope
   const res = await GET(requestWithReferenceId(account.referenceId));
   assert.equal(res.status, 200);
   const json = await res.json();
-  assert.ok(
-    json.dashboard.weightSeries.some((w: { weightLbs: number }) => w.weightLbs === 180),
-  );
+  assert.equal(json.dashboard.latestWeight.weightLbs, 180);
+});
+
+test("GET /api/mobile/dashboard trims the response to the fields the companion app consumes", async () => {
+  const account = await makeAccount("Mobile Dashboard Route Test Client Trim");
+  const res = await GET(requestWithReferenceId(account.referenceId));
+  assert.equal(res.status, 200);
+  const json = await res.json();
+
+  // Full dashboardData()/weekStats() payloads (90-day weightSeries/
+  // weightTrend, 13-day compliance, per-day water/sleep/training arrays,
+  // raw settings/protocol rows) are far more than the mobile screen shows —
+  // only a summary should cross the wire.
+  assert.deepEqual(Object.keys(json.dashboard).sort(), [
+    "daysToTarget",
+    "latestWeight",
+    "protocol",
+    "settings",
+    "weeklyChangeLbs",
+  ]);
+  assert.deepEqual(Object.keys(json.dashboard.settings).sort(), [
+    "targetDate",
+    "targetName",
+    "targetWeightLbs",
+  ]);
+  assert.deepEqual(Object.keys(json.stats).sort(), ["sleep", "training", "water"]);
+  assert.deepEqual(Object.keys(json.stats.water).sort(), [
+    "avgLiters",
+    "daysLogged",
+    "daysMet",
+    "targetLiters",
+  ]);
+  assert.deepEqual(Object.keys(json.stats.sleep).sort(), [
+    "avgHours",
+    "nightsLogged",
+    "nightsMet",
+    "targetHours",
+  ]);
+  assert.deepEqual(Object.keys(json.stats.training).sort(), [
+    "cardioCount",
+    "cardioTarget",
+    "strengthCount",
+    "strengthTarget",
+  ]);
 });
 
 test("GET /api/mobile/dashboard scopes stats/weekStats to the resolved account only", async () => {
@@ -62,8 +103,5 @@ test("GET /api/mobile/dashboard scopes stats/weekStats to the resolved account o
   const res = await GET(requestWithReferenceId(a.referenceId));
   assert.equal(res.status, 200);
   const json = await res.json();
-  assert.ok(
-    !json.dashboard.weightSeries.some((w: { weightLbs: number }) => w.weightLbs === 999),
-    "must not leak another account's data",
-  );
+  assert.notEqual(json.dashboard.latestWeight?.weightLbs, 999, "must not leak another account's data");
 });
