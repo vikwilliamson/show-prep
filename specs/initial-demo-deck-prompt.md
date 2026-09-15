@@ -92,9 +92,9 @@ app. I'll give you the base URL to use — ask me for it if it's not already
 in this conversation (either my local dev server, e.g. `http://localhost:3000`,
 or the deployed Vercel demo URL).
 
-Login: the app has a one-click seeded portfolio-demo login on `/login` (a
-button reading "Enter demo →") if `NEXT_PUBLIC_DEMO_PASSWORD` is configured
-in that environment. Use it if present. **Caveat:** the seeded demo account
+Login: `/login` is passcode-only (no one-click demo button — that was
+removed in VIK-132). I'll give you the seeded demo account's passcode.
+**Caveat:** the seeded demo account
 is a coach-only account with no seeded client, so `/clients` will render an
 empty client list through that path — if you hit that, tell me and I'll
 either give you real login credentials (coach account with a real client

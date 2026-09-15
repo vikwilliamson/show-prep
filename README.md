@@ -5,8 +5,8 @@ confirmed "active protocol", ingests real nutrition/health data from Health
 Connect via an Android companion app, and closes the loop with a compliance
 dashboard, an AI weekly analysis, and a generated coach check-in.
 
-> **Live demo:** https://show-prep-gamma.vercel.app — the login page has a
-> one-click "Enter demo" button; it's seeded with sample coaching data.
+> **Live demo:** https://show-prep-gamma.vercel.app — seeded with sample
+> coaching data; log in with the demo passcode.
 
 Monorepo layout (pnpm workspaces):
 
@@ -61,8 +61,10 @@ same Drizzle schema/migrations either way.
 2. Import the repo at [vercel.com/new](https://vercel.com/new) and set env vars:
    `DATABASE_URL`, `ANTHROPIC_API_KEY`, `VOYAGE_API_KEY`, `INGEST_API_KEY`
    (required in prod — the ingest API is public), `SESSION_SECRET`, and for a
-   public portfolio demo `NEXT_PUBLIC_DEMO_PASSWORD` (= a specific account's
-   passcode, see `scripts/backfill-accounts.ts`).
+   public demo `SEED_COACH_PASSCODE`/`SEED_CLIENT_PASSCODE` (see "Demo
+   account seeding" in `.env.example` — sets the seeded demo account's
+   passcode; there's no login-page shortcut, sign in with it like any other
+   account).
 3. Seed the deployed database with sample data + AI content from your machine:
 
    ```bash

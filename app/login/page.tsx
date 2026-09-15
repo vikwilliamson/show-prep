@@ -3,11 +3,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-// When NEXT_PUBLIC_DEMO_PASSWORD is set, the login screen advertises the demo
-// credential and offers a one-click entry — for portfolio/reviewer access.
-// Set it equal to the demo account's passcode in the deployment environment.
-const DEMO_PASSWORD = process.env.NEXT_PUBLIC_DEMO_PASSWORD;
-
 export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -37,24 +32,6 @@ export default function LoginPage() {
   return (
     <div className="flex flex-1 items-center justify-center py-24">
       <div className="w-full max-w-xs space-y-4">
-        {DEMO_PASSWORD && (
-          <div className="rounded-xl border border-accent/40 bg-accent/10 p-4 text-sm">
-            <p className="font-medium text-accent">Portfolio demo</p>
-            <p className="mt-1 text-muted">
-              This is a live demo seeded with sample coaching data. Click
-              below to explore the dashboard, check-in generator, and
-              document chat.
-            </p>
-            <button
-              onClick={() => login(DEMO_PASSWORD)}
-              disabled={busy}
-              className="mt-3 w-full rounded-md bg-accent px-3 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
-            >
-              {busy ? "Entering…" : "Enter demo →"}
-            </button>
-          </div>
-        )}
-
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -65,7 +42,7 @@ export default function LoginPage() {
           <h1 className="text-lg font-semibold">Gamma</h1>
           <input
             type="password"
-            autoFocus={!DEMO_PASSWORD}
+            autoFocus
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Passcode"
