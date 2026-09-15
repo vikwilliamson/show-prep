@@ -1,11 +1,11 @@
-# Mobile Companion — Client Dashboard View — Build Spec (Deferred)
+# Mobile Companion — Client Dashboard View — Build Spec
 
-**Status: deferred, not scheduled.** Raised during the same 2026-09-02
-`/grill-me` pass that produced `specs/mobile-companion-onboarding.md`, as a
-confirmed real gap rather than something to build now. Has no bearing on
-whether the demo's Android sync story works — the web dashboard already
-shows the same data the mobile app syncs. Written down so it isn't lost,
-not because it's next.
+**Status: shipped** (PR #82, closes VIK-117). Originally raised during the
+same 2026-09-02 `/grill-me` pass that produced `specs/mobile-companion-
+onboarding.md`, as a confirmed real gap rather than something to build
+immediately — written down so it wasn't lost, not because it was next.
+Implementation followed the "Screen scope, first pass" and "Implementation
+Decisions" below as written; see PR #82 for the final shape.
 
 **Depends on:** `specs/mobile-companion-onboarding.md` landing first
 (pairing/config simplification) — no point building a data-view screen on
