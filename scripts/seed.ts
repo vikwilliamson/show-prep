@@ -1,9 +1,9 @@
 /**
  * Seeds a realistic mid-program dataset so the dashboard and check-in are
  * demonstrable before the mobile companion has synced anything. Seeds two
- * accounts: the demo coach (self-coaching, logs in like any other account
- * with its passcode) and a demo client underneath it, so the coach
- * dashboard's client list has a real client to open.
+ * accounts: the demo coach (self-coaching, reachable via the portfolio demo
+ * login) and a demo client underneath it, so the coach dashboard's client
+ * list has a real client to open.
  *
  * Run with the dev server STOPPED (PGlite is single-process):
  *   pnpm seed
