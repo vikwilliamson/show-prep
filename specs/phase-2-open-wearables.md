@@ -37,7 +37,7 @@ and is the widest-blast-radius remaining piece of Phase 2.
 | Self-hosted deployment (Railway/Fly/Render) | Not started |
 | `OUTGOING_WEBHOOKS_ENABLED=true` + dedicated `svix-server` + its own Postgres, in the real deployment | Not started |
 | Live end-to-end webhook delivery smoke test | **Not done.** VIK-13 confirmed event-type registration against Svix works and the API surface is real, but never confirmed an actual payload lands on a receiver end to end — do this before calling §1 done, not just registration |
-| Hydration/water webhook coverage | **Unconfirmed — open question, see §1.** Neither spike ticket checked this specifically |
+| Hydration/water webhook coverage | **Resolved (2026-09-16) — Android yes, iOS no.** See §1 |
 
 ## Corrections to the `phase-2-terra.md` predecessor
 
@@ -113,19 +113,36 @@ which is exactly right if the vendor ever changes again).
     `sleep.created` → `sleepSessions`, `workout.created` → `workouts`,
     `activity.created` plus the steps/calories timeseries groups →
     `dailyActivity`, a body-composition timeseries group → `weightEntries`.
-  - **Open question — resolve before writing the normalization logic**: does
-    Open Wearables emit a hydration/water event independent of its
-    (confirmed backend-dead) `Meal`/`Macros` nutrition schema? VIK-12's
-    spike found `water_ml` living *inside* that same orphaned `Meal` schema
-    that's never populated by any route — if water is only ever surfaced via
-    that nutrition path, `hydrationEntries` has the identical "not actually
-    wired up" problem nutrition does, and hydration ingestion would need to
-    move into `specs/phase-2-nutrition.md`'s direct pipeline instead of
-    staying here. VIK-12 was scoped to macro/calorie fields and didn't check
-    this specifically — check the webhook event-type catalog and
-    `docs/sdk/*/index.mdx` for a standalone water/hydration identifier
-    outside the Nutrition accordion before assuming this table stays in
-    scope here.
+  - **Resolved 2026-09-16 — hydration is real and independent of the dead
+    nutrition schema, but Android-only.** Checked the local Open Wearables
+    checkout (`open-wearables-spike/`, same `d9a64bf` clone VIK-12/13 used)
+    directly rather than relying on docs:
+    - Android/Health Connect's `HYDRATION` record type is its own first-class
+      SDK metric (`SDKMetricType.ANDROID_HYDRATION`,
+      `backend/app/constants/series_types/sdk/metric_types.py:131`), mapped
+      to `SeriesType.hydration` and wired to a dedicated, real webhook event
+      — `series.hydration.created`
+      (`backend/app/schemas/webhooks/event_types.py:149`,
+      `backend/app/constants/webhooks/events.py:175`). This is a completely
+      separate code path from the orphaned `Meal`/`Macros` nutrition schema
+      VIK-12 found dead — `hydrationEntries` is **not** affected by that gap
+      and stays in scope for this spec, at least for Android.
+    - **iOS has no equivalent.** `grep -rn -i "water" backend/app/services/
+      apple` and a repo-wide search for `DietaryWater`/`dietary_water`
+      return nothing — HealthKit's `HKQuantityTypeIdentifierDietaryWater` is
+      never referenced anywhere in the backend. This matches VIK-12's
+      broader finding that HealthKit's entire `Dietary*` family is
+      unmapped, not a separate gap.
+    - **Net: hydration is asymmetric across platforms, same shape as the
+      nutrition gap.** Android hydration → `hydrationEntries` via this
+      spec's webhook receiver, works today. iOS hydration has no path
+      through Open Wearables at all — either accept "no iOS hydration for
+      now" or fold it into `specs/phase-2-nutrition.md`'s iOS HealthKit
+      spike (§3 there) as one more `Dietary*`-adjacent type to capture
+      directly, the same way that spec is already doing for
+      protein/carbs/fat/calories. Recommend the latter, decided when that
+      spec's iOS spike is scoped, not here — don't let this spec block on
+      it.
   - `menstrual_cycle.created` has no corresponding table today — out of
     scope; note it for a future ticket if the product ever wants it, don't
     build speculatively.
@@ -217,17 +234,16 @@ buildable in parallel with any of it.
 
 ## Recommended sequencing
 
-1. Resolve the hydration open question in §1 — a docs/webhook-catalog check,
-   no device needed, same style of check VIK-12/13 already did.
-2. Self-hosted deployment (§2) — infra prerequisite for everything else;
+1. Self-hosted deployment (§2) — infra prerequisite for everything else;
    can start now, independent of any application code.
-3. Backend webhook receiver (§1) — buildable/testable against the
-   self-hosted instance once §2's environment is up.
-4. Live end-to-end delivery smoke test (§2) — required before §1/§3 count as
+2. Backend webhook receiver (§1) — buildable/testable against the
+   self-hosted instance once §2's environment is up. Covers weight,
+   hydration (Android only — see §1), sleep, workouts, daily activity.
+3. Live end-to-end delivery smoke test (§2) — required before §1/§2 count as
    done.
-5. Manual entry fallback (§5) — no dependency on anything above; fine to
+4. Manual entry fallback (§5) — no dependency on anything above; fine to
    slot in anytime, including right now, in parallel.
-6. Mobile SDK integration (§3) — once §1 is confirmed working end to end.
+5. Mobile SDK integration (§3) — once §1 is confirmed working end to end.
 7. Consent flow (§4) — must land before §3 (or anything else) connects a
    real account, but has no hard ordering dependency on the others otherwise.
 

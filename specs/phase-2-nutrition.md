@@ -260,6 +260,21 @@ client, same pattern this app already uses for Android (`expo prebuild`,
 EAS `development`/`preview` profiles) — not a new paradigm, just extending
 one already adopted.
 
+### 2026-09-16 — iOS hydration is this pipeline's problem too, not Open Wearables'
+
+Checking `specs/phase-2-open-wearables.md`'s hydration open question (VIK-14)
+found: Open Wearables has a real, working `series.hydration.created` webhook
+for Android's Health Connect `HYDRATION` type — independent of the dead
+`Meal`/`Macros` nutrition schema, so it's in scope for that spec as-is. But
+grepping the same checkout found **zero** references to HealthKit's
+`HKQuantityTypeIdentifierDietaryWater` anywhere in the backend — iOS
+hydration has no Open Wearables path at all, same gap as the rest of
+`Dietary*`. Recommend adding `getWaterSamples` to this section's iOS mapper
+work (`react-native-health` exposes it alongside the macro reads already
+listed below) rather than leaving iOS hydration uncovered — decide for real
+when the iOS spike below is scoped, this is just the record of where the gap
+was found and why it landed here instead of the Open Wearables spec.
+
 ### iOS spike — resolving the 3 open questions before the mapper gets written
 
 Three things a real-device spike needs to answer; don't design the mapper
