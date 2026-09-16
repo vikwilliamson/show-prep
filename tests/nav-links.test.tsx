@@ -40,7 +40,7 @@ describe("NavLinks", () => {
     );
   });
 
-  it("marks Dashboard active only on an exact match", () => {
+  it("marks Dashboard active on an exact root match", () => {
     vi.mocked(usePathname).mockReturnValue("/");
     render(<NavLinks />);
     expect(screen.getByRole("link", { name: "Dashboard" })).toHaveClass(
@@ -48,21 +48,24 @@ describe("NavLinks", () => {
     );
   });
 
-  it("inserts the Clients link right after Dashboard when isCoach is true", () => {
+  it("marks Dashboard active when on the coach's client-list redirect target", () => {
     vi.mocked(usePathname).mockReturnValue("/clients");
-    render(<NavLinks isCoach />);
-    const links = screen.getAllByRole("link").map((el) => el.textContent);
-    expect(links).toEqual([
-      "Dashboard",
-      "Clients",
-      "Documents",
-      "Doc Chat",
-      "Settings",
-    ]);
+    render(<NavLinks />);
+    const dashboard = screen.getByRole("link", { name: "Dashboard" });
+    expect(dashboard).toHaveClass("bg-accent/15");
+    expect(dashboard).toHaveAttribute("aria-current", "page");
   });
 
-  it("omits the Clients link when isCoach is false", () => {
-    vi.mocked(usePathname).mockReturnValue("/");
+  it("marks Dashboard active on a nested per-client dashboard route", () => {
+    vi.mocked(usePathname).mockReturnValue("/clients/42");
+    render(<NavLinks />);
+    expect(screen.getByRole("link", { name: "Dashboard" })).toHaveClass(
+      "bg-accent/15",
+    );
+  });
+
+  it("never renders a Clients link — Dashboard covers the coach's client list", () => {
+    vi.mocked(usePathname).mockReturnValue("/clients");
     render(<NavLinks />);
     expect(
       screen.queryByRole("link", { name: "Clients" }),

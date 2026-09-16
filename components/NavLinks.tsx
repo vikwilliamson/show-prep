@@ -10,18 +10,18 @@ const LINKS = [
   { href: "/settings", label: "Settings" },
 ];
 
-const COACH_LINKS = [{ href: "/clients", label: "Clients" }];
-
-export function NavLinks({ isCoach = false }: { isCoach?: boolean }) {
+export function NavLinks() {
   const pathname = usePathname();
-  const links = isCoach
-    ? [...LINKS.slice(0, 1), ...COACH_LINKS, ...LINKS.slice(1)]
-    : LINKS;
   return (
     <nav className="flex flex-wrap items-center gap-1">
-      {links.map(({ href, label }) => {
+      {LINKS.map(({ href, label }) => {
+        // The coach's "/" route redirects server-side to "/clients" (and its
+        // nested per-client pages) — that's their dashboard now, so Dashboard
+        // stays the active tab there instead of going dark.
         const active =
-          href === "/" ? pathname === "/" : pathname.startsWith(href);
+          href === "/"
+            ? pathname === "/" || pathname.startsWith("/clients")
+            : pathname.startsWith(href);
         return (
           <Link
             key={href}
