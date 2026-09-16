@@ -244,7 +244,7 @@ buildable in parallel with any of it.
 4. Manual entry fallback (§5) — no dependency on anything above; fine to
    slot in anytime, including right now, in parallel.
 5. Mobile SDK integration (§3) — once §1 is confirmed working end to end.
-7. Consent flow (§4) — must land before §3 (or anything else) connects a
+6. Consent flow (§4) — must land before §3 (or anything else) connects a
    real account, but has no hard ordering dependency on the others otherwise.
 
 ## Test plan (TDD — write these first, per repo convention)
