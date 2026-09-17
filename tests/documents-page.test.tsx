@@ -183,6 +183,118 @@ describe("DocumentsPage mutation guards", () => {
   });
 });
 
+const CLIENTS = [
+  { id: 10, name: "Alex Client", createdAt: "2026-01-01T00:00:00.000Z" },
+  { id: 11, name: "Sam Client", createdAt: "2026-01-02T00:00:00.000Z" },
+];
+
+describe("DocumentsPage coach client-selector", () => {
+  afterEach(() => {
+    fetchJsonMock.mockReset();
+  });
+
+  it("does not render a client selector for a client session (GET /api/clients 403s)", async () => {
+    fetchJsonMock.mockImplementation((url: string) => {
+      if (url === "/api/documents") return Promise.resolve([DOC]);
+      if (url === "/api/protocols") return Promise.resolve([]);
+      if (url === "/api/clients") return Promise.reject(new Error("Forbidden"));
+      throw new Error(`unexpected fetchJson call: ${url}`);
+    });
+    render(<DocumentsPage />);
+
+    await screen.findByText(/Library/);
+    expect(screen.queryByLabelText("Client")).not.toBeInTheDocument();
+  });
+
+  it("renders a client selector for a coach session, sourced from GET /api/clients", async () => {
+    fetchJsonMock.mockImplementation((url: string) => {
+      if (url === "/api/documents") return Promise.resolve([DOC]);
+      if (url === "/api/protocols") return Promise.resolve([]);
+      if (url === "/api/clients") return Promise.resolve(CLIENTS);
+      throw new Error(`unexpected fetchJson call: ${url}`);
+    });
+    render(<DocumentsPage />);
+
+    const select = await screen.findByLabelText("Client");
+    expect(screen.getByRole("option", { name: "Alex Client" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Sam Client" })).toBeInTheDocument();
+    expect(select).toHaveValue("");
+  });
+
+  it("defaults to the coach's own account: no accountId param on initial load", async () => {
+    fetchJsonMock.mockImplementation((url: string) => {
+      if (url === "/api/documents") return Promise.resolve([DOC]);
+      if (url === "/api/protocols") return Promise.resolve([]);
+      if (url === "/api/clients") return Promise.resolve(CLIENTS);
+      throw new Error(`unexpected fetchJson call: ${url}`);
+    });
+    render(<DocumentsPage />);
+
+    await screen.findByLabelText("Client");
+    expect(fetchJsonMock.mock.calls.some(([url]) => url === "/api/documents")).toBe(true);
+    expect(fetchJsonMock.mock.calls.some(([url]) => String(url).includes("accountId"))).toBe(
+      false,
+    );
+  });
+
+  it("selecting a client re-scopes the Library and Protocol history fetches together", async () => {
+    const user = userEvent.setup();
+    fetchJsonMock.mockImplementation((url: string) => {
+      if (url === "/api/documents" || url === "/api/documents?accountId=10")
+        return Promise.resolve([DOC]);
+      if (url === "/api/protocols" || url === "/api/protocols?accountId=10")
+        return Promise.resolve([]);
+      if (url === "/api/clients") return Promise.resolve(CLIENTS);
+      throw new Error(`unexpected fetchJson call: ${url}`);
+    });
+    render(<DocumentsPage />);
+
+    const select = await screen.findByLabelText("Client");
+    fetchJsonMock.mockClear();
+    await user.selectOptions(select, "10");
+
+    await waitFor(() => {
+      expect(fetchJsonMock.mock.calls.some(([url]) => url === "/api/documents?accountId=10")).toBe(
+        true,
+      );
+    });
+    expect(fetchJsonMock.mock.calls.some(([url]) => url === "/api/protocols?accountId=10")).toBe(
+      true,
+    );
+  });
+
+  it("includes the selected client's accountId as an upload form field", async () => {
+    const user = userEvent.setup();
+    fetchJsonMock.mockImplementation((url: string, init?: RequestInit) => {
+      if (url === "/api/documents" || url === "/api/documents?accountId=10")
+        return Promise.resolve([]);
+      if (url === "/api/protocols" || url === "/api/protocols?accountId=10")
+        return Promise.resolve([]);
+      if (url === "/api/clients") return Promise.resolve(CLIENTS);
+      if (url === "/api/documents" && init?.method === "POST") {
+        return Promise.resolve({ document: { title: "t" }, protocols: [], warnings: [] });
+      }
+      throw new Error(`unexpected fetchJson call: ${url}`);
+    });
+    render(<DocumentsPage />);
+
+    const select = await screen.findByLabelText("Client");
+    await user.selectOptions(select, "10");
+    await user.click(screen.getByRole("button", { name: "Paste text" }));
+    await user.type(screen.getByLabelText("Document text"), "some notes");
+
+    fetchJsonMock.mockImplementation((url: string, init?: RequestInit) => {
+      if (url === "/api/documents" && init?.method === "POST") {
+        const form = init.body as FormData;
+        expect(form.get("accountId")).toBe("10");
+        return Promise.resolve({ document: { title: "t" }, protocols: [], warnings: [] });
+      }
+      return Promise.resolve([]);
+    });
+    await user.click(screen.getByRole("button", { name: "Upload & extract" }));
+  });
+});
+
 describe("DocumentsPage AI transparency badge", () => {
   afterEach(() => {
     fetchJsonMock.mockReset();

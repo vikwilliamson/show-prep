@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { desc, eq, sql } from "drizzle-orm";
-import { requireAccount } from "@/lib/auth";
+import { requireAccount, resolveWorkspaceAccountId } from "@/lib/auth";
 import { documentChunks, documents, getDb, protocols } from "@/lib/db";
 import { extractPrescriptions } from "@/lib/ai/extract";
 import { indexDocument } from "@/lib/rag";
@@ -14,6 +14,13 @@ export const maxDuration = 300;
 export async function GET(req: NextRequest) {
   const session = requireAccount(req);
   if (session instanceof NextResponse) return session;
+
+  const accountIdParam = req.nextUrl.searchParams.get("accountId");
+  const resolved = await resolveWorkspaceAccountId(
+    session,
+    accountIdParam != null ? Number(accountIdParam) : null,
+  );
+  if (resolved instanceof NextResponse) return resolved;
 
   const db = await getDb();
   const rows = await db
@@ -29,7 +36,7 @@ export async function GET(req: NextRequest) {
     })
     .from(documents)
     .leftJoin(documentChunks, eq(documentChunks.documentId, documents.id))
-    .where(eq(documents.accountId, session.accountId))
+    .where(eq(documents.accountId, resolved))
     .groupBy(documents.id)
     .orderBy(desc(documents.uploadedAt));
   return NextResponse.json(rows);
@@ -43,6 +50,7 @@ async function readUpload(req: NextRequest): Promise<{
   sourceType: "pdf" | "txt" | "email_paste";
   originalFilename: string | null;
   contentText: string;
+  requestedAccountId: number | null;
 }> {
   const contentType = req.headers.get("content-type") ?? "";
 
@@ -50,6 +58,8 @@ async function readUpload(req: NextRequest): Promise<{
     const form = await req.formData();
     const category = String(form.get("category") ?? "coach_protocol");
     if (!CATEGORIES.has(category)) throw new Error(`Invalid category: ${category}`);
+    const accountIdField = form.get("accountId");
+    const requestedAccountId = accountIdField != null ? Number(accountIdField) : null;
     const file = form.get("file");
 
     if (file instanceof File) {
@@ -70,6 +80,7 @@ async function readUpload(req: NextRequest): Promise<{
         sourceType: isPdf ? "pdf" : "txt",
         originalFilename: file.name,
         contentText: text,
+        requestedAccountId,
       };
     }
 
@@ -81,10 +92,11 @@ async function readUpload(req: NextRequest): Promise<{
       sourceType: "email_paste",
       originalFilename: null,
       contentText: pasted,
+      requestedAccountId,
     };
   }
 
-  // JSON paste: { title, category, text }
+  // JSON paste: { title, category, text, accountId }
   const body = await req.json();
   const text = String(body.text ?? "").trim();
   if (!text) throw new Error("`text` is required.");
@@ -96,6 +108,7 @@ async function readUpload(req: NextRequest): Promise<{
     sourceType: "email_paste",
     originalFilename: null,
     contentText: text,
+    requestedAccountId: body.accountId != null ? Number(body.accountId) : null,
   };
 }
 
@@ -119,10 +132,14 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const { requestedAccountId, ...docFields } = upload;
+  const resolved = await resolveWorkspaceAccountId(session, requestedAccountId);
+  if (resolved instanceof NextResponse) return resolved;
+
   const db = await getDb();
   const [doc] = await db
     .insert(documents)
-    .values({ ...upload, accountId: session.accountId })
+    .values({ ...docFields, accountId: resolved })
     .returning();
   const warnings: string[] = [];
   let createdProtocols: (typeof protocols.$inferSelect)[] = [];
@@ -130,7 +147,7 @@ export async function POST(req: NextRequest) {
   // Prescription extraction (coach protocols only) — best effort.
   if (doc.category === "coach_protocol") {
     try {
-      const settings = await getSettings(session.accountId);
+      const settings = await getSettings(resolved);
       const extraction = await extractPrescriptions({
         title: doc.title,
         text: doc.contentText,
@@ -138,7 +155,7 @@ export async function POST(req: NextRequest) {
       });
       createdProtocols = await saveExtractedProtocols(extraction, {
         documentId: doc.id,
-        accountId: session.accountId,
+        accountId: resolved,
         today: todayLocal(settings.timezone),
       });
     } catch (err) {

@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { and, eq } from "drizzle-orm";
-import { requireAccount } from "@/lib/auth";
+import { authorizeRowAccess, requireAccount } from "@/lib/auth";
 import { documents, getDb } from "@/lib/db";
 
 export async function GET(
@@ -29,10 +29,12 @@ export async function DELETE(
 
   const { id } = await ctx.params;
   const db = await getDb();
-  const [deleted] = await db
-    .delete(documents)
-    .where(and(eq(documents.id, Number(id)), eq(documents.accountId, session.accountId)))
-    .returning();
+  const [doc] = await db.select().from(documents).where(eq(documents.id, Number(id)));
+  if (!doc || !(await authorizeRowAccess(session, doc.accountId))) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  const [deleted] = await db.delete(documents).where(eq(documents.id, doc.id)).returning();
   if (!deleted) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json({ ok: true });
 }
