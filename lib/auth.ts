@@ -215,6 +215,47 @@ export async function getClientAccount(accountId: number): Promise<{
   return row ?? null;
 }
 
+/** Resolves the accountId a request should operate on. Absent or matching
+ *  the caller's own accountId: acts on the caller's own account (unchanged
+ *  behavior for clients, and for a coach who hasn't selected a client — see
+ *  specs/coach-client-scoped-workspace.md). Present and different: only a
+ *  coach may act on another account, and only a real client account — never
+ *  silently falls back to the caller's own account on a bad/forbidden
+ *  request, since that would mask the bug instead of surfacing it. */
+export async function resolveWorkspaceAccountId(
+  session: SessionPayload,
+  requestedAccountId: number | null,
+): Promise<number | NextResponse> {
+  if (requestedAccountId == null || requestedAccountId === session.accountId) {
+    return session.accountId;
+  }
+  if (session.role !== "coach") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  const client = await getClientAccount(requestedAccountId);
+  if (!client) {
+    return NextResponse.json({ error: "Unknown client" }, { status: 404 });
+  }
+  return client.id;
+}
+
+/** Row-ownership authorization for routes already keyed by an existing row's
+ *  id (e.g. `DELETE /api/documents/[id]`) rather than an accountId param —
+ *  resolveWorkspaceAccountId() above is for the latter. Allows the row's own
+ *  account, or a coach acting on one of their real clients' rows
+ *  (specs/coach-client-scoped-workspace.md §0). Callers still 404 on `false`
+ *  exactly as they did before a coach could act on client rows at all — this
+ *  only widens whose rows count as "theirs," not what happens when they
+ *  don't. */
+export async function authorizeRowAccess(
+  session: SessionPayload,
+  rowAccountId: number,
+): Promise<boolean> {
+  if (rowAccountId === session.accountId) return true;
+  if (session.role !== "coach") return false;
+  return (await getClientAccount(rowAccountId)) !== null;
+}
+
 /** Deletes an account and, via ON DELETE CASCADE (VIK-78), every row it
  *  owns across all 14 account-scoped tables in one statement — no more
  *  hand-ordering per-table deletes. Returns whether an account was actually
