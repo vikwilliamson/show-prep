@@ -77,7 +77,7 @@ test("account_id is NOT NULL on every account-scoped table", async () => {
     ["check_ins", checkIns, { weekStart: "2026-01-01" }],
     ["coach_briefs", coachBriefs, { weekStart: "2026-01-01", content: "c" }],
     ["settings", settings, { checkinTemplate: [] }],
-    ["chat_messages", chatMessages, { role: "user", content: "hi" }],
+    ["chat_messages", chatMessages, { senderAccountId: a, role: "user", content: "hi" }],
   ];
 
   for (const [name, table, values] of cases) {
@@ -125,7 +125,7 @@ test("deleting an account cascades to delete every child table's rows", async ()
   await db.insert(checkIns).values({ accountId: a, weekStart: "2026-01-01" });
   await db.insert(coachBriefs).values({ accountId: a, weekStart: "2026-01-01", content: "c" });
   await db.insert(settings).values({ accountId: a, checkinTemplate: [] });
-  await db.insert(chatMessages).values({ accountId: a, role: "user", content: "hi" });
+  await db.insert(chatMessages).values({ accountId: a, senderAccountId: a, role: "user", content: "hi" });
 
   await db.delete(accounts).where(eq(accounts.id, a));
 

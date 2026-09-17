@@ -40,8 +40,11 @@ export const accounts = pgTable("accounts", {
 // CASCADE, so there's exactly one place to change this constraint rather
 // than 14 hand-copied ones (see VIK-78 — inconsistency here is how the
 // nullable/no-cascade gap this ticket fixes happened in the first place).
-function accountIdColumn() {
-  return integer("account_id")
+// `columnName` defaults to "account_id" for the common case; chat_messages'
+// second FK-to-accounts column (`sender_account_id`, VIK-150) needs the same
+// constraint shape under a different name.
+function accountIdColumn(columnName = "account_id") {
+  return integer(columnName)
     .notNull()
     .references(() => accounts.id, { onDelete: "cascade" });
 }
@@ -373,7 +376,12 @@ export const settings = pgTable(
 
 export const chatMessages = pgTable("chat_messages", {
   id: serial("id").primaryKey(),
-  accountId: accountIdColumn(),
+  accountId: accountIdColumn(), // whose thread this is — always the client
+  // account; RAG retrieval stays grounded in this account's documents
+  // regardless of sender.
+  senderAccountId: accountIdColumn("sender_account_id"), // who actually authored this row. For
+  // role: "assistant" rows the bot has no account, so this is set to the
+  // thread's own accountId — deliberate, see specs/coach-client-scoped-workspace.md §2.
   role: text("role", { enum: ["user", "assistant"] }).notNull(),
   content: text("content").notNull(),
   // [{ documentId, title, chunkIndex }] for assistant messages

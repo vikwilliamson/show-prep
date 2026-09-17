@@ -1,0 +1,2 @@
+CREATE UNIQUE INDEX "settings_account_idx" ON "settings" USING btree ("account_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "weekly_targets_account_idx" ON "weekly_targets" USING btree ("account_id");
