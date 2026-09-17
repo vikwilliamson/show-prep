@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { afterEach, test } from "vitest";
 import { NextRequest } from "next/server";
 import { inArray } from "drizzle-orm";
-import { documents, getDb } from "../lib/db";
-import { createSessionToken, SESSION_COOKIE } from "../lib/auth";
+import { accounts, documents, getDb } from "../lib/db";
+import { createSessionToken, deleteAccount, hashPasscode, SESSION_COOKIE } from "../lib/auth";
 import { DELETE, GET } from "../app/api/documents/[id]/route";
 import { createAccountTracker } from "./helpers";
 
@@ -25,10 +25,10 @@ async function makeDocument(accountId: number, title: string): Promise<number> {
   return row.id;
 }
 
-function requestWithSession(accountId: number | null) {
+function requestWithSession(accountId: number | null, role: "coach" | "client" = "client") {
   const headers: Record<string, string> = {};
   if (accountId !== null) {
-    const token = createSessionToken({ accountId, role: "client" });
+    const token = createSessionToken({ accountId, role });
     headers.cookie = `${SESSION_COOKIE}=${token}`;
   }
   return new NextRequest("http://localhost/api/documents/1", { headers });
@@ -96,4 +96,36 @@ test("DELETE does not remove, and 404s on, another account's document", async ()
     .from(documents)
     .where(inArray(documents.id, [docId]));
   assert.equal(stillThere.length, 1);
+});
+
+test("DELETE lets a coach remove a real client's document", async () => {
+  const { id: clientId } = await makeAccount("Documents Route Test Delete Coach Client");
+  const docId = await makeDocument(clientId, "client's doc");
+
+  const res = await DELETE(requestWithSession(999, "coach"), ctxFor(docId));
+  assert.equal(res.status, 200);
+
+  const db = await getDb();
+  const remaining = await db.select().from(documents).where(inArray(documents.id, [docId]));
+  assert.equal(remaining.length, 0);
+});
+
+test("DELETE 404s a coach poking at a document that isn't any client's", async () => {
+  const db = await getDb();
+  const passcodeHash = await hashPasscode("documents-delete-other-coach");
+  const [otherCoach] = await db
+    .insert(accounts)
+    .values({ name: "Documents Route Test Delete Other Coach", role: "coach", passcodeHash })
+    .returning();
+  const docId = await makeDocument(otherCoach.id, "other coach's doc");
+
+  try {
+    const res = await DELETE(requestWithSession(999, "coach"), ctxFor(docId));
+    assert.equal(res.status, 404);
+
+    const stillThere = await db.select().from(documents).where(inArray(documents.id, [docId]));
+    assert.equal(stillThere.length, 1);
+  } finally {
+    await deleteAccount(otherCoach.id);
+  }
 });

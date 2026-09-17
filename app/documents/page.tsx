@@ -15,6 +15,12 @@ interface DocRow {
   chunkCount: number;
 }
 
+interface ClientRow {
+  id: number;
+  name: string;
+  createdAt: string;
+}
+
 interface ProtocolRow {
   id: number;
   documentId: number | null;
@@ -52,13 +58,33 @@ export default function DocumentsPage() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [pasteMode, setPasteMode] = useState(false);
+  const [isCoach, setIsCoach] = useState(false);
+  const [clients, setClients] = useState<ClientRow[]>([]);
+  const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
 
+  // GET /api/clients is coach-only — a client session 403s, which is how
+  // this page tells the two roles apart without a dedicated endpoint (see
+  // specs/coach-client-scoped-workspace.md §0).
+  useEffect(() => {
+    (async () => {
+      try {
+        const list = await fetchJson<ClientRow[]>("/api/clients");
+        setIsCoach(true);
+        setClients(list);
+      } catch {
+        setIsCoach(false);
+      }
+    })();
+  }, []);
+
+  const scopeQuery = selectedAccountId != null ? `?accountId=${selectedAccountId}` : "";
+
   const refresh = useCallback(() => {
     return Promise.all([
-      fetchJson<DocRow[]>("/api/documents"),
-      fetchJson<ProtocolRow[]>("/api/protocols"),
+      fetchJson<DocRow[]>(`/api/documents${scopeQuery}`),
+      fetchJson<ProtocolRow[]>(`/api/protocols${scopeQuery}`),
     ])
       .then(([d, p]) => {
         setDocs(d);
@@ -73,7 +99,7 @@ export default function DocumentsPage() {
           ),
         );
       });
-  }, []);
+  }, [scopeQuery]);
 
   useEffect(() => {
     refresh();
@@ -87,6 +113,7 @@ export default function DocumentsPage() {
       return;
     }
     if (pasteMode) form.delete("file");
+    if (selectedAccountId != null) form.set("accountId", String(selectedAccountId));
     setBusy(true);
     setMessage(null);
     try {
@@ -176,6 +203,30 @@ export default function DocumentsPage() {
 
   return (
     <div className="space-y-6">
+      {isCoach && (
+        <div className="flex items-center gap-2">
+          <label htmlFor="documents-client-select" className="text-sm font-medium text-muted">
+            Client
+          </label>
+          <select
+            id="documents-client-select"
+            aria-label="Client"
+            value={selectedAccountId ?? ""}
+            onChange={(e) =>
+              setSelectedAccountId(e.target.value ? Number(e.target.value) : null)
+            }
+            className="rounded-md border border-borderc bg-background px-3 py-1.5 text-sm"
+          >
+            <option value="">My own documents</option>
+            {clients.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {loadError && <p className="text-sm text-bad">{loadError}</p>}
 
       {/* Upload */}

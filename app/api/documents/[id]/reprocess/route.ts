@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { and, eq } from "drizzle-orm";
-import { requireAccount } from "@/lib/auth";
+import { eq } from "drizzle-orm";
+import { authorizeRowAccess, requireAccount } from "@/lib/auth";
 import { documents, getDb, protocols } from "@/lib/db";
 import { extractPrescriptions } from "@/lib/ai/extract";
 import { indexDocument } from "@/lib/rag";
@@ -22,18 +22,17 @@ export async function POST(
 
   const { id } = await ctx.params;
   const db = await getDb();
-  const [doc] = await db
-    .select()
-    .from(documents)
-    .where(and(eq(documents.id, Number(id)), eq(documents.accountId, session.accountId)));
-  if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const [doc] = await db.select().from(documents).where(eq(documents.id, Number(id)));
+  if (!doc || !(await authorizeRowAccess(session, doc.accountId))) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
 
   const warnings: string[] = [];
   let createdProtocols: (typeof protocols.$inferSelect)[] = [];
 
   if (doc.category === "coach_protocol") {
     try {
-      const settings = await getSettings(session.accountId);
+      const settings = await getSettings(doc.accountId);
       const extraction = await extractPrescriptions({
         title: doc.title,
         text: doc.contentText,
@@ -41,7 +40,7 @@ export async function POST(
       });
       createdProtocols = await saveExtractedProtocols(extraction, {
         documentId: doc.id,
-        accountId: session.accountId,
+        accountId: doc.accountId,
         today: todayLocal(settings.timezone),
         replacePending: true,
       });

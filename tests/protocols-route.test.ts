@@ -8,6 +8,13 @@ import { GET } from "../app/api/protocols/route";
 import { PATCH } from "../app/api/protocols/[id]/route";
 import { createAccountTracker } from "./helpers";
 
+function coachRequestFor(clientId: number) {
+  const token = createSessionToken({ accountId: 999, role: "coach" });
+  return new NextRequest(`http://localhost/api/protocols?accountId=${clientId}`, {
+    headers: { cookie: `${SESSION_COOKIE}=${token}` },
+  });
+}
+
 const { makeAccount, cleanup } = createAccountTracker();
 afterEach(cleanup);
 
@@ -72,6 +79,31 @@ test("GET only lists the caller's own protocols", async () => {
   const json = await res.json();
   assert.equal(json.length, 1);
   assert.equal(json[0].notes, "A's protocol");
+});
+
+test("GET ?accountId= lets a coach view a real client's protocols", async () => {
+  const { id: clientId } = await makeAccount("Protocols Route Test Coach Client");
+  await makeProtocol(clientId, { notes: "client's protocol" });
+
+  const res = await GET(coachRequestFor(clientId));
+  assert.equal(res.status, 200);
+  const json = await res.json();
+  assert.equal(json.length, 1);
+  assert.equal(json[0].notes, "client's protocol");
+});
+
+test("GET ?accountId= 403s a client requesting another account's id", async () => {
+  const { id: a } = await makeAccount("Protocols Route Test Client Requester");
+  const { id: b } = await makeAccount("Protocols Route Test Client Other");
+  await makeProtocol(b, { notes: "not yours" });
+
+  const token = createSessionToken({ accountId: a, role: "client" });
+  const res = await GET(
+    new NextRequest(`http://localhost/api/protocols?accountId=${b}`, {
+      headers: { cookie: `${SESSION_COOKIE}=${token}` },
+    }),
+  );
+  assert.equal(res.status, 403);
 });
 
 test("PATCH requires a session", async () => {
