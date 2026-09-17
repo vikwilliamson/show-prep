@@ -3,6 +3,7 @@ import { afterEach, test } from "vitest";
 import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import {
+  authorizeRowAccess,
   createSessionToken,
   deleteAccount,
   generatePasscode,
@@ -15,6 +16,7 @@ import {
   listClientsNeedingBrief,
   requireAccount,
   requireCoach,
+  resolveWorkspaceAccountId,
   SESSION_COOKIE,
   verifyPasscode,
   verifySessionToken,
@@ -274,4 +276,75 @@ test("getClientAccount returns null for a coach account", async () => {
 
 test("getClientAccount returns null for a nonexistent id", async () => {
   assert.equal(await getClientAccount(-1), null);
+});
+
+test("resolveWorkspaceAccountId resolves to the caller's own accountId when none is requested", async () => {
+  const session = { accountId: 5, role: "client" as const };
+  assert.equal(await resolveWorkspaceAccountId(session, null), 5);
+});
+
+test("resolveWorkspaceAccountId resolves to the caller's own accountId when the requested id matches it", async () => {
+  const session = { accountId: 5, role: "coach" as const };
+  assert.equal(await resolveWorkspaceAccountId(session, 5), 5);
+});
+
+test("resolveWorkspaceAccountId resolves a coach's request for a valid client to that client's id", async () => {
+  const { id: clientId } = await makeAccount("Resolve Workspace Test Client");
+  const session = { accountId: 999, role: "coach" as const };
+  assert.equal(await resolveWorkspaceAccountId(session, clientId), clientId);
+});
+
+test("resolveWorkspaceAccountId 404s a coach's request for a nonexistent accountId", async () => {
+  const session = { accountId: 999, role: "coach" as const };
+  const result = await resolveWorkspaceAccountId(session, -1);
+  assert.ok(result instanceof NextResponse);
+  assert.equal(result.status, 404);
+});
+
+test("resolveWorkspaceAccountId 404s a coach's request for another coach's accountId", async () => {
+  const db = await getDb();
+  const passcodeHash = await hashPasscode("resolve-workspace-other-coach");
+  const [otherCoach] = await db
+    .insert(accounts)
+    .values({ name: "Resolve Workspace Other Coach", role: "coach", passcodeHash })
+    .returning();
+
+  try {
+    const session = { accountId: 999, role: "coach" as const };
+    const result = await resolveWorkspaceAccountId(session, otherCoach.id);
+    assert.ok(result instanceof NextResponse);
+    assert.equal(result.status, 404);
+  } finally {
+    await deleteAccount(otherCoach.id);
+  }
+});
+
+test("resolveWorkspaceAccountId 403s a client's request for any other accountId, never falling back to their own", async () => {
+  const { id: clientId } = await makeAccount("Resolve Workspace Test Client B");
+  const session = { accountId: 5, role: "client" as const };
+  const result = await resolveWorkspaceAccountId(session, clientId);
+  assert.ok(result instanceof NextResponse);
+  assert.equal(result.status, 403);
+});
+
+test("authorizeRowAccess allows a session acting on its own row", async () => {
+  const session = { accountId: 5, role: "client" as const };
+  assert.equal(await authorizeRowAccess(session, 5), true);
+});
+
+test("authorizeRowAccess denies a client acting on another account's row", async () => {
+  const { id: clientId } = await makeAccount("Authorize Row Access Test Client");
+  const session = { accountId: 5, role: "client" as const };
+  assert.equal(await authorizeRowAccess(session, clientId), false);
+});
+
+test("authorizeRowAccess allows a coach acting on a real client's row", async () => {
+  const { id: clientId } = await makeAccount("Authorize Row Access Test Client B");
+  const session = { accountId: 999, role: "coach" as const };
+  assert.equal(await authorizeRowAccess(session, clientId), true);
+});
+
+test("authorizeRowAccess denies a coach acting on a row that isn't any client's", async () => {
+  const session = { accountId: 999, role: "coach" as const };
+  assert.equal(await authorizeRowAccess(session, -1), false);
 });
