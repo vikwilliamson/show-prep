@@ -1,0 +1,1 @@
+ALTER TABLE "settings" ADD COLUMN "target_note" text;

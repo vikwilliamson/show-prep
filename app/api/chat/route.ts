@@ -43,7 +43,12 @@ export async function POST(req: NextRequest) {
 
   const [userMsg] = await db
     .insert(chatMessages)
-    .values({ accountId: session.accountId, role: "user", content: parsed.data.message })
+    .values({
+      accountId: session.accountId,
+      senderAccountId: session.accountId,
+      role: "user",
+      content: parsed.data.message,
+    })
     .returning();
 
   try {
@@ -54,7 +59,13 @@ export async function POST(req: NextRequest) {
     );
     const [assistantMsg] = await db
       .insert(chatMessages)
-      .values({ accountId: session.accountId, role: "assistant", content: answer, sources })
+      .values({
+        accountId: session.accountId,
+        senderAccountId: session.accountId,
+        role: "assistant",
+        content: answer,
+        sources,
+      })
       .returning();
     return NextResponse.json({ user: userMsg, assistant: assistantMsg });
   } catch (err) {
