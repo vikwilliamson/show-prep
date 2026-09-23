@@ -386,3 +386,32 @@ build ticket.
   `mapHealthKitNutrition()`-equivalent gets the same shape of unit tests
   `mapper.test.ts` already has for `mapNutrition()` — meal-type/grouping
   edge cases, zero-energy filtering, missing-field fallbacks.
+
+## 2026-09-23 addendum — temporarily re-widened for Android demo purposes
+
+Chose to un-narrow the Android pipeline back to all six record types
+(weight/hydration/sleep/exercise/activity, alongside nutrition) instead of
+starting VIK-139 (self-host Open Wearables). "Why nutrition-only, not the
+whole old pipeline" above still describes the real long-term architecture —
+this doesn't change that.
+
+**Why this is safe right now, contrary to that section's warning:** the
+dual-write risk it describes only exists once Open Wearables' own
+integration (VIK-142) is actually writing to `weight_entries`/
+`sleep_sessions`/etc. VIK-142 hasn't started — nothing else is writing to
+those tables — so there's no reconciliation problem to create yet. Standing
+up self-hosted infra (Docker Compose host, HTTPS, backups, incident
+response, Svix) just to get a demo-able weight/sleep/activity number on a
+real Android device was disproportionate to what a demo needs; the mapper
+code for all five types was already written and code-reviewed (`mapper.ts`,
+untouched since VIK-16), just unwired.
+
+**What changed:** `mobile/app.json`'s Android permissions,
+`healthConnect.ts`'s `RECORD_TYPES`, and `sync.ts`'s `plans` array are back
+to the pre-VIK-16 six-type list. Backend needed no changes — VIK-15 already
+account-scoped all six ingest tables.
+
+**Re-narrowing plan:** when VIK-142 (mobile Open Wearables SDK integration)
+actually starts, trim `sync.ts`'s `plans` back down to nutrition-only again
+at that point, the same way VIK-16 did originally — don't let both pipelines
+run against the same tables concurrently.

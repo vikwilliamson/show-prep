@@ -24,15 +24,24 @@ test("ensureInitialized calls initialize once and memoizes", async () => {
   assert.equal(__initializeCalls(), 1);
 });
 
-test("RECORD_TYPES is narrowed to Nutrition only", () => {
-  assert.deepEqual(RECORD_TYPES, ["Nutrition"]);
+test("RECORD_TYPES covers all six ingest types", () => {
+  assert.deepEqual(RECORD_TYPES, [
+    "Nutrition",
+    "Weight",
+    "Hydration",
+    "SleepSession",
+    "ExerciseSession",
+    "Steps",
+    "TotalCaloriesBurned",
+  ]);
 });
 
-test("requestAllPermissions requests read access to Nutrition only", async () => {
+test("requestAllPermissions requests read access to every record type", async () => {
   await requestAllPermissions();
-  assert.deepEqual(__permissionCalls().at(-1), [
-    { accessType: "read", recordType: "Nutrition" },
-  ]);
+  assert.deepEqual(
+    __permissionCalls().at(-1),
+    RECORD_TYPES.map((recordType) => ({ accessType: "read", recordType })),
+  );
 });
 
 test("readAll follows pageTokens and concatenates every page", async () => {
