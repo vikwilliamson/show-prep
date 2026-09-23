@@ -12,12 +12,15 @@ export interface TestAccount {
 export function createAccountTracker() {
   const createdAccountIds: number[] = [];
 
-  async function makeAccount(name: string): Promise<TestAccount> {
+  async function makeAccount(
+    name: string,
+    options: { role?: "coach" | "client" } = {},
+  ): Promise<TestAccount> {
     const db = await getDb();
     const passcodeHash = await hashPasscode(`${name}-passcode`);
     const [row] = await db
       .insert(accounts)
-      .values({ name, role: "client", passcodeHash })
+      .values({ name, role: options.role ?? "client", passcodeHash })
       .returning();
     createdAccountIds.push(row.id);
     return { id: row.id, referenceId: row.referenceId };

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import ChatPage from "@/app/chat/page";
 
 const { fetchJsonMock } = vi.hoisted(() => ({ fetchJsonMock: vi.fn() }));
@@ -12,8 +12,18 @@ vi.mock("@/lib/client-fetch", () => ({
     err instanceof Error ? err.message : fallback,
 }));
 
+// Default: no coach client-selector (GET /api/clients 403s, same "how a
+// client session tells itself apart" trick as DocumentsPage), empty thread.
+function mockDefault() {
+  fetchJsonMock.mockImplementation((url: string) => {
+    if (url === "/api/clients") return Promise.reject(new Error("Forbidden"));
+    if (String(url).startsWith("/api/chat")) return Promise.resolve([]);
+    throw new Error(`unexpected fetchJson call: ${url}`);
+  });
+}
+
 async function renderReady() {
-  fetchJsonMock.mockResolvedValueOnce([]);
+  mockDefault();
   render(<ChatPage />);
   await screen.findByPlaceholderText("Ask about your protocols or program rules…");
 }
@@ -79,8 +89,8 @@ describe("ChatPage send guard", () => {
     ).toHaveLength(1);
 
     resolveSend({
-      user: { id: 1, role: "user", content: "Hello", sources: null },
-      assistant: { id: 2, role: "assistant", content: "Hi!", sources: null },
+      user: { id: 1, role: "user", content: "Hello", sources: null, isOwnMessage: true },
+      assistant: { id: 2, role: "assistant", content: "Hi!", sources: null, isOwnMessage: true },
     });
     // Once the request settles, the real assistant reply replaces the
     // optimistic bubble — confirming the guard released rather than the
@@ -95,10 +105,16 @@ describe("ChatPage AI transparency badge", () => {
   });
 
   it("shows the AI-assisted badge on assistant bubbles but not the user's own messages", async () => {
-    fetchJsonMock.mockResolvedValueOnce([
-      { id: 1, role: "user", content: "What's my sodium target?", sources: null },
-      { id: 2, role: "assistant", content: "Aim for under 2,300mg.", sources: null },
-    ]);
+    fetchJsonMock.mockImplementation((url: string) => {
+      if (url === "/api/clients") return Promise.reject(new Error("Forbidden"));
+      if (String(url).startsWith("/api/chat")) {
+        return Promise.resolve([
+          { id: 1, role: "user", content: "What's my sodium target?", sources: null, isOwnMessage: true },
+          { id: 2, role: "assistant", content: "Aim for under 2,300mg.", sources: null, isOwnMessage: true },
+        ]);
+      }
+      throw new Error(`unexpected fetchJson call: ${url}`);
+    });
     render(<ChatPage />);
 
     await screen.findByText("Aim for under 2,300mg.");
@@ -117,18 +133,218 @@ describe("ChatPage markdown rendering", () => {
   });
 
   it("renders Markdown formatting in assistant replies instead of literal syntax characters", async () => {
-    fetchJsonMock.mockResolvedValueOnce([
-      {
-        id: 1,
-        role: "assistant",
-        content: "## Heading\n\n- list item\n\n**bold text**",
-        sources: null,
-      },
-    ]);
+    fetchJsonMock.mockImplementation((url: string) => {
+      if (url === "/api/clients") return Promise.reject(new Error("Forbidden"));
+      if (String(url).startsWith("/api/chat")) {
+        return Promise.resolve([
+          {
+            id: 1,
+            role: "assistant",
+            content: "## Heading\n\n- list item\n\n**bold text**",
+            sources: null,
+            isOwnMessage: true,
+          },
+        ]);
+      }
+      throw new Error(`unexpected fetchJson call: ${url}`);
+    });
     render(<ChatPage />);
 
     expect(await screen.findByRole("heading", { level: 2, name: "Heading" })).toBeInTheDocument();
     expect(screen.getByRole("listitem")).toHaveTextContent("list item");
     expect(screen.getByText("bold text").tagName).toBe("STRONG");
+  });
+});
+
+const CLIENTS = [
+  { id: 10, name: "Alex Client", createdAt: "2026-01-01T00:00:00.000Z" },
+  { id: 11, name: "Sam Client", createdAt: "2026-01-02T00:00:00.000Z" },
+];
+
+describe("ChatPage coach client-selector", () => {
+  afterEach(() => {
+    fetchJsonMock.mockReset();
+  });
+
+  it("does not render a client selector for a client session (GET /api/clients 403s)", async () => {
+    await renderReady();
+    expect(screen.queryByLabelText("Client")).not.toBeInTheDocument();
+  });
+
+  it("renders a client selector for a coach session, sourced from GET /api/clients", async () => {
+    fetchJsonMock.mockImplementation((url: string) => {
+      if (url === "/api/clients") return Promise.resolve(CLIENTS);
+      if (String(url).startsWith("/api/chat")) return Promise.resolve([]);
+      throw new Error(`unexpected fetchJson call: ${url}`);
+    });
+    render(<ChatPage />);
+
+    const select = await screen.findByLabelText("Client");
+    expect(screen.getByRole("option", { name: "Alex Client" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Sam Client" })).toBeInTheDocument();
+    expect(select).toHaveValue("");
+  });
+
+  it("defaults to the coach's own account: no accountId param on initial load", async () => {
+    fetchJsonMock.mockImplementation((url: string) => {
+      if (url === "/api/clients") return Promise.resolve(CLIENTS);
+      if (String(url).startsWith("/api/chat")) return Promise.resolve([]);
+      throw new Error(`unexpected fetchJson call: ${url}`);
+    });
+    render(<ChatPage />);
+
+    await screen.findByLabelText("Client");
+    expect(fetchJsonMock.mock.calls.some(([url]) => url === "/api/chat")).toBe(true);
+    expect(
+      fetchJsonMock.mock.calls.some(([url]) => String(url).includes("accountId")),
+    ).toBe(false);
+  });
+
+  it("selecting a client re-scopes the GET /api/chat fetch and includes the accountId on send", async () => {
+    const user = userEvent.setup();
+    fetchJsonMock.mockImplementation((url: string, init?: RequestInit) => {
+      if (url === "/api/clients") return Promise.resolve(CLIENTS);
+      if (url === "/api/chat" || url === "/api/chat?accountId=10") return Promise.resolve([]);
+      if (url === "/api/chat" && init?.method === "POST") {
+        return Promise.resolve({
+          user: { id: 1, role: "user", content: "hi", sources: null, isOwnMessage: true },
+          assistant: { id: 2, role: "assistant", content: "hello", sources: null, isOwnMessage: true },
+        });
+      }
+      throw new Error(`unexpected fetchJson call: ${url}`);
+    });
+    render(<ChatPage />);
+
+    const select = await screen.findByLabelText("Client");
+    fetchJsonMock.mockClear();
+    await user.selectOptions(select, "10");
+
+    await waitFor(() => {
+      expect(fetchJsonMock.mock.calls.some(([url]) => url === "/api/chat?accountId=10")).toBe(true);
+    });
+
+    fetchJsonMock.mockImplementation((url: string, init?: RequestInit) => {
+      if (url === "/api/chat" && init?.method === "POST") {
+        const body = JSON.parse(init.body as string);
+        expect(body.accountId).toBe(10);
+        return Promise.resolve({
+          user: { id: 1, role: "user", content: "hi", sources: null, isOwnMessage: true },
+          assistant: { id: 2, role: "assistant", content: "hello", sources: null, isOwnMessage: true },
+        });
+      }
+      return Promise.resolve([]);
+    });
+    await user.type(screen.getByPlaceholderText("Ask about your protocols or program rules…"), "hi");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+    await screen.findByText("hello");
+  });
+});
+
+describe("ChatPage sender labels", () => {
+  afterEach(() => {
+    fetchJsonMock.mockReset();
+  });
+
+  it("labels the viewer's own message 'You' and the other party's message with their senderName", async () => {
+    fetchJsonMock.mockImplementation((url: string) => {
+      if (url === "/api/clients") return Promise.reject(new Error("Forbidden"));
+      if (String(url).startsWith("/api/chat")) {
+        return Promise.resolve([
+          {
+            id: 1,
+            role: "user",
+            content: "coach's message",
+            sources: null,
+            senderAccountId: 99,
+            senderName: "Coach Alex",
+            isOwnMessage: false,
+          },
+          {
+            id: 2,
+            role: "user",
+            content: "client's own message",
+            sources: null,
+            senderAccountId: 5,
+            senderName: "Client Sam",
+            isOwnMessage: true,
+          },
+        ]);
+      }
+      throw new Error(`unexpected fetchJson call: ${url}`);
+    });
+    render(<ChatPage />);
+
+    await screen.findByText("coach's message");
+    expect(screen.getByText("Coach Alex")).toBeInTheDocument();
+    expect(screen.getByText("You")).toBeInTheDocument();
+    expect(screen.queryByText("Client Sam")).not.toBeInTheDocument();
+  });
+});
+
+describe("ChatPage clear confirmation copy", () => {
+  afterEach(() => {
+    fetchJsonMock.mockReset();
+    vi.restoreAllMocks();
+  });
+
+  it("uses generic copy when clearing your own conversation", async () => {
+    const user = userEvent.setup();
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+    fetchJsonMock.mockImplementation((url: string) => {
+      if (url === "/api/clients") return Promise.reject(new Error("Forbidden"));
+      if (String(url).startsWith("/api/chat")) {
+        return Promise.resolve([
+          { id: 1, role: "user", content: "hi", sources: null, isOwnMessage: true },
+        ]);
+      }
+      throw new Error(`unexpected fetchJson call: ${url}`);
+    });
+    render(<ChatPage />);
+
+    await user.click(await screen.findByRole("button", { name: "clear history" }));
+    expect(confirmSpy).toHaveBeenCalledWith("Clear the whole conversation?");
+  });
+
+  it("names the client explicitly when a coach clears a client's thread", async () => {
+    const user = userEvent.setup();
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+    fetchJsonMock.mockImplementation((url: string) => {
+      if (url === "/api/clients") return Promise.resolve(CLIENTS);
+      if (url === "/api/chat" || url === "/api/chat?accountId=10")
+        return Promise.resolve([
+          { id: 1, role: "user", content: "hi", sources: null, isOwnMessage: true },
+        ]);
+      throw new Error(`unexpected fetchJson call: ${url}`);
+    });
+    render(<ChatPage />);
+
+    const select = await screen.findByLabelText("Client");
+    await user.selectOptions(select, "10");
+    await user.click(await screen.findByRole("button", { name: "clear history" }));
+    expect(confirmSpy).toHaveBeenCalledWith("Clear Alex Client's whole conversation?");
+  });
+});
+
+describe("ChatPage polling", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    fetchJsonMock.mockReset();
+  });
+
+  it("polls GET /api/chat on an interval (5-10s) while the page is open", async () => {
+    mockDefault();
+    render(<ChatPage />);
+    await vi.waitFor(() =>
+      expect(fetchJsonMock.mock.calls.some(([url]) => url === "/api/chat")).toBe(true),
+    );
+
+    const callsBefore = fetchJsonMock.mock.calls.filter(([url]) => url === "/api/chat").length;
+    await vi.advanceTimersByTimeAsync(10_000);
+    const callsAfter = fetchJsonMock.mock.calls.filter(([url]) => url === "/api/chat").length;
+    expect(callsAfter).toBeGreaterThan(callsBefore);
   });
 });

@@ -1,9 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { errorMessage, fetchJson } from "@/lib/client-fetch";
 import { AiBadge } from "@/components/AiBadge";
 import { MarkdownContent } from "@/components/MarkdownContent";
+
+// Deliberate v1 choice (specs/coach-client-scoped-workspace.md §2): no
+// websocket infra exists in this codebase, so a coach's/client's messages
+// become visible to the other party via polling, not push.
+const POLL_MS = 7000;
 
 function TypingIndicator() {
   return (
@@ -24,6 +29,15 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   sources: { documentId: number; title: string; chunkIndex: number }[] | null;
+  senderAccountId?: number;
+  senderName?: string | null;
+  isOwnMessage?: boolean;
+}
+
+interface ClientRow {
+  id: number;
+  name: string;
+  createdAt: string;
 }
 
 export default function ChatPage() {
@@ -32,13 +46,53 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isCoach, setIsCoach] = useState(false);
+  const [clients, setClients] = useState<ClientRow[]>([]);
+  const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const busyRef = useRef(busy);
+  useEffect(() => {
+    busyRef.current = busy;
+  }, [busy]);
+
+  // GET /api/clients is coach-only — a client session 403s, which is how
+  // this page tells the two roles apart without a dedicated endpoint (see
+  // specs/coach-client-scoped-workspace.md §0), same trick as /documents.
+  useEffect(() => {
+    (async () => {
+      try {
+        const list = await fetchJson<ClientRow[]>("/api/clients");
+        setIsCoach(true);
+        setClients(list);
+      } catch {
+        setIsCoach(false);
+      }
+    })();
+  }, []);
+
+  const scopeQuery = selectedAccountId != null ? `?accountId=${selectedAccountId}` : "";
+
+  const refresh = useCallback(() => {
+    return fetchJson<Message[]>(`/api/chat${scopeQuery}`)
+      .then((rows) => {
+        setMessages(rows);
+        setLoadError(null);
+      })
+      .catch((err) => {
+        setLoadError(errorMessage(err, "Couldn't load your conversation."));
+      });
+  }, [scopeQuery]);
 
   useEffect(() => {
-    fetchJson<Message[]>("/api/chat")
-      .then(setMessages)
-      .catch((err) => setLoadError(errorMessage(err, "Couldn't load your conversation.")));
-  }, []);
+    refresh();
+  }, [refresh]);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (!busyRef.current) refresh();
+    }, POLL_MS);
+    return () => clearInterval(id);
+  }, [refresh]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -54,13 +108,16 @@ export default function ChatPage() {
     // Optimistic user bubble.
     setMessages((m) => [
       ...(m ?? []),
-      { id: -Date.now(), role: "user", content: message, sources: null },
+      { id: -Date.now(), role: "user", content: message, sources: null, isOwnMessage: true },
     ]);
     try {
       const json = await fetchJson<{ user: Message; assistant: Message }>("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message }),
+        body: JSON.stringify({
+          message,
+          ...(selectedAccountId != null ? { accountId: selectedAccountId } : {}),
+        }),
       });
       setMessages((m) => [...(m ?? []).slice(0, -1), json.user, json.assistant]);
     } catch (err) {
@@ -75,10 +132,17 @@ export default function ChatPage() {
   }
 
   async function clear() {
-    if (!confirm("Clear the whole conversation?")) return;
+    // A coach-triggered cross-account delete is a real footgun worth naming
+    // plainly, not a silent one (specs/coach-client-scoped-workspace.md §2).
+    const clientName =
+      selectedAccountId != null ? clients.find((c) => c.id === selectedAccountId)?.name : null;
+    const confirmText = clientName
+      ? `Clear ${clientName}'s whole conversation?`
+      : "Clear the whole conversation?";
+    if (!confirm(confirmText)) return;
     setBusy(true);
     try {
-      await fetchJson("/api/chat", { method: "DELETE" });
+      await fetchJson(`/api/chat${scopeQuery}`, { method: "DELETE" });
       setMessages([]);
     } catch (err) {
       setError(errorMessage(err, "Couldn't clear the conversation."));
@@ -93,13 +157,38 @@ export default function ChatPage() {
 
   return (
     <div className="mx-auto flex h-[calc(100vh-8rem)] max-w-3xl flex-col">
-      <div className="mb-2 flex items-center justify-between">
+      <div className="mb-2 flex items-center justify-between gap-3">
         <h1 className="text-lg font-semibold">Chat with your documents</h1>
-        {messages.length > 0 && (
-          <button onClick={clear} disabled={busy} className="text-xs text-muted hover:text-bad disabled:opacity-50">
-            clear history
-          </button>
-        )}
+        <div className="flex items-center gap-3">
+          {isCoach && (
+            <div className="flex items-center gap-2">
+              <label htmlFor="chat-client-select" className="text-sm font-medium text-muted">
+                Client
+              </label>
+              <select
+                id="chat-client-select"
+                aria-label="Client"
+                value={selectedAccountId ?? ""}
+                onChange={(e) =>
+                  setSelectedAccountId(e.target.value ? Number(e.target.value) : null)
+                }
+                className="rounded-md border border-borderc bg-background px-3 py-1.5 text-sm"
+              >
+                <option value="">My own conversation</option>
+                {clients.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          {messages.length > 0 && (
+            <button onClick={clear} disabled={busy} className="text-xs text-muted hover:text-bad disabled:opacity-50">
+              clear history
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="flex-1 space-y-3 overflow-y-auto rounded-xl border border-borderc bg-surface p-4">
@@ -130,7 +219,12 @@ export default function ChatPage() {
                 <MarkdownContent content={m.content} />
               </>
             ) : (
-              m.content
+              <>
+                <p className="mb-1 text-xs font-medium text-muted">
+                  {m.isOwnMessage === false ? m.senderName ?? "Them" : "You"}
+                </p>
+                {m.content}
+              </>
             )}
             {m.role === "assistant" && m.sources && m.sources.length > 0 && (
               <p className="mt-2 border-t border-borderc pt-1 text-xs text-muted">
