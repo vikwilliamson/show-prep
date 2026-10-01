@@ -58,11 +58,10 @@ function seedNutrition() {
 }
 
 /**
- * Populate every legacy HC record type the old six-type pipeline used to
- * read, including the five now-dropped ones. Used to prove the sync plan is
- * narrowed to nutrition only — not just that nutrition still works.
+ * Populate the five non-nutrition HC record types sync.ts also reads
+ * (weight/hydration/sleep/exercise/activity), one record each.
  */
-function seedLegacyNonNutritionTypes() {
+function seedOtherRecordTypes() {
   const t = recent();
   __setRecords("Weight", [{ metadata: { id: "w1" }, time: t, weight: { inKilograms: 88 } }]);
   __setRecords("Hydration", [{ metadata: { id: "h1" }, startTime: t, volume: { inLiters: 0.5 } }]);
@@ -107,7 +106,7 @@ test("refuses to sync when the pairing ID (referenceId) is unset", async () => {
   assert.equal(calls.length, 0);
 });
 
-test("the sync plan is narrowed to nutrition only", async () => {
+test("weight/hydration/sleep/exercise/activity sync alongside nutrition", async () => {
   await saveConfig({
     serverUrl: "https://prep.example.com",
     apiKey: "k",
@@ -115,22 +114,39 @@ test("the sync plan is narrowed to nutrition only", async () => {
     deviceId: "galaxy-x",
   });
   seedNutrition();
-  // Data is present for the old five types too — the narrowed plan must
-  // never read or post any of it.
-  seedLegacyNonNutritionTypes();
+  seedOtherRecordTypes();
   const calls = installFetch();
 
   const result = await runSync();
 
-  assert.equal(result.detail, "nutrition: 1");
-  assert.equal(calls.length, 1);
-  assert.ok(calls[0].url.endsWith("/api/ingest/nutrition"));
+  assert.equal(result.ok, true);
+  assert.equal(
+    result.detail,
+    "nutrition: 1\nweight: 1\nhydration: 1\nsleep: 1\nexercise: 1\nactivity: 1",
+  );
+
+  const byType = new Map(calls.map((c) => [c.url.split("/ingest/")[1], c]));
+  assert.equal(byType.get("nutrition")!.body.source, "myfitnesspal");
+  for (const type of ["weight", "hydration", "sleep", "exercise", "activity"]) {
+    assert.equal(byType.get(type)!.body.source, "samsung_health");
+  }
 
   const readTypes = new Set(__readCalls.map((c) => c.recordType));
-  assert.deepEqual([...readTypes], ["Nutrition"]);
+  assert.deepEqual(
+    [...readTypes].sort(),
+    [
+      "ExerciseSession",
+      "Hydration",
+      "Nutrition",
+      "SleepSession",
+      "Steps",
+      "TotalCaloriesBurned",
+      "Weight",
+    ].sort(),
+  );
 
-  for (const type of ["weight", "hydration", "sleep", "exercise", "activity"]) {
-    assert.equal(await getCursor(type), null, `${type} cursor should never be set`);
+  for (const type of ["nutrition", "weight", "hydration", "sleep", "exercise", "activity"]) {
+    assert.ok(await getCursor(type), `${type} cursor should be set`);
   }
 });
 
@@ -152,7 +168,10 @@ test("happy path posts nutrition and records status + cursor", async () => {
   const result = await runSync();
 
   assert.equal(result.ok, true);
-  assert.equal(result.detail, "nutrition: 1");
+  assert.equal(
+    result.detail,
+    "nutrition: 1\nweight: 0\nhydration: 0\nsleep: 0\nexercise: 0\nactivity: 0",
+  );
 
   assert.equal(calls.length, 1);
   const nutrition = calls[0];
@@ -293,7 +312,10 @@ test("no records makes no request but still advances the cursor", async () => {
   const result = await runSync();
 
   assert.ok(result.ok);
-  assert.equal(result.detail, "nutrition: 0");
+  assert.equal(
+    result.detail,
+    "nutrition: 0\nweight: 0\nhydration: 0\nsleep: 0\nexercise: 0\nactivity: 0",
+  );
   assert.equal(calls.length, 0);
   assert.ok(await getCursor("nutrition"), "empty sync should still advance its cursor");
 });
