@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { LogoutButton } from "@/components/LogoutButton";
 import { NavLinks } from "@/components/NavLinks";
 import "./globals.css";
 
@@ -37,7 +38,10 @@ export default function RootLayout({
               </span>
               <span className="text-xs text-muted">Coaching HQ</span>
             </div>
-            <NavLinks />
+            <div className="flex flex-wrap items-center gap-1">
+              <NavLinks />
+              <LogoutButton />
+            </div>
           </div>
         </header>
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6">
