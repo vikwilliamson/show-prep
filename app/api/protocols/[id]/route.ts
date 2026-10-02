@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { and, eq, ne } from "drizzle-orm";
 import { z } from "zod";
-import { requireAccount } from "@/lib/auth";
+import { authorizeRowAccess, requireAccount } from "@/lib/auth";
 import { getDb, protocols } from "@/lib/db";
 
 const patchSchema = z.object({
@@ -36,32 +36,32 @@ export async function PATCH(
   const db = await getDb();
   const protocolId = Number(id);
 
-  const [existing] = await db
-    .select()
-    .from(protocols)
-    .where(and(eq(protocols.id, protocolId), eq(protocols.accountId, session.accountId)));
-  if (!existing) {
+  const [existing] = await db.select().from(protocols).where(eq(protocols.id, protocolId));
+  if (!existing || !(await authorizeRowAccess(session, existing.accountId))) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
+  // The protocol's owner, not the caller: a coach acting on a client's protocol
+  // must supersede/update within the client's account (specs/coach-client-scoped-workspace.md §0).
+  const ownerAccountId = existing.accountId;
 
   if (action === "reject") {
     const [updated] = await db
       .update(protocols)
       .set({ status: "rejected" })
-      .where(and(eq(protocols.id, protocolId), eq(protocols.accountId, session.accountId)))
+      .where(and(eq(protocols.id, protocolId), eq(protocols.accountId, ownerAccountId)))
       .returning();
     return NextResponse.json(updated);
   }
 
   // confirm / reactivate: this protocol becomes the single active one for
-  // the caller's account — scoped so it doesn't supersede other accounts'
+  // its owner's account — scoped so it doesn't supersede other accounts'
   // active protocols.
   await db
     .update(protocols)
     .set({ status: "superseded" })
     .where(
       and(
-        eq(protocols.accountId, session.accountId),
+        eq(protocols.accountId, ownerAccountId),
         eq(protocols.status, "active"),
         ne(protocols.id, protocolId),
       ),
@@ -70,7 +70,7 @@ export async function PATCH(
   const [updated] = await db
     .update(protocols)
     .set({ ...edits, status: "active", confirmedAt: new Date() })
-    .where(and(eq(protocols.id, protocolId), eq(protocols.accountId, session.accountId)))
+    .where(and(eq(protocols.id, protocolId), eq(protocols.accountId, ownerAccountId)))
     .returning();
   return NextResponse.json(updated);
 }

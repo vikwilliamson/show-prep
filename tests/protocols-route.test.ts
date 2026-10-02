@@ -123,6 +123,102 @@ test("PATCH 404s on another account's protocol", async () => {
   assert.equal(res.status, 404);
 });
 
+function coachPatchRequest(coachId: number, body: unknown) {
+  const token = createSessionToken({ accountId: coachId, role: "coach" });
+  return new NextRequest("http://localhost/api/protocols/1", {
+    method: "PATCH",
+    headers: { "content-type": "application/json", cookie: `${SESSION_COOKIE}=${token}` },
+    body: JSON.stringify(body),
+  });
+}
+
+async function statusesById(ids: number[]) {
+  const db = await getDb();
+  const rows = await db.select().from(protocols).where(inArray(protocols.id, ids));
+  return Object.fromEntries(rows.map((r) => [r.id, r.status]));
+}
+
+test("PATCH confirm lets a coach confirm a client's pending protocol, superseding only that client's active one", async () => {
+  const { id: coach } = await makeAccount("Protocols Route Test Coach Confirm", { role: "coach" });
+  const { id: client } = await makeAccount("Protocols Route Test Coach Confirm Client");
+  const { id: otherClient } = await makeAccount("Protocols Route Test Coach Confirm Other Client");
+  const clientActive = await makeProtocol(client, { status: "active", confirmedAt: new Date() });
+  const clientPending = await makeProtocol(client, { status: "pending" });
+  const coachActive = await makeProtocol(coach, { status: "active", confirmedAt: new Date() });
+  const otherActive = await makeProtocol(otherClient, { status: "active", confirmedAt: new Date() });
+
+  const res = await PATCH(
+    coachPatchRequest(coach, { action: "confirm", calories: 2100 }),
+    ctxFor(clientPending),
+  );
+  assert.equal(res.status, 200);
+  const json = await res.json();
+  assert.equal(json.accountId, client);
+  assert.equal(json.calories, 2100);
+
+  const byId = await statusesById([clientActive, clientPending, coachActive, otherActive]);
+  assert.equal(byId[clientPending], "active");
+  assert.equal(byId[clientActive], "superseded", "the client's previous active protocol is superseded");
+  assert.equal(byId[coachActive], "active", "the coach's own active protocol must not be superseded");
+  assert.equal(byId[otherActive], "active", "another client's active protocol must not be superseded");
+});
+
+test("PATCH reject lets a coach reject a client's pending protocol", async () => {
+  const { id: coach } = await makeAccount("Protocols Route Test Coach Reject", { role: "coach" });
+  const { id: client } = await makeAccount("Protocols Route Test Coach Reject Client");
+  const clientPending = await makeProtocol(client, { status: "pending" });
+
+  const res = await PATCH(coachPatchRequest(coach, { action: "reject" }), ctxFor(clientPending));
+  assert.equal(res.status, 200);
+  assert.equal((await statusesById([clientPending]))[clientPending], "rejected");
+});
+
+test("PATCH reactivate lets a coach reactivate a client's superseded protocol", async () => {
+  const { id: coach } = await makeAccount("Protocols Route Test Coach Reactivate", { role: "coach" });
+  const { id: client } = await makeAccount("Protocols Route Test Coach Reactivate Client");
+  const clientActive = await makeProtocol(client, { status: "active", confirmedAt: new Date() });
+  const clientOld = await makeProtocol(client, { status: "superseded" });
+
+  const res = await PATCH(coachPatchRequest(coach, { action: "reactivate" }), ctxFor(clientOld));
+  assert.equal(res.status, 200);
+
+  const byId = await statusesById([clientActive, clientOld]);
+  assert.equal(byId[clientOld], "active");
+  assert.equal(byId[clientActive], "superseded");
+});
+
+test("PATCH 404s when a coach targets a protocol owned by another coach (not a client)", async () => {
+  const { id: coach } = await makeAccount("Protocols Route Test Coach Boundary", { role: "coach" });
+  const { id: otherCoach } = await makeAccount("Protocols Route Test Other Coach", { role: "coach" });
+  const otherCoachPending = await makeProtocol(otherCoach, { status: "pending" });
+
+  const res = await PATCH(
+    coachPatchRequest(coach, { action: "confirm" }),
+    ctxFor(otherCoachPending),
+  );
+  assert.equal(res.status, 404);
+  assert.equal((await statusesById([otherCoachPending]))[otherCoachPending], "pending");
+});
+
+test("PATCH 404s for a nonexistent protocol id", async () => {
+  const { id: coach } = await makeAccount("Protocols Route Test Coach Missing", { role: "coach" });
+  const res = await PATCH(coachPatchRequest(coach, { action: "reject" }), ctxFor(2_000_000_000));
+  assert.equal(res.status, 404);
+});
+
+test("PATCH still lets a coach confirm their own protocol", async () => {
+  const { id: coach } = await makeAccount("Protocols Route Test Coach Own", { role: "coach" });
+  const coachActive = await makeProtocol(coach, { status: "active", confirmedAt: new Date() });
+  const coachPending = await makeProtocol(coach, { status: "pending" });
+
+  const res = await PATCH(coachPatchRequest(coach, { action: "confirm" }), ctxFor(coachPending));
+  assert.equal(res.status, 200);
+
+  const byId = await statusesById([coachActive, coachPending]);
+  assert.equal(byId[coachPending], "active");
+  assert.equal(byId[coachActive], "superseded");
+});
+
 test("confirming a protocol only supersedes the same account's active protocols", async () => {
   const { id: a } = await makeAccount("Protocols Route Test Supersede A");
   const { id: b } = await makeAccount("Protocols Route Test Supersede B");
