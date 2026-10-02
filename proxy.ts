@@ -4,7 +4,8 @@ import { env } from "@/lib/env";
 
 // Per-account session gate. Active only when SESSION_SECRET is configured
 // (unset in local dev by default): every route except /login, /api/session
-// and /api/ingest/* (which has its own bearer-token auth) requires a valid
+// and /api/ingest/* + /api/mobile/* (which have their own bearer-token auth,
+// since the companion app has no session cookie) requires a valid
 // session cookie. SESSION_SECRET can only be unset in this fail-open way in
 // local dev — lib/env.ts throws at boot if it's missing while
 // process.env.VERCEL is set, so a real deploy can never come up with this
@@ -23,7 +24,8 @@ export function proxy(req: NextRequest) {
   if (
     pathname === "/login" ||
     pathname.startsWith("/api/session") ||
-    pathname.startsWith("/api/ingest/")
+    pathname.startsWith("/api/ingest/") ||
+    pathname.startsWith("/api/mobile/")
   ) {
     return NextResponse.next();
   }
