@@ -196,3 +196,30 @@ test("GET returns null when no brief exists yet for the week", async () => {
   const json = await res.json();
   assert.equal(json.brief, null);
 });
+
+test("POST returns 502 and leaves any existing brief untouched when generation fails", async () => {
+  const { id: clientId } = await makeAccount("Brief Route Test Client H");
+  generateMock.mockResolvedValue("good draft");
+  await POST(requestWithSession("POST", clientId, "coach", { weekStart: WEEK_START }), ctxFor(clientId));
+
+  generateMock.mockRejectedValue(new Error("Anthropic overloaded"));
+  const res = await POST(requestWithSession("POST", clientId, "coach", { weekStart: WEEK_START }), ctxFor(clientId));
+  assert.equal(res.status, 502);
+  const json = await res.json();
+  assert.match(json.error, /Anthropic overloaded/);
+
+  const db = await getDb();
+  const [row] = await db.select().from(coachBriefs).where(eq(coachBriefs.accountId, clientId));
+  assert.equal(row.content, "good draft", "a failed regenerate must not clobber the existing brief");
+});
+
+test("PUT with a malformed JSON body returns 422, not a 500", async () => {
+  const { id: clientId } = await makeAccount("Brief Route Test Client I");
+  const req = new NextRequest(`http://localhost/api/clients/${clientId}/brief`, {
+    method: "PUT",
+    headers: { cookie: `${SESSION_COOKIE}=${createSessionToken({ accountId: 1, role: "coach" })}` },
+    body: "{not json",
+  });
+  const res = await PUT(req, ctxFor(clientId));
+  assert.equal(res.status, 422);
+});
