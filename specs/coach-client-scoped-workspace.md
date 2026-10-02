@@ -259,3 +259,34 @@ current usage levels.
   the resolved thread, not necessarily the requester's own.
 - Migration: existing rows backfill `sender_account_id = account_id`
   correctly; the `NOT NULL` dry-run against `test` succeeds before merge.
+
+---
+
+## 2026-10-01 update (VIK-154): `PATCH /api/protocols/[id]` was missed
+
+§0 lists the routes keyed by an existing row id that use row-ownership
+authorization, and named only `DELETE /api/documents/[id]` and `POST
+/api/documents/[id]/reprocess`. `PATCH /api/protocols/[id]` (Confirm /
+Reject / Reactivate) belongs on that list too — §1 lets a coach upload a
+document for a client, which creates a *pending protocol under the client's
+account*, and the coach then has to be able to confirm it. It still scoped
+to `session.accountId`, so a coach's Confirm 404'd ("Update failed.").
+
+**Decision.** The route loads the protocol by id alone and authorizes with
+`authorizeRowAccess(session, protocol.accountId)`, 404ing on `false` exactly
+as before. Everything after that runs against the **protocol owner's**
+`accountId`, not the caller's: confirm/reactivate supersedes the *owner's*
+other active protocols (a coach confirming a client's protocol must not
+supersede the coach's own, and must supersede the client's previous one).
+A coach still cannot touch a protocol owned by another coach or any
+non-client account.
+
+**Tests.** `tests/protocols-route.test.ts`: coach confirm / reject /
+reactivate on a client's protocol, supersede stays inside the client's
+account, coach-vs-other-coach boundary 404s, nonexistent id 404s, and a
+coach confirming their own protocol still works.
+
+**Still own-account only, deliberately left (not part of this fix):**
+`GET /api/documents/[id]` (the UI never calls it), `PUT /api/settings`
+(coach-set client targets are a separate gap), `POST /api/analysis` and
+`POST /api/checkins`.
