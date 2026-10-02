@@ -46,3 +46,8 @@ test("a valid session cookie passes through to a protected page", () => {
   const res = proxy(requestTo("/", token));
   assert.equal(res.status, 200);
 });
+
+test("DELETE /api/session (logout) passes through even with no valid session", () => {
+  const req = new NextRequest("http://localhost/api/session", { method: "DELETE" });
+  assert.equal(proxy(req).status, 200);
+});
