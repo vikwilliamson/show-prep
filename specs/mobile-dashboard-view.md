@@ -133,6 +133,33 @@ updated to match; `mobile/test/dashboard.test.ts` and
 `tests/mobile-dashboard-route.test.ts` extended to cover the
 protocol-wins-when-both-exist and manual-fallback-when-no-protocol cases.
 
+## 2026-10-01 update (VIK-153): the proxy must exempt `/api/mobile/*`
+
+**What went wrong.** "Authenticated the same way `/api/ingest/*` is today"
+(Implementation Decisions, above) was only half implemented: the route
+checks the bearer token + `referenceId`, but `proxy.ts` — the session-cookie
+gate in front of every route — only exempted `/login`, `/api/session*` and
+`/api/ingest/*`. With `SESSION_SECRET` set (always, on Vercel), the proxy
+401'd every companion-app request before the route's own check ran, so the
+mobile Dashboard tab could never load on a deployed server. It worked in
+local dev only because `SESSION_SECRET` is unset there, and
+`tests/mobile-dashboard-route.test.ts` calls the route's `GET` directly,
+bypassing the proxy entirely.
+
+**Decision.** `proxy.ts` exempts `pathname.startsWith("/api/mobile/")` (the
+trailing slash is deliberate: `/api/mobile` and look-alikes such as
+`/api/mobile-admin` stay session-gated). The exemption is safe because the
+route authenticates itself, in order: `checkIngestAuth()` (bearer
+`INGEST_API_KEY`, constant-time compare; `lib/env.ts` refuses to boot on
+Vercel without it), then `getAccountByReferenceId()` (unknown → 401). Any
+future route under `/api/mobile/` inherits the exemption, so it **must**
+call `checkIngestAuth()` itself — the proxy no longer protects it.
+
+**Tests.** `tests/proxy.test.ts` covers the passthrough and the look-alike
+paths staying gated. `tests/mobile-dashboard-auth.test.ts` covers the
+bearer check with `INGEST_API_KEY` set (the route test file runs with it
+unset), since the bearer is now this route's only gate.
+
 ## Further Notes
 
 - This is the second of two specs the same grill session produced

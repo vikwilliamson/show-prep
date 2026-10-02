@@ -16,6 +16,20 @@ test("public paths pass through with no session", () => {
   }
 });
 
+test("the mobile companion's bearer-authed dashboard route passes through with no session cookie", () => {
+  // The companion app has no session cookie; /api/mobile/dashboard authenticates
+  // itself with the ingest bearer token + referenceId (specs/mobile-dashboard-view.md).
+  const res = proxy(requestTo("/api/mobile/dashboard"));
+  assert.equal(res.status, 200);
+});
+
+test("paths that merely resemble the public prefixes stay gated", () => {
+  for (const pathname of ["/api/mobile", "/api/mobiles/dashboard", "/api/ingest", "/api/mobile-admin"]) {
+    const res = proxy(requestTo(pathname));
+    assert.equal(res.status, 401, `${pathname} should 401 with no session`);
+  }
+});
+
 test("a protected page redirects to /login with no session", () => {
   const res = proxy(requestTo("/"));
   assert.equal(res.status, 307);
