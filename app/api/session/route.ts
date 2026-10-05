@@ -67,3 +67,18 @@ export async function POST(req: NextRequest) {
   });
   return res;
 }
+
+// DELETE — logout. Expires the session cookie with the same name/path as
+// POST sets it so the browser actually drops it. Idempotent: no session
+// required. The token is stateless, so this only clears the browser's copy.
+export async function DELETE() {
+  const res = NextResponse.json({ ok: true });
+  res.cookies.set(SESSION_COOKIE, "", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: 0,
+    path: "/",
+  });
+  return res;
+}

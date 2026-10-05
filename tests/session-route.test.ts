@@ -4,7 +4,7 @@ import { NextRequest } from "next/server";
 import { getDb, accounts } from "../lib/db";
 import { deleteAccount, hashPasscode, SESSION_COOKIE, verifySessionToken } from "../lib/auth";
 import { resetRateLimit } from "../lib/rate-limit";
-import { LOGIN_RATE_LIMIT, POST } from "../app/api/session/route";
+import { DELETE, LOGIN_RATE_LIMIT, POST } from "../app/api/session/route";
 
 let testAccountId: number;
 
@@ -95,4 +95,15 @@ test("x-vercel-forwarded-for is trusted over a spoofed x-forwarded-for, so rotat
     "x-vercel-forwarded-for": realIp,
   });
   assert.equal(res.status, 429);
+});
+
+test("DELETE clears the session cookie (expired, same path and flags as login)", async () => {
+  const res = await DELETE();
+  assert.equal(res.status, 200);
+  const cleared = res.cookies.get(SESSION_COOKIE);
+  assert.ok(cleared, "response must carry a Set-Cookie for the session cookie");
+  assert.equal(cleared.value, "");
+  assert.equal(cleared.maxAge, 0);
+  assert.equal(cleared.path, "/");
+  assert.equal(cleared.httpOnly, true);
 });

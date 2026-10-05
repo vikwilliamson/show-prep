@@ -9,6 +9,7 @@ vi.mock("next/font/google", () => ({
 }));
 vi.mock("next/navigation", () => ({
   usePathname: vi.fn(),
+  useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
 }));
 
 import RootLayout from "@/app/layout";
@@ -26,6 +27,7 @@ describe("RootLayout", () => {
 
     expect(screen.getByText("Gamma")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Dashboard" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Log out" })).toBeInTheDocument();
     expect(screen.getByText("page content")).toBeInTheDocument();
   });
 });

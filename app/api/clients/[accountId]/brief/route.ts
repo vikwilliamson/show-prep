@@ -89,7 +89,15 @@ export async function POST(
   const weekStart = parsed.data.weekStart ?? mondayOf(todayLocal(settings.timezone));
   const stats = await weekStats(client.id, weekStart);
   const recentProtocols = await recentProtocolHistory(client.id);
-  const content = await generateCoachBrief(stats, settings, client.name, recentProtocols);
+  let content: string;
+  try {
+    content = await generateCoachBrief(stats, settings, client.name, recentProtocols);
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Brief generation failed" },
+      { status: 502 },
+    );
+  }
 
   const db = await getDb();
   const values = {
@@ -130,7 +138,7 @@ export async function PUT(
   const client = await getClientAccount(Number(accountId));
   if (!client) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const parsed = putSchema.safeParse(await req.json());
+  const parsed = putSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json(
       { error: "Validation failed", issues: z.treeifyError(parsed.error) },
