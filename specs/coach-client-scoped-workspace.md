@@ -176,7 +176,7 @@ client explicitly when a coach is acting on their behalf (e.g. `Clear
 
 ### Every message triggers a bot reply, regardless of sender
 
-> **Amended 2026-10-01 (VIK-157, proposed):** a message may be marked
+> **Amended 2026-10-01 (VIK-157, accepted):** a message may be marked
 > human-only, in which case no bot reply is generated. See the
 > "human-only messages" section at the end of this spec.
 
@@ -299,8 +299,8 @@ coach confirming their own protocol still works.
 
 ## 2026-10-01 update (VIK-157): human-only messages in the shared Doc Chat thread
 
-**Status: proposed — decisions below are recommendations pending Vik's
-review; implementation tickets get filed only after sign-off.**
+**Status: accepted — Vik reviewed the four decisions below and signed off;
+implementation tickets are filed against them.**
 
 §2's "Every message triggers a bot reply, regardless of sender" has no
 escape hatch: a coach and client can't talk to *each other* in the thread
