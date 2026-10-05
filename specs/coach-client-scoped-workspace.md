@@ -176,6 +176,10 @@ client explicitly when a coach is acting on their behalf (e.g. `Clear
 
 ### Every message triggers a bot reply, regardless of sender
 
+> **Amended 2026-10-01 (VIK-157, accepted):** a message may be marked
+> human-only, in which case no bot reply is generated. See the
+> "human-only messages" section at the end of this spec.
+
 Confirmed reading of Vik's request ("the client and coach can both chat
 with the bot") — both a coach's and a client's `role: "user"` message calls
 `answerQuestion(accountId, message, history)` and appends an assistant
@@ -290,3 +294,117 @@ coach confirming their own protocol still works.
 `GET /api/documents/[id]` (the UI never calls it), `PUT /api/settings`
 (coach-set client targets are a separate gap), `POST /api/analysis` and
 `POST /api/checkins`.
+
+---
+
+## 2026-10-01 update (VIK-157): human-only messages in the shared Doc Chat thread
+
+**Status: accepted — Vik reviewed the four decisions below and signed off;
+implementation tickets are filed against them.**
+
+§2's "Every message triggers a bot reply, regardless of sender" has no
+escape hatch: a coach and client can't talk to *each other* in the thread
+without the bot answering every line. **This amends that rule** — a message
+can now be marked *human-only*, in which case no bot reply is generated.
+
+**Decision 1 — a per-message flag, default off.** A new boolean on the
+message, `human_only`, chosen at send time via a composer toggle ("Send
+without the bot"). Default is off, so every existing flow — a client's
+ordinary `/chat`, a coach asking the bot about a client's documents —
+behaves exactly as today; nothing changes unless someone opts in per
+message. Rejected alternatives: an `@bot` mention (changes the default for
+everyone and makes a typo silently route to the wrong mode); a separate
+human-only thread (splits one conversation in two and loses the "mirror"
+property §2 was built around).
+
+**Decision 2 — a column, not a new `role` value.** `chat_messages.role`
+keeps meaning "who produced this": `"user"` = a human typed it. Adding a
+third role (e.g. `"human"`) would overload that column and force every
+consumer of `role` (the Anthropic history mapping, `AiBadge` rendering) to
+learn a case it should simply ignore. Schema:
+
+```ts
+humanOnly: boolean("human_only").notNull().default(false),
+```
+
+The migration adds a `NOT NULL` column, so per `AGENTS.md` it **must be
+dry-run against the `test` Neon branch before merge**. The default
+backfills existing rows to `false` (all of them were bot-addressed), so no
+separate backfill step. `role: "assistant"` rows are always
+`human_only = false`. Effort: `xhigh` (schema), same as the original §2.
+
+**Decision 3 — the bot never sees human-only messages.** Two reasons, both
+deliberate:
+
+- **Grounding.** `answerQuestion()` takes the thread `history`
+  (`.slice(-8)` in `lib/rag.ts`); a coach's "call me tomorrow" in that
+  window is noise that degrades answers. `POST /api/chat` filters
+  `human_only = false` *before* building `history`, so the 8-message window
+  is 8 bot-relevant messages, not 8 minus however many human ones landed.
+- **Data flow.** Human-only text is never sent to Anthropic. That is a
+  stronger privacy statement than "coach and client both see it", worth
+  stating plainly given VIK-121's undocumented-data-flow finding — a client
+  can trust that a human-only message stays between the two people in the
+  thread (and the database).
+
+Human-only messages are still visible to *both* parties (same thread, same
+`GET`). This is not a private channel from the other human — only from the
+bot.
+
+**Decision 4 — both roles can send human-only messages.** §2's thread is
+symmetric by design (the mirror falls out of the data model), and a
+coach-only toggle would leave a client unable to message their coach
+without the bot interjecting — the same problem, from the other side. No
+role check beyond the existing `resolveWorkspaceAccountId()` authorization.
+
+**API.**
+
+- `POST /api/chat` accepts optional `humanOnly: boolean` (default `false`).
+  When `true`: insert the user row with `human_only = true`, skip
+  `answerQuestion()`, respond `{ user }` (no `assistant` key — callers
+  must not assume it's present). `senderAccountId` / `accountId` semantics
+  are unchanged.
+- `GET /api/chat` returns `humanOnly` per row.
+- `DELETE /api/chat` is unchanged (clears the whole thread, human-only
+  messages included).
+
+**UI.** A "Send without the bot" checkbox/toggle beside the composer,
+default unchecked, resetting to unchecked after each send (sticky-on would
+make the next bot question silently go unanswered — the failure mode worth
+designing out). Human-only bubbles use the existing sender labels
+("You" / sender name) with a small "Not sent to the bot" caption and no
+`AiBadge`. The existing 5–10s polling picks them up with no change.
+
+**Explicitly deferred.**
+
+- **Unread / new-message indicators.** With bot replies, a sender always
+  sees *something* come back; a human-only message gets no immediate
+  response, and the recipient only sees it if they happen to have the page
+  open (polling) — there is no notification. Acceptable for v1 at current
+  usage, same reasoning as §2's "polling, not real-time"; if human-only
+  messaging becomes the main use, revisit (email/push notification).
+- **Toggling an already-sent message** between human-only and bot-addressed
+  (per-message editing is already deferred in §2).
+
+**Sequencing (follow-up tickets, after sign-off).**
+
+1. `chat_messages.human_only` migration — dry-run on `test` per
+   `AGENTS.md`; independent of the code below (as VIK-150 was).
+2. `POST`/`GET /api/chat` changes (flag, skip bot, filter `history`).
+3. Composer toggle + bubble rendering — depends on 1 and 2.
+
+**Test plan (TDD — write first).**
+
+- `POST` with `humanOnly: true`: user row stored with `human_only = true`,
+  `answerQuestion` is **not** called, response has no `assistant`; both a
+  coach-into-client's-thread and a client's own send.
+- `POST` without the flag (and with `humanOnly: false`): unchanged — bot
+  reply appended, row `human_only = false`.
+- `history` passed to `answerQuestion` excludes human-only rows, and the
+  `-8` window is computed after filtering (insert >8 mixed rows, assert the
+  call's `history`).
+- `GET` returns `humanOnly` for both kinds of row.
+- Composer: toggle defaults off, resets after send, sends `humanOnly:
+  true` when checked; human-only bubble shows the caption and no `AiBadge`.
+- Migration: existing rows read back `human_only = false`; the `NOT NULL`
+  dry-run against `test` succeeds.
