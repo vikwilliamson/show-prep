@@ -28,17 +28,22 @@ vi.mock("../lib/ai/client", () => ({
 
 const { makeAccount, cleanup } = createAccountTracker();
 afterEach(cleanup);
+afterEach(() => createMock.mockReset());
 
 function postRequest(
   sessionAccountId: number,
   message: string,
-  options: { role?: "coach" | "client"; accountId?: number } = {},
+  options: { role?: "coach" | "client"; accountId?: number; humanOnly?: boolean } = {},
 ) {
   const token = createSessionToken({ accountId: sessionAccountId, role: options.role ?? "client" });
   return new NextRequest("http://localhost/api/chat", {
     method: "POST",
     headers: { cookie: `${SESSION_COOKIE}=${token}`, "content-type": "application/json" },
-    body: JSON.stringify({ message, ...(options.accountId != null ? { accountId: options.accountId } : {}) }),
+    body: JSON.stringify({
+      message,
+      ...(options.accountId != null ? { accountId: options.accountId } : {}),
+      ...(options.humanOnly != null ? { humanOnly: options.humanOnly } : {}),
+    }),
   });
 }
 
@@ -172,4 +177,123 @@ test("DELETE /api/chat?accountId= clears the resolved thread, not necessarily th
   const db = await getDb();
   const remaining = await db.select().from(chatMessages).where(eq(chatMessages.accountId, clientId));
   assert.equal(remaining.length, 0, "the client's thread should be cleared");
+});
+
+test("POST /api/chat humanOnly:true from a client stores a human-only row, skips the bot, and returns no assistant", async () => {
+  const { id: clientId } = await makeAccount("Chat Human Only Client");
+
+  const res = await POST(postRequest(clientId, "hi coach", { humanOnly: true }));
+  assert.equal(res.status, 200);
+  const json = await res.json();
+  assert.equal(json.user.humanOnly, true);
+  assert.equal("assistant" in json, false, "a human-only send must not return an assistant key");
+  assert.equal(createMock.mock.calls.length, 0, "the bot must not be called for a human-only message");
+
+  const db = await getDb();
+  const rows = await db.select().from(chatMessages).where(eq(chatMessages.accountId, clientId));
+  assert.equal(rows.length, 1, "no assistant reply row");
+  assert.equal(rows[0].humanOnly, true);
+  assert.equal(rows[0].senderAccountId, clientId);
+});
+
+test("POST /api/chat humanOnly:true from a coach into a client's thread keeps coach sender / client thread and skips the bot", async () => {
+  const { id: coachId } = await makeAccount("Chat Human Only Coach", { role: "coach" });
+  const { id: clientId } = await makeAccount("Chat Human Only Coach Client");
+
+  const res = await POST(postRequest(coachId, "call me tomorrow", { role: "coach", accountId: clientId, humanOnly: true }));
+  assert.equal(res.status, 200);
+  assert.equal(createMock.mock.calls.length, 0);
+
+  const db = await getDb();
+  const rows = await db.select().from(chatMessages).where(eq(chatMessages.accountId, clientId));
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].accountId, clientId);
+  assert.equal(rows[0].senderAccountId, coachId);
+  assert.equal(rows[0].humanOnly, true);
+});
+
+test("POST /api/chat with humanOnly omitted or false still replies via the bot and stores human_only = false on both rows", async () => {
+  const { id: clientId } = await makeAccount("Chat Human Only Default Client");
+  createMock.mockResolvedValue({ content: [{ type: "text", text: "an answer" }] });
+
+  for (const humanOnly of [undefined, false]) {
+    const res = await POST(postRequest(clientId, "a question", humanOnly === undefined ? {} : { humanOnly }));
+    assert.equal(res.status, 200);
+    const json = await res.json();
+    assert.ok(json.assistant, "bot reply expected");
+  }
+  assert.equal(createMock.mock.calls.length, 2);
+
+  const db = await getDb();
+  const rows = await db.select().from(chatMessages).where(eq(chatMessages.accountId, clientId));
+  assert.equal(rows.length, 4);
+  for (const row of rows) assert.equal(row.humanOnly, false);
+});
+
+test("POST /api/chat rejects a non-boolean humanOnly with 422", async () => {
+  const { id: clientId } = await makeAccount("Chat Human Only Invalid Client");
+  const token = createSessionToken({ accountId: clientId, role: "client" });
+  const res = await POST(
+    new NextRequest("http://localhost/api/chat", {
+      method: "POST",
+      headers: { cookie: `${SESSION_COOKIE}=${token}`, "content-type": "application/json" },
+      body: JSON.stringify({ message: "hi", humanOnly: "yes" }),
+    }),
+  );
+  assert.equal(res.status, 422);
+  assert.equal(createMock.mock.calls.length, 0);
+});
+
+test("POST /api/chat never sends human-only messages to the model, and the 8-message window is built from bot-relevant rows only", async () => {
+  const { id: coachId } = await makeAccount("Chat Human Only History Coach", { role: "coach" });
+  const { id: clientId } = await makeAccount("Chat Human Only History Client");
+  const db = await getDb();
+
+  // 8 bot-relevant rows (4 Q/A pairs), then 5 *newer* human-only rows. If
+  // filtering happened after the -8 window, the window would be mostly
+  // human-only rows and the bot context would be lost.
+  for (let i = 1; i <= 4; i++) {
+    await db.insert(chatMessages).values({ accountId: clientId, senderAccountId: clientId, role: "user", content: `bot question ${i}` });
+    await db.insert(chatMessages).values({ accountId: clientId, senderAccountId: clientId, role: "assistant", content: `bot answer ${i}` });
+  }
+  for (let i = 1; i <= 5; i++) {
+    await db.insert(chatMessages).values({
+      accountId: clientId,
+      senderAccountId: coachId,
+      role: "user",
+      content: `SECRET human-only note ${i}`,
+      humanOnly: true,
+    });
+  }
+
+  createMock.mockResolvedValueOnce({ content: [{ type: "text", text: "an answer" }] });
+  const res = await POST(postRequest(clientId, "a fresh question"));
+  assert.equal(res.status, 200);
+
+  assert.equal(createMock.mock.calls.length, 1);
+  const messages: { role: string; content: string }[] = createMock.mock.calls[0][0].messages;
+  assert.ok(
+    !JSON.stringify(createMock.mock.calls[0][0]).includes("SECRET human-only"),
+    "no human-only text may reach the model, in history or anywhere else in the request",
+  );
+  const history = messages.slice(0, -1);
+  assert.equal(history.length, 8, "all 8 bot-relevant rows fit the window");
+  assert.deepEqual(
+    history.map((m) => m.content),
+    ["bot question 1", "bot answer 1", "bot question 2", "bot answer 2", "bot question 3", "bot answer 3", "bot question 4", "bot answer 4"],
+  );
+});
+
+test("GET /api/chat returns humanOnly for both kinds of row", async () => {
+  const { id: clientId } = await makeAccount("Chat Human Only GET Client");
+  createMock.mockResolvedValueOnce({ content: [{ type: "text", text: "an answer" }] });
+  await POST(postRequest(clientId, "bot question"));
+  await POST(postRequest(clientId, "human note", { humanOnly: true }));
+
+  const res = await GET(getRequest(clientId));
+  const rows: { content: string; humanOnly: boolean }[] = await res.json();
+  assert.equal(rows.length, 3);
+  assert.equal(rows.find((r) => r.content === "human note")?.humanOnly, true);
+  assert.equal(rows.find((r) => r.content === "bot question")?.humanOnly, false);
+  assert.equal(rows.find((r) => r.content === "an answer")?.humanOnly, false);
 });
