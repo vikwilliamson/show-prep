@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { requireAccount, resolveWorkspaceAccountId } from "@/lib/auth";
 import { accounts, chatMessages, getDb } from "@/lib/db";
@@ -28,6 +28,7 @@ export async function GET(req: NextRequest) {
       content: chatMessages.content,
       sources: chatMessages.sources,
       createdAt: chatMessages.createdAt,
+      humanOnly: chatMessages.humanOnly,
       senderAccountId: chatMessages.senderAccountId,
       senderName: accounts.name,
       isOwnMessage: eq(chatMessages.senderAccountId, session.accountId),
@@ -42,6 +43,7 @@ export async function GET(req: NextRequest) {
 const postSchema = z.object({
   message: z.string().min(1).max(4000),
   accountId: z.number().int().optional(),
+  humanOnly: z.boolean().optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -56,12 +58,16 @@ export async function POST(req: NextRequest) {
   if (resolved instanceof NextResponse) return resolved;
 
   const db = await getDb();
+  const humanOnly = parsed.data.humanOnly ?? false;
 
+  // Human-only rows are filtered out here, before answerQuestion applies its
+  // last-8 window, so they never reach the model and the window is 8
+  // bot-relevant messages (specs/coach-client-scoped-workspace.md, VIK-157).
   const history = (
     await db
       .select({ role: chatMessages.role, content: chatMessages.content })
       .from(chatMessages)
-      .where(eq(chatMessages.accountId, resolved))
+      .where(and(eq(chatMessages.accountId, resolved), eq(chatMessages.humanOnly, false)))
       .orderBy(asc(chatMessages.createdAt), asc(chatMessages.id))
   ).map((m) => ({ role: m.role, content: m.content }));
 
@@ -72,8 +78,11 @@ export async function POST(req: NextRequest) {
       senderAccountId: session.accountId,
       role: "user",
       content: parsed.data.message,
+      humanOnly,
     })
     .returning();
+
+  if (humanOnly) return NextResponse.json({ user: userMsg });
 
   try {
     const { answer, sources } = await answerQuestion(resolved, parsed.data.message, history);
