@@ -386,6 +386,10 @@ export const chatMessages = pgTable("chat_messages", {
   content: text("content").notNull(),
   // [{ documentId, title, chunkIndex }] for assistant messages
   sources: jsonb("sources"),
+  // true = coach/client message the bot never sees or answers (never sent to
+  // the LLM). Always false for role: "assistant" rows. See
+  // specs/coach-client-scoped-workspace.md's VIK-157 addendum.
+  humanOnly: boolean("human_only").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

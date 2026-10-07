@@ -1,0 +1,1 @@
+ALTER TABLE "chat_messages" ADD COLUMN "human_only" boolean DEFAULT false NOT NULL;
