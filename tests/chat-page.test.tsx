@@ -348,3 +348,103 @@ describe("ChatPage polling", () => {
     expect(callsAfter).toBeGreaterThan(callsBefore);
   });
 });
+
+describe("ChatPage human-only messages", () => {
+  const PLACEHOLDER = "Ask about your protocols or program rules…";
+
+  afterEach(() => {
+    fetchJsonMock.mockReset();
+  });
+
+  function postCalls() {
+    return fetchJsonMock.mock.calls.filter(
+      ([url, init]) => url === "/api/chat" && (init as RequestInit)?.method === "POST",
+    );
+  }
+
+  it("renders the 'Send without the bot' toggle unchecked by default", async () => {
+    await renderReady();
+    expect(screen.getByRole("checkbox", { name: "Send without the bot" })).not.toBeChecked();
+  });
+
+  it("a normal send omits humanOnly and shows the typing indicator while the bot replies", async () => {
+    const user = userEvent.setup();
+    await renderReady();
+
+    let resolveSend!: (value: unknown) => void;
+    fetchJsonMock.mockReturnValueOnce(new Promise((resolve) => (resolveSend = resolve)));
+
+    await user.type(screen.getByPlaceholderText(PLACEHOLDER), "Hello");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(await screen.findByRole("status", { name: "Bot is replying" })).toBeInTheDocument();
+    const body = JSON.parse((postCalls()[0][1] as RequestInit).body as string);
+    expect(body.humanOnly).toBeUndefined();
+
+    resolveSend({
+      user: { id: 1, role: "user", content: "Hello", sources: null, isOwnMessage: true, humanOnly: false },
+      assistant: { id: 2, role: "assistant", content: "Hi!", sources: null },
+    });
+    await screen.findByText("Hi!");
+    expect(screen.queryByRole("status", { name: "Bot is replying" })).not.toBeInTheDocument();
+  });
+
+  it("sends humanOnly: true when checked, with no typing indicator and no assistant bubble, then resets the toggle", async () => {
+    const user = userEvent.setup();
+    await renderReady();
+
+    let resolveSend!: (value: unknown) => void;
+    fetchJsonMock.mockReturnValueOnce(new Promise((resolve) => (resolveSend = resolve)));
+
+    await user.click(screen.getByRole("checkbox", { name: "Send without the bot" }));
+    await user.type(screen.getByPlaceholderText(PLACEHOLDER), "call me tomorrow");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+
+    await waitFor(() => expect(postCalls()).toHaveLength(1));
+    const body = JSON.parse((postCalls()[0][1] as RequestInit).body as string);
+    expect(body.humanOnly).toBe(true);
+    expect(screen.queryByRole("status", { name: "Bot is replying" })).not.toBeInTheDocument();
+
+    resolveSend({
+      user: { id: 5, role: "user", content: "call me tomorrow", sources: null, isOwnMessage: true, humanOnly: true },
+    });
+    await screen.findByText("Not sent to the bot");
+    expect(screen.getByText("call me tomorrow")).toBeInTheDocument();
+    expect(screen.queryByText("AI-assisted")).not.toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Send without the bot" })).not.toBeChecked();
+  });
+
+  it("restores the toggle and the text when a human-only send fails, so a retry keeps its intent", async () => {
+    const user = userEvent.setup();
+    await renderReady();
+
+    fetchJsonMock.mockRejectedValueOnce(new Error("Message failed to send."));
+    await user.click(screen.getByRole("checkbox", { name: "Send without the bot" }));
+    await user.type(screen.getByPlaceholderText(PLACEHOLDER), "private note");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+
+    await screen.findByText("Message failed to send.");
+    expect(screen.getByPlaceholderText(PLACEHOLDER)).toHaveValue("private note");
+    expect(screen.getByRole("checkbox", { name: "Send without the bot" })).toBeChecked();
+  });
+
+  it("captions human-only bubbles from the thread and leaves normal bubbles unchanged", async () => {
+    fetchJsonMock.mockImplementation((url: string) => {
+      if (url === "/api/clients") return Promise.reject(new Error("Forbidden"));
+      if (String(url).startsWith("/api/chat")) {
+        return Promise.resolve([
+          { id: 1, role: "user", content: "bot question", sources: null, isOwnMessage: true, humanOnly: false },
+          { id: 2, role: "assistant", content: "bot answer", sources: null, humanOnly: false },
+          { id: 3, role: "user", content: "coach note", sources: null, isOwnMessage: false, senderName: "Coach Vik", humanOnly: true },
+        ]);
+      }
+      throw new Error(`unexpected fetchJson call: ${url}`);
+    });
+    render(<ChatPage />);
+
+    await screen.findByText("coach note");
+    expect(screen.getAllByText("Not sent to the bot")).toHaveLength(1);
+    expect(screen.getByText("Coach Vik")).toBeInTheDocument();
+    expect(screen.getAllByText("AI-assisted")).toHaveLength(1);
+  });
+});

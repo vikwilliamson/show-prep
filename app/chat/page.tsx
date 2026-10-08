@@ -12,7 +12,11 @@ const POLL_MS = 7000;
 
 function TypingIndicator() {
   return (
-    <div className="mr-auto flex items-center gap-1 rounded-xl border border-borderc bg-background px-3 py-2.5">
+    <div
+      role="status"
+      aria-label="Bot is replying"
+      className="mr-auto flex items-center gap-1 rounded-xl border border-borderc bg-background px-3 py-2.5"
+    >
       {[0, 1, 2].map((i) => (
         <span
           key={i}
@@ -32,6 +36,7 @@ interface Message {
   senderAccountId?: number;
   senderName?: string | null;
   isOwnMessage?: boolean;
+  humanOnly?: boolean;
 }
 
 interface ClientRow {
@@ -45,6 +50,8 @@ export default function ChatPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  const [humanOnly, setHumanOnly] = useState(false);
+  const [botPending, setBotPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isCoach, setIsCoach] = useState(false);
   const [clients, setClients] = useState<ClientRow[]>([]);
@@ -102,32 +109,53 @@ export default function ChatPage() {
     e.preventDefault();
     const message = input.trim();
     if (!message || busy) return;
+    const sendHumanOnly = humanOnly;
     setInput("");
+    // Resets after every send (sticky-on would silently leave the next bot
+    // question unanswered); restored below if the send fails.
+    setHumanOnly(false);
     setError(null);
     setBusy(true);
+    setBotPending(!sendHumanOnly);
     // Optimistic user bubble.
     setMessages((m) => [
       ...(m ?? []),
-      { id: -Date.now(), role: "user", content: message, sources: null, isOwnMessage: true },
+      {
+        id: -Date.now(),
+        role: "user",
+        content: message,
+        sources: null,
+        isOwnMessage: true,
+        humanOnly: sendHumanOnly,
+      },
     ]);
     try {
-      const json = await fetchJson<{ user: Message; assistant: Message }>("/api/chat", {
+      const json = await fetchJson<{ user: Message; assistant?: Message }>("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message,
           ...(selectedAccountId != null ? { accountId: selectedAccountId } : {}),
+          ...(sendHumanOnly ? { humanOnly: true } : {}),
         }),
       });
-      setMessages((m) => [...(m ?? []).slice(0, -1), json.user, json.assistant]);
+      // A human-only send returns no assistant reply.
+      setMessages((m) => [
+        ...(m ?? []).slice(0, -1),
+        json.user,
+        ...(json.assistant ? [json.assistant] : []),
+      ]);
     } catch (err) {
       // Roll back the optimistic bubble — it never actually sent — and give
-      // the user their text back so they don't have to retype it.
+      // the user their text (and human-only choice) back so a retry keeps
+      // its intent.
       setMessages((m) => (m ?? []).slice(0, -1));
       setInput(message);
+      setHumanOnly(sendHumanOnly);
       setError(errorMessage(err, "Message failed to send."));
     } finally {
       setBusy(false);
+      setBotPending(false);
     }
   }
 
@@ -224,6 +252,9 @@ export default function ChatPage() {
                   {m.isOwnMessage === false ? m.senderName ?? "Them" : "You"}
                 </p>
                 {m.content}
+                {m.humanOnly && (
+                  <p className="mt-1 text-[11px] text-muted">Not sent to the bot</p>
+                )}
               </>
             )}
             {m.role === "assistant" && m.sources && m.sources.length > 0 && (
@@ -233,25 +264,36 @@ export default function ChatPage() {
             )}
           </div>
         ))}
-        {busy && <TypingIndicator />}
+        {botPending && <TypingIndicator />}
         {error && <p className="text-sm text-bad">{error}</p>}
         <div ref={bottomRef} />
       </div>
 
-      <form onSubmit={send} className="mt-3 flex gap-2">
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Ask about your protocols or program rules…"
-          aria-label="Message"
-          className="flex-1 rounded-md border border-borderc bg-surface px-3 py-2 text-sm"
-        />
-        <button
-          disabled={busy || !input.trim()}
-          className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
-        >
-          Send
-        </button>
+      <form onSubmit={send} className="mt-3 space-y-2">
+        <div className="flex gap-2">
+          <input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="Ask about your protocols or program rules…"
+            aria-label="Message"
+            className="flex-1 rounded-md border border-borderc bg-surface px-3 py-2 text-sm"
+          />
+          <button
+            disabled={busy || !input.trim()}
+            className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+          >
+            Send
+          </button>
+        </div>
+        <label className="flex items-center gap-2 text-xs text-muted">
+          <input
+            type="checkbox"
+            checked={humanOnly}
+            onChange={(e) => setHumanOnly(e.target.checked)}
+            disabled={busy}
+          />
+          Send without the bot
+        </label>
       </form>
     </div>
   );
