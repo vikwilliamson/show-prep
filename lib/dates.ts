@@ -84,3 +84,42 @@ export function shortMonthDay(isoDate: string): string {
   const { m, d } = parseIsoDate(isoDate);
   return `${m}/${d}`;
 }
+
+/** Milliseconds the zone's wall clock is ahead of UTC at the given instant. */
+function zoneOffsetMs(at: Date, timeZone: string): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "numeric",
+    second: "numeric",
+  }).formatToParts(at);
+  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value);
+  const wallAsUtc = Date.UTC(
+    get("year"),
+    get("month") - 1,
+    get("day"),
+    get("hour"),
+    get("minute"),
+    get("second"),
+  );
+  return wallAsUtc - Math.floor(at.getTime() / 1000) * 1000;
+}
+
+/** The UTC instant at which a zone's wall clock reads `hour:minute` on the
+ *  given local date. Two passes so the offset is taken at the answer, not the
+ *  guess; fine for times away from a DST switch (noon, 7am). */
+export function instantOfLocal(
+  isoDate: string,
+  hour: number,
+  minute: number,
+  timeZone: string = DEFAULT_TIMEZONE,
+): Date {
+  const { y, m, d } = parseIsoDate(isoDate);
+  const wall = Date.UTC(y, m - 1, d, hour, minute);
+  const first = wall - zoneOffsetMs(new Date(wall), timeZone);
+  return new Date(wall - zoneOffsetMs(new Date(first), timeZone));
+}
