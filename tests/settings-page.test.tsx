@@ -158,7 +158,7 @@ describe("SettingsPage onboarding email", () => {
   });
 });
 
-describe("SettingsPage coach-only sections", () => {
+describe("SettingsPage coach view", () => {
   afterEach(() => {
     fetchJsonMock.mockReset();
   });
@@ -184,14 +184,19 @@ describe("SettingsPage coach-only sections", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows the Nutrition target and Weekly targets sections to a coach-role session", async () => {
+  it("shows a coach only Add a client — target, nutrition, weekly-target, and pairing-ID settings live on each client's page now", async () => {
     fetchJsonMock.mockResolvedValueOnce({ ...SETTINGS_RESPONSE, role: "coach" });
     render(<SettingsPage />);
 
-    expect(await screen.findByText("Nutrition target")).toBeInTheDocument();
+    expect(await screen.findByLabelText("Client name")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Target name")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Target date")).not.toBeInTheDocument();
+    expect(screen.queryByText("Nutrition target")).not.toBeInTheDocument();
     expect(
-      screen.getByText("Weekly targets (check-in thresholds)"),
-    ).toBeInTheDocument();
+      screen.queryByText("Weekly targets (check-in thresholds)"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Companion pairing ID")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Save settings" })).not.toBeInTheDocument();
   });
 });
 

@@ -118,3 +118,32 @@ entirely. Added `PATCH`/`DELETE /api/accounts/[accountId]`
 - No new schema or `lib/auth.ts` changes — `deleteAccount()` already
   existed (VIK-78) but was only exercised by tests until this ticket wired
   it up to a real route and UI action.
+
+## 2026-10-08 addendum — per-client target/nutrition settings; coach login feedback
+
+**Decision: a coach has no goals of their own in this product.** Target
+name/date/weight, program type, height, timezone, the manual nutrition
+target, and the weekly check-in thresholds were editable only on
+`/settings`, which for a coach edited the *coach's own* `settings` row —
+not any client's. A coach had no way to set these for a client. They now
+live on `/clients/[accountId]` (`ClientSettingsForm`), saved through the new
+coach-only `GET`/`PUT /api/clients/[accountId]/settings` (`requireCoach()` +
+`getClientAccount()` 404-on-non-client scoping, same as the sibling
+`dashboard`/`brief` routes). Both that route and `PUT /api/settings` share
+`lib/settings-schema.ts`.
+
+- **`/settings` for a coach is now just "Add a client".** The Target,
+  Nutrition target, Weekly targets, and Companion pairing ID sections are
+  gone for the coach role (a coach has no Health Connect data to pair). A
+  client's own `/settings` is unchanged.
+- **"Current weight" is not editable.** It's derived from synced weigh-ins
+  (`weight_entries`), not a setting. The editable value is **Target weight**.
+- `PUT /api/settings` still accepts a coach session writing its own row —
+  left alone, since the coach UI no longer exposes it and nothing else
+  depends on it being removed.
+- **Login feedback:** `/login` shows "Login successful." in the same spot as
+  "Wrong passcode." and then redirects with a full-page navigation
+  (`window.location.assign("/")`) instead of `router.push`. The nav links
+  rendered on the login page prefetch `/`; the proxy answers that logged-out
+  prefetch with a redirect to `/login`, and the client router cache can
+  replay it — stranding a successfully logged-in user on the login page.

@@ -107,6 +107,16 @@ export default function SettingsPage() {
 
   if (!s || !t) return <p className="text-sm text-muted">{loadError ?? "Loading…"}</p>;
 
+  // A coach has no goals of their own here — target date, weight, and
+  // nutrition/weekly targets are per-client and live on each client's page.
+  if (role === "coach") {
+    return (
+      <div className="max-w-2xl space-y-6">
+        <AddClientSection />
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-2xl space-y-6">
       <form onSubmit={save} className="space-y-6">
@@ -194,81 +204,6 @@ export default function SettingsPage() {
         </div>
       </section>
 
-      {role === "coach" && (
-        <section className="rounded-xl border border-borderc bg-surface p-4">
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted">
-            Nutrition target
-          </h2>
-          <p className="mb-3 text-xs text-muted">
-            Used when there&apos;s no active coach protocol. An active protocol
-            overrides these once one exists.
-          </p>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <FormField
-              label="Calories (kcal/day)"
-              type="number"
-              step={50}
-              value={s.targetCalories?.toString() ?? ""}
-              onChange={(v) => setS({ ...s, targetCalories: v === "" ? null : Number(v) })}
-            />
-            <FormField
-              label="Protein (g/day)"
-              type="number"
-              value={s.targetProteinG?.toString() ?? ""}
-              onChange={(v) => setS({ ...s, targetProteinG: v === "" ? null : Number(v) })}
-            />
-            <FormField
-              label="Carbs (g/day)"
-              type="number"
-              value={s.targetCarbsG?.toString() ?? ""}
-              onChange={(v) => setS({ ...s, targetCarbsG: v === "" ? null : Number(v) })}
-            />
-            <FormField
-              label="Fat (g/day)"
-              type="number"
-              value={s.targetFatG?.toString() ?? ""}
-              onChange={(v) => setS({ ...s, targetFatG: v === "" ? null : Number(v) })}
-            />
-          </div>
-        </section>
-      )}
-
-      {role === "coach" && (
-        <section className="rounded-xl border border-borderc bg-surface p-4">
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted">
-            Weekly targets (check-in thresholds)
-          </h2>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <FormField
-              label="Water minimum (ml/day)"
-              type="number"
-              step={100}
-              value={t.waterMlMin.toString()}
-              onChange={(v) => setT({ ...t, waterMlMin: v === "" ? 3000 : Number(v) })}
-            />
-            <FormField
-              label="Sleep minimum (hours/night)"
-              type="number"
-              step={0.5}
-              value={t.sleepHoursMin.toString()}
-              onChange={(v) => setT({ ...t, sleepHoursMin: v === "" ? 7 : Number(v) })}
-            />
-            <FormField
-              label="Workouts minimum (days/week)"
-              type="number"
-              value={t.workoutsPerWeekMin.toString()}
-              onChange={(v) => setT({ ...t, workoutsPerWeekMin: v === "" ? 3 : Number(v) })}
-            />
-            <FormField
-              label="Cardio sessions prescribed (per week, 0 = none)"
-              type="number"
-              value={t.cardioSessionsPerWeek.toString()}
-              onChange={(v) => setT({ ...t, cardioSessionsPerWeek: v === "" ? 0 : Number(v) })}
-            />
-          </div>
-        </section>
-      )}
-
       <div className="flex items-center gap-3">
         <button
           disabled={busy || !s.programType}
@@ -279,7 +214,6 @@ export default function SettingsPage() {
         {note && <span className="text-sm text-muted">{note}</span>}
       </div>
       </form>
-      {role === "coach" && <AddClientSection />}
     </div>
   );
 }

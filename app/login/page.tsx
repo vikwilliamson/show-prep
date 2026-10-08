@@ -1,13 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
   const [busy, setBusy] = useState(false);
-  const router = useRouter();
 
   async function login(value: string) {
     setError(null);
@@ -19,14 +18,19 @@ export default function LoginPage() {
         body: JSON.stringify({ passcode: value }),
       });
       if (res.ok) {
-        router.push("/");
-        router.refresh();
-      } else {
-        setError("Wrong passcode.");
+        // Stay busy: the form must not be re-submittable during the redirect.
+        setSuccess(true);
+        // Hard navigation, not router.push: the nav links on this page
+        // prefetch "/", and the proxy answers that logged-out prefetch with a
+        // redirect to /login, which the client router cache then replays.
+        setTimeout(() => window.location.assign("/"), 400);
+        return;
       }
-    } finally {
-      setBusy(false);
+      setError("Wrong passcode.");
+    } catch {
+      setError("Couldn't reach the server. Try again.");
     }
+    setBusy(false);
   }
 
   return (
@@ -50,6 +54,11 @@ export default function LoginPage() {
             className="w-full rounded-md border border-borderc bg-background px-3 py-2 text-sm"
           />
           {error && <p className="text-sm text-bad">{error}</p>}
+          {success && (
+            <p role="status" className="text-sm text-good">
+              Login successful.
+            </p>
+          )}
           <button
             disabled={busy}
             className="w-full rounded-md bg-accent px-3 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
