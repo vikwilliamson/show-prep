@@ -263,3 +263,42 @@ buildable in parallel with any of it.
   `account_id`.
 - Manual entry form: submits land in the right table with `source:
   "manual"` and the submitting account's `account_id`.
+
+## 2026-10-08 addendum — consent flow built (VIK-143, §4)
+
+Built in the companion app (`mobile/src/consent.ts`, gate screen in
+`mobile/App.tsx`). Decisions the ticket left open:
+
+- **Gate the whole app, not just a "connect" button.** There is no connect
+  step to hang it on yet (the Open Wearables SDK isn't integrated — VIK-142);
+  today's equivalents are granting Health Connect permissions and syncing.
+  Until the user accepts, the app shows only the consent screen — no Setup
+  tab, no permission request, no dashboard. Existing installs (internal
+  testers included) see it on next launch, per "no exceptions."
+- **`runSync()` is the enforcement point, not the UI.** Both "Sync now" and
+  the hourly background task go through it, so it returns
+  `{ ok: false, detail: "Consent not given…" }` before reading Health Connect
+  or touching the network. A background task running before the user has
+  reopened the app after an update therefore sends nothing. When VIK-142
+  replaces the sync engine, the new connect/sync entry point needs the same
+  `hasConsent()` check.
+- **Versioned.** `CONSENT_VERSION` is stored with the acceptance time;
+  acceptance of an older version doesn't count, so a material copy change
+  re-prompts. Corrupt stored data counts as "not consented."
+- **Withdrawable.** A "Withdraw data-sharing consent" button on Setup clears
+  it, which returns the app to the consent screen and stops all syncing. It
+  does not delete already-synced data — the copy says to ask the coach to
+  delete the account.
+- **Copy is vendor-neutral and true today.** It says data goes to our server
+  and *may* pass through an aggregation service acting only as a processor,
+  identified by an opaque random ID (matches AGENTS.md's data-handling rule),
+  so it's accurate both for the current direct pipeline and after the SDK
+  lands. A test asserts it never names a vendor.
+- **Stored on the device only; no server-side record.** Auditable "who
+  consented to which version, when" would need an account-scoped table — a
+  schema change (`xhigh`, migration dry-run) that isn't justified at 5-user
+  pilot scale. Revisit before opening to users outside the pilot, or if a
+  partner's security review asks for it.
+- **Not covered:** an iOS flow (no iOS app yet), and a web-side consent
+  screen — the web app collects no wearable data; the only connection is the
+  companion app.

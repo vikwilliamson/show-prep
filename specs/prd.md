@@ -111,7 +111,7 @@ epic tag means everything under it is Live unless marked otherwise.
 
 ### Health data connections & consent
 - **Planned** — Client connects Apple Health, Google Health, or Samsung Health; weight/sleep/water/steps/nutrition sync automatically. (Aggregator vendor is Open Wearables, self-hosted, as of the 2026-08-19 pivot — see Status table above. Kept vendor-generic here deliberately; don't hardcode a vendor name into product copy or this doc.)
-- **Planned** — A plain-language consent screen (what's collected, how it's processed, where it's stored) is required before any account's first connection — no exceptions, including internal testers.
+- **Live** — A plain-language consent screen (what's collected, how it's processed, where it's stored) is required before any account's first connection — no exceptions, including internal testers. Built in the companion app (on-device record, versioned, withdrawable) — see `specs/phase-2-open-wearables.md`'s 2026-10-08 addendum.
 - **Live** — Manual entry keeps working as the default when nothing's connected; a wearable is optional, never required. *(Note: the manual-entry form itself doesn't exist yet either — flagged as a real gap in `specs/phase-2-terra.md`'s "Corrections to the parent spec," still applies post-pivot.)*
 - **Planned** — Every client is identified to the aggregator only by an opaque internal `reference_id` — never name, email, or phone.
 
@@ -149,7 +149,7 @@ Open questions below.
 | `/documents` | Live |
 | `/check-in` | Live |
 | `/chat` | Live |
-| Consent screen (before first wearable connection) | Planned |
+| Consent screen (before first wearable connection) | Live — companion app, on-device record |
 | Wearable/health connect flow | Planned |
 | Coach client-list + per-client dashboard (`/clients`, naming TBD) | Planned — `specs/phase-2.5-coach-dashboard.md` |
 | Coach brief review | Planned — Phase 3/4 |

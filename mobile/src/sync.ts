@@ -6,6 +6,7 @@ import {
   setCursor,
   type CompanionConfig,
 } from "./config";
+import { hasConsent } from "./consent";
 import { readAll } from "./healthConnect";
 import {
   invertExerciseTypes,
@@ -98,6 +99,12 @@ export interface SyncResult {
 }
 
 export async function runSync(): Promise<SyncResult> {
+  // Every entry point (Sync now, the hourly background task) comes through
+  // here, so this is the one place that guarantees nothing is read or sent
+  // before the user has agreed to the data-sharing screen.
+  if (!(await hasConsent())) {
+    return { ok: false, detail: "Consent not given — accept the data-sharing screen to enable sync." };
+  }
   const config = await loadConfig();
   if (!config.serverUrl) {
     return { ok: false, detail: "Server URL not configured." };

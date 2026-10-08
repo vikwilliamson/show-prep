@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, test } from "node:test";
 import { loadStatus, saveConfig, setCursor, getCursor } from "../src/config";
+import { clearConsent, saveConsent } from "../src/consent";
 import { FETCH_TIMEOUT_MS, runSync } from "../src/sync";
 import { __reset as resetStorage } from "./mocks/async-storage";
 import { __readCalls, __reset as resetHc, __setRecords } from "./mocks/react-native-health-connect";
@@ -73,11 +74,12 @@ function seedOtherRecordTypes() {
   __setRecords("TotalCaloriesBurned", [{ startTime: t, energy: { inKilocalories: 2200 } }]);
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   resetStorage();
   resetHc();
   resetConstants();
   originalFetch = globalThis.fetch;
+  await saveConsent();
 });
 afterEach(() => {
   globalThis.fetch = originalFetch;
@@ -358,3 +360,22 @@ test(
     assert.equal(await getCursor("nutrition"), null);
   },
 );
+
+test("refuses to sync, reading and sending nothing, until the user has consented", async () => {
+  await clearConsent();
+  await saveConfig({
+    serverUrl: "https://prep.example.com",
+    apiKey: "",
+    referenceId: REFERENCE_ID,
+    deviceId: "d",
+  });
+  seedNutrition();
+  const calls = installFetch();
+
+  const result = await runSync();
+
+  assert.equal(result.ok, false);
+  assert.match(result.detail, /consent/i);
+  assert.equal(calls.length, 0);
+  assert.equal(__readCalls.length, 0);
+});
