@@ -11,6 +11,7 @@ import { WeightChart } from "@/components/WeightChart";
 import { ComplianceChart } from "@/components/ComplianceChart";
 import { CoachBrief } from "@/components/CoachBrief";
 import { ClientActions } from "@/components/ClientActions";
+import { ClientEditModeProvider, HideWhileEditing } from "@/components/ClientEditMode";
 
 export const dynamic = "force-dynamic";
 
@@ -74,7 +75,7 @@ export default async function ClientDashboard({
       : null;
 
   return (
-    <div className="space-y-4">
+    <ClientEditModeProvider className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-semibold">{client.name}</h1>
         <Link href="/clients" className="text-sm text-accent underline">
@@ -188,6 +189,7 @@ export default async function ClientDashboard({
         </Card>
       </div>
 
+      <HideWhileEditing>
       <div className="grid gap-4 lg:grid-cols-2">
         <Card title="Bodyweight — last 90 days">
           <WeightChart
@@ -252,6 +254,8 @@ export default async function ClientDashboard({
         )}
       </Card>
 
+      </HideWhileEditing>
+
       <Card title={`Weekly brief — week of ${weekStart}`}>
         <CoachBrief
           accountId={client.id}
@@ -267,6 +271,6 @@ export default async function ClientDashboard({
           }
         />
       </Card>
-    </div>
+    </ClientEditModeProvider>
   );
 }
