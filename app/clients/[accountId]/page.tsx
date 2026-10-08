@@ -11,7 +11,6 @@ import { WeightChart } from "@/components/WeightChart";
 import { ComplianceChart } from "@/components/ComplianceChart";
 import { CoachBrief } from "@/components/CoachBrief";
 import { ClientActions } from "@/components/ClientActions";
-import { ClientSettingsForm } from "@/components/ClientSettingsForm";
 
 export const dynamic = "force-dynamic";
 
@@ -56,10 +55,11 @@ export default async function ClientDashboard({
   const { settings, protocol } = data;
   const macroTargets = effectiveMacroTargets(settings, protocol);
   const weekStart = mondayOf(todayLocal(settings.timezone));
-  const [stats, targets] = await Promise.all([
-    weekStats(client.id, weekStart),
-    getTargets(client.id),
-  ]);
+  // Sequential on purpose: getTargets() creates the row on first access and
+  // weekStats() calls it too, so running them in parallel races two inserts
+  // on a client who has no weekly_targets row yet.
+  const stats = await weekStats(client.id, weekStart);
+  const targets = await getTargets(client.id);
 
   const db = await getDb();
   const [weekBrief] = await db
@@ -82,7 +82,30 @@ export default async function ClientDashboard({
         </Link>
       </div>
 
-      <ClientActions accountId={client.id} name={client.name} email={client.email} />
+      <ClientActions
+        accountId={client.id}
+        name={client.name}
+        email={client.email}
+        settings={{
+          targetName: settings.targetName,
+          targetDate: settings.targetDate,
+          programType: settings.programType,
+          targetNote: settings.targetNote,
+          targetWeightLbs: settings.targetWeightLbs,
+          heightInches: settings.heightInches,
+          targetCalories: settings.targetCalories,
+          targetProteinG: settings.targetProteinG,
+          targetCarbsG: settings.targetCarbsG,
+          targetFatG: settings.targetFatG,
+          timezone: settings.timezone,
+        }}
+        targets={{
+          waterMlMin: targets.waterMlMin,
+          sleepHoursMin: targets.sleepHoursMin,
+          workoutsPerWeekMin: targets.workoutsPerWeekMin,
+          cardioSessionsPerWeek: targets.cardioSessionsPerWeek,
+        }}
+      />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Card>
@@ -228,29 +251,6 @@ export default async function ClientDashboard({
           </p>
         )}
       </Card>
-
-      <ClientSettingsForm
-        accountId={client.id}
-        settings={{
-          targetName: settings.targetName,
-          targetDate: settings.targetDate,
-          programType: settings.programType,
-          targetNote: settings.targetNote,
-          targetWeightLbs: settings.targetWeightLbs,
-          heightInches: settings.heightInches,
-          targetCalories: settings.targetCalories,
-          targetProteinG: settings.targetProteinG,
-          targetCarbsG: settings.targetCarbsG,
-          targetFatG: settings.targetFatG,
-          timezone: settings.timezone,
-        }}
-        targets={{
-          waterMlMin: targets.waterMlMin,
-          sleepHoursMin: targets.sleepHoursMin,
-          workoutsPerWeekMin: targets.workoutsPerWeekMin,
-          cardioSessionsPerWeek: targets.cardioSessionsPerWeek,
-        }}
-      />
 
       <Card title={`Weekly brief — week of ${weekStart}`}>
         <CoachBrief

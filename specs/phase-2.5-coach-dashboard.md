@@ -147,3 +147,15 @@ coach-only `GET`/`PUT /api/clients/[accountId]/settings` (`requireCoach()` +
   rendered on the login page prefetch `/`; the proxy answers that logged-out
   prefetch with a redirect to `/login`, and the client router cache can
   replay it — stranding a successfully logged-in user on the login page.
+
+**2026-10-08 follow-up — read-only until Edit.** The per-client settings form
+shipped always-visible at the bottom of `/clients/[accountId]`. Reworked:
+the page is read-only (a details list under the heading) until the coach
+clicks **Edit**, which reveals one form for name, email, and every
+per-client setting (`ClientActions` + `ClientSettingsFields`; the separate
+`ClientSettingsForm` is gone). Save does `PATCH /api/accounts/[accountId]`
+then `PUT /api/clients/[accountId]/settings`, updates the read-only view from
+the responses right away, and calls `router.refresh()` so the server-rendered
+stat tiles catch up. Program type is no longer required to save — that guard
+existed for a client's own first-run setup and would have blocked a coach
+from simply fixing a typo in a name.
