@@ -29,7 +29,12 @@ Monorepo layout (pnpm workspaces):
   workouts ≥3/wk & cardio, next target date) are pre-filled from ingested
   data; subjective ones (waist, strength, digestion, change requests) are
   manual fields saved to `check_ins`. Thresholds live in the `weekly_targets`
-  table (Settings page). Output: a copyable/mailable filled-in template.
+  table (set per client by the coach, on the client's page — Edit). Output: a copyable/mailable filled-in template.
+- **Client management (coach)** — the Clients page lists clients; each client's
+  page is read-only until **Edit**, which reveals name, email, target
+  name/date/weight, program type, nutrition target, and weekly check-in
+  thresholds for that client. A coach's own Settings page is just "Add a
+  client" — there are no coach-level goals.
 - **Doc chat** — RAG over your uploads (Voyage AI `voyage-4` embeddings,
   1024-dim, pgvector), with source citations.
 - **Log data** — manual fallback for weight, sleep, water, and daily activity
@@ -97,7 +102,8 @@ All optional — see `.env.example`. `INGEST_API_KEY` protects the ingest API
 per-account login gate (each account has its own passcode, see
 `scripts/backfill-accounts.ts`); leave unset for none.
 
-Day bucketing is done in `America/Los_Angeles` (configurable in Settings):
+Day bucketing is done in `America/Los_Angeles` (configurable per client — a coach
+sets it on the client's page via Edit; a client sets their own in Settings):
 timestamps are stored as UTC and each row also stores its `local_date`,
 computed at ingest.
 
