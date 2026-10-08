@@ -5,12 +5,13 @@ import { and, eq } from "drizzle-orm";
 import { getClientAccount, getCurrentAccount, SESSION_COOKIE } from "@/lib/auth";
 import { coachBriefs, getDb } from "@/lib/db";
 import { mondayOf, todayLocal } from "@/lib/dates";
-import { dashboardData, effectiveMacroTargets, weekStats } from "@/lib/stats";
+import { dashboardData, effectiveMacroTargets, getTargets, weekStats } from "@/lib/stats";
 import { programTypeLabel } from "@/lib/program-types";
 import { WeightChart } from "@/components/WeightChart";
 import { ComplianceChart } from "@/components/ComplianceChart";
 import { CoachBrief } from "@/components/CoachBrief";
 import { ClientActions } from "@/components/ClientActions";
+import { ClientSettingsForm } from "@/components/ClientSettingsForm";
 
 export const dynamic = "force-dynamic";
 
@@ -55,7 +56,10 @@ export default async function ClientDashboard({
   const { settings, protocol } = data;
   const macroTargets = effectiveMacroTargets(settings, protocol);
   const weekStart = mondayOf(todayLocal(settings.timezone));
-  const stats = await weekStats(client.id, weekStart);
+  const [stats, targets] = await Promise.all([
+    weekStats(client.id, weekStart),
+    getTargets(client.id),
+  ]);
 
   const db = await getDb();
   const [weekBrief] = await db
@@ -224,6 +228,29 @@ export default async function ClientDashboard({
           </p>
         )}
       </Card>
+
+      <ClientSettingsForm
+        accountId={client.id}
+        settings={{
+          targetName: settings.targetName,
+          targetDate: settings.targetDate,
+          programType: settings.programType,
+          targetNote: settings.targetNote,
+          targetWeightLbs: settings.targetWeightLbs,
+          heightInches: settings.heightInches,
+          targetCalories: settings.targetCalories,
+          targetProteinG: settings.targetProteinG,
+          targetCarbsG: settings.targetCarbsG,
+          targetFatG: settings.targetFatG,
+          timezone: settings.timezone,
+        }}
+        targets={{
+          waterMlMin: targets.waterMlMin,
+          sleepHoursMin: targets.sleepHoursMin,
+          workoutsPerWeekMin: targets.workoutsPerWeekMin,
+          cardioSessionsPerWeek: targets.cardioSessionsPerWeek,
+        }}
+      />
 
       <Card title={`Weekly brief — week of ${weekStart}`}>
         <CoachBrief
