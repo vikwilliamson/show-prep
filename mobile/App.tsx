@@ -52,6 +52,8 @@ export default function App() {
   async function withdraw() {
     await clearConsent();
     setNote(null);
+    setDashboard(null);
+    setDashboardError(null);
     setConsented(false);
   }
 
