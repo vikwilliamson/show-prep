@@ -3,6 +3,7 @@ import { afterEach, beforeEach, test } from "node:test";
 import { registerBackgroundSync } from "../src/background";
 import { __failGets, __reset as resetStorage } from "./mocks/async-storage";
 import { saveConfig } from "../src/config";
+import { clearConsent, saveConsent } from "../src/consent";
 import { __reset as resetHc, __setRecords } from "./mocks/react-native-health-connect";
 import {
   BackgroundTaskResult,
@@ -36,11 +37,12 @@ function stubFetchOk() {
 }
 
 let originalFetch: typeof globalThis.fetch;
-beforeEach(() => {
+beforeEach(async () => {
   resetStorage();
   resetHc();
   resetBg();
   originalFetch = globalThis.fetch;
+  await saveConsent();
 });
 afterEach(() => {
   globalThis.fetch = originalFetch;
@@ -91,4 +93,25 @@ test("registerBackgroundSync registers the task hourly", async () => {
 test("registerBackgroundSync swallows registration errors", async () => {
   __setThrowOnRegister(true);
   await assert.doesNotReject(registerBackgroundSync());
+});
+
+test("task fails without sending anything when the user hasn't consented", async () => {
+  await clearConsent();
+  await saveConfig({
+    serverUrl: "https://prep.example.com",
+    apiKey: "",
+    referenceId: "80971019-5064-4009-b9e9-1b34f94e1284",
+    deviceId: "d",
+  });
+  __setRecords("Nutrition", [
+    { metadata: { id: "n1" }, startTime: recent(), mealType: 1, energy: { inKilocalories: 500 } },
+  ]);
+  let fetched = false;
+  globalThis.fetch = (async () => {
+    fetched = true;
+    throw new Error("should not be called");
+  }) as unknown as typeof globalThis.fetch;
+
+  assert.equal(await runTask(), BackgroundTaskResult.Failed);
+  assert.equal(fetched, false);
 });

@@ -149,7 +149,7 @@ Open questions below.
 | `/documents` | Live |
 | `/check-in` | Live |
 | `/chat` | Live |
-| Consent screen (before first wearable connection) | Planned |
+| Consent screen (before first wearable connection) | Live — companion app, on-device record |
 | Wearable/health connect flow | Planned |
 | Coach client-list + per-client dashboard (`/clients`, naming TBD) | Planned — `specs/phase-2.5-coach-dashboard.md` |
 | Coach brief review | Planned — Phase 3/4 |

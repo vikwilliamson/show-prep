@@ -26,6 +26,16 @@ Sync design:
 - **Background**: `expo-background-task` (WorkManager) roughly hourly, plus a
   manual "Sync now" button.
 
+## Consent
+
+Before anything is read or sent, the app shows a data-sharing screen (what's
+collected, how it's processed, where it's stored) that must be accepted —
+every account, no exceptions. `runSync()` refuses to run without it, so the
+background task is gated too. The answer is stored on-device with a copy
+version (`src/consent.ts`); changing the copy materially means bumping
+`CONSENT_VERSION` to re-prompt. Setup has a "Withdraw data-sharing consent"
+button. Keep the copy vendor-neutral.
+
 ## Setup
 
 ```bash

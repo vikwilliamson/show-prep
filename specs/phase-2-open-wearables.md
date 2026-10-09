@@ -304,3 +304,39 @@ nav). Decisions made while building, since §5 only said "a simple form":
   their own.
 - Not built: editing or deleting a manual entry other than by resubmitting
   the day; workouts (not in §5's list).
+
+## 2026-10-08 addendum — consent flow built (VIK-143, §4)
+
+Shipped in the companion app (`mobile/src/consent.ts`, `mobile/App.tsx`).
+Decisions made while building, since §4 only said "a plain-language screen
+with explicit acknowledgment":
+
+- **Gate the whole app, not just a connect button.** §4's minimum is "before
+  the connect flow starts"; the app instead shows the consent screen before
+  Setup, the dashboard, or any Health Connect permission request. Stricter
+  than the minimum on purpose — nothing in the app is useful without sync,
+  and it removes any path to reading data before agreeing.
+- **`runSync()` is the single enforcement point.** It checks `hasConsent()`
+  before touching Health Connect or the network, and both "Sync now" and the
+  background task go through it, so the UI gate is not the only thing
+  standing between a user and an unconsented sync. Tests assert zero reads
+  and zero `fetch` calls without consent, including from the background task.
+- **Stored on-device only, for the pilot.** The record
+  (`{ version, acceptedAt }`) lives in AsyncStorage on the phone. There is
+  no server-side consent record. **This needs an account-scoped consent
+  table before scaling past the pilot:** a reinstall or new device silently
+  re-prompts, and nothing server-side can prove who agreed to what or when.
+  Revisit before onboarding anyone beyond the pilot group.
+- **Versioned re-prompt.** `CONSENT_VERSION` is bumped whenever the copy
+  changes in a way that needs a fresh yes; a stored acceptance for any other
+  version stops counting and the screen is shown again. A corrupt or
+  unparseable stored record is treated as never consented.
+- **Withdrawal.** Setup has a "Withdraw data-sharing consent" button that
+  clears the record and returns to the consent screen, so syncing stops
+  immediately and re-granting goes through the same gate. Data already
+  uploaded is not deleted by withdrawing — the copy tells the user to ask
+  their coach to delete the account.
+- **Copy is vendor-neutral and tested.** It names the aggregator only as a
+  processor identified by "an opaque, randomly generated ID", per
+  `specs/prd.md` and AGENTS.md's data-handling rule; `consent.test.ts`
+  asserts it never names a vendor.

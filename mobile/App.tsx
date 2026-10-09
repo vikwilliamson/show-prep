@@ -16,6 +16,7 @@ import {
   type CompanionConfig,
   type SyncStatus,
 } from "./src/config";
+import { CONSENT_COPY, clearConsent, hasConsent, saveConsent } from "./src/consent";
 import { fetchDashboard, type DashboardSummary } from "./src/dashboard";
 import { requestAllPermissions } from "./src/healthConnect";
 import { runSync } from "./src/sync";
@@ -34,11 +35,27 @@ export default function App() {
   const [dashboard, setDashboard] = useState<DashboardSummary | null>(null);
   const [dashboardError, setDashboardError] = useState<string | null>(null);
   const [dashboardLoading, setDashboardLoading] = useState(false);
+  // null while the stored answer is still loading.
+  const [consented, setConsented] = useState<boolean | null>(null);
 
   useEffect(() => {
     loadConfig().then(setConfig);
     loadStatus().then(setStatus);
+    hasConsent().then(setConsented);
   }, []);
+
+  async function accept() {
+    await saveConsent();
+    setConsented(true);
+  }
+
+  async function withdraw() {
+    await clearConsent();
+    setNote(null);
+    setDashboard(null);
+    setDashboardError(null);
+    setConsented(false);
+  }
 
   async function loadDashboard() {
     if (!config) return;
@@ -53,10 +70,31 @@ export default function App() {
     }
   }
 
-  if (!config) {
+  if (!config || consented === null) {
     return (
       <View style={styles.center}>
         <ActivityIndicator />
+      </View>
+    );
+  }
+
+  if (!consented) {
+    return (
+      <View style={styles.screen}>
+        <StatusBar style="light" />
+        <ScrollView contentContainerStyle={styles.content}>
+          <Text style={styles.title}>{CONSENT_COPY.title}</Text>
+          <Text style={styles.subtitle}>{CONSENT_COPY.intro}</Text>
+          {CONSENT_COPY.sections.map((section) => (
+            <View key={section.heading}>
+              <Text style={styles.label}>{section.heading}</Text>
+              <Text style={styles.statusText}>{section.body}</Text>
+            </View>
+          ))}
+          <Pressable style={styles.button} onPress={accept}>
+            <Text style={styles.buttonText}>{CONSENT_COPY.acknowledge}</Text>
+          </Pressable>
+        </ScrollView>
       </View>
     );
   }
@@ -170,6 +208,10 @@ export default function App() {
           </Pressable>
 
           {note && <Text style={styles.note}>{note}</Text>}
+
+          <Pressable style={styles.buttonSecondary} onPress={withdraw} disabled={!!busy}>
+            <Text style={styles.buttonSecondaryText}>Withdraw data-sharing consent</Text>
+          </Pressable>
 
           <View style={styles.statusBox}>
             <Text style={styles.statusTitle}>Last sync</Text>
