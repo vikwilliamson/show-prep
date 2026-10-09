@@ -264,41 +264,43 @@ buildable in parallel with any of it.
 - Manual entry form: submits land in the right table with `source:
   "manual"` and the submitting account's `account_id`.
 
-## 2026-10-08 addendum — consent flow built (VIK-143, §4)
+## 2026-10-08 addendum — manual entry fallback built (VIK-144, §5)
 
-Built in the companion app (`mobile/src/consent.ts`, gate screen in
-`mobile/App.tsx`). Decisions the ticket left open:
+Shipped as `POST /api/manual-entry` plus a **Log data** page (`/log`, in the
+nav). Decisions made while building, since §5 only said "a simple form":
 
-- **Gate the whole app, not just a "connect" button.** There is no connect
-  step to hang it on yet (the Open Wearables SDK isn't integrated — VIK-142);
-  today's equivalents are granting Health Connect permissions and syncing.
-  Until the user accepts, the app shows only the consent screen — no Setup
-  tab, no permission request, no dashboard. Existing installs (internal
-  testers included) see it on next launch, per "no exceptions."
-- **`runSync()` is the enforcement point, not the UI.** Both "Sync now" and
-  the hourly background task go through it, so it returns
-  `{ ok: false, detail: "Consent not given…" }` before reading Health Connect
-  or touching the network. A background task running before the user has
-  reopened the app after an update therefore sends nothing. When VIK-142
-  replaces the sync engine, the new connect/sync entry point needs the same
-  `hasConsent()` check.
-- **Versioned.** `CONSENT_VERSION` is stored with the acceptance time;
-  acceptance of an older version doesn't count, so a material copy change
-  re-prompts. Corrupt stored data counts as "not consented."
-- **Withdrawable.** A "Withdraw data-sharing consent" button on Setup clears
-  it, which returns the app to the consent screen and stops all syncing. It
-  does not delete already-synced data — the copy says to ask the coach to
-  delete the account.
-- **Copy is vendor-neutral and true today.** It says data goes to our server
-  and *may* pass through an aggregation service acting only as a processor,
-  identified by an opaque random ID (matches AGENTS.md's data-handling rule),
-  so it's accurate both for the current direct pipeline and after the SDK
-  lands. A test asserts it never names a vendor.
-- **Stored on the device only; no server-side record.** Auditable "who
-  consented to which version, when" would need an account-scoped table — a
-  schema change (`xhigh`, migration dry-run) that isn't justified at 5-user
-  pilot scale. Revisit before opening to users outside the pilot, or if a
-  partner's security review asks for it.
-- **Not covered:** an iOS flow (no iOS app yet), and a web-side consent
-  screen — the web app collects no wearable data; the only connection is the
-  companion app.
+- **One request, one day, any subset of fields.** `date` (optional — absent
+  means "today" in the *account's* timezone, resolved server-side, so a
+  browser in another timezone can't produce a bogus future date) plus any of
+  `weightLbs`, `sleepHours`, `waterMl`, `steps`, `activeCalories`,
+  `totalCalories`. At least one is required. Unknown keys are rejected
+  (`source` in particular can't be supplied — it's always `"manual"`), future
+  dates are rejected, and numeric bounds mirror `lib/ingest/schemas.ts`.
+  Nutrition is not accepted, per §5.
+- **Resubmitting a day corrects it; it doesn't duplicate.** Each row's
+  `hc_uid` is deterministic (`manual-weight-<date>`, `manual-sleep-<date>`,
+  `manual-hydration-<date>`, `manual-activity-<date>`) and written with the
+  same upsert-on-`(account_id, hc_uid)` the ingest route uses. So there is at
+  most one manual weight / sleep / water row per day. The manual **water**
+  value is that day's manual total, not an increment, and still adds to any
+  synced hydration for the day (stats sum per day).
+- **Manual rows don't replace synced rows, except daily activity.** Weight,
+  sleep and water manual rows sit alongside synced ones (weight is averaged
+  per day by `dailyWeights`, sleep/water are summed), so a manual entry is
+  additive, not a correction of a synced reading. `daily_activity` is
+  one-row-per-day by its unique index, so a manual activity entry **upserts
+  onto the synced row**, overwriting only the fields provided and stamping
+  `source: "manual"`. The next companion sync of that day overwrites it back
+  (the ingest route upserts the same key) — acceptable for a fallback tool.
+- **Sleep** is entered as hours, attributed to the wake-up date like the
+  ingest route, stored as a session ending 07:00 local (`lib/dates.ts`'s new
+  `instantOfLocal`) and starting `hours` earlier. Weight is stamped at local
+  noon.
+- **Who can write where:** the caller's own account, or — for a coach — one of
+  their real clients via `resolveWorkspaceAccountId()` (403 for a client
+  naming another account, 404 for an unknown or non-client id). The page shows
+  a "Client" selector only to a coach (detected the same way the Documents
+  page does) and requires one to be chosen, since a coach has no data of
+  their own.
+- Not built: editing or deleting a manual entry other than by resubmitting
+  the day; workouts (not in §5's list).

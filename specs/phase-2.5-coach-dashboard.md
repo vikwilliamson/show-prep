@@ -159,3 +159,12 @@ the responses right away, and calls `router.refresh()` so the server-rendered
 stat tiles catch up. Program type is no longer required to save — that guard
 existed for a client's own first-run setup and would have blocked a coach
 from simply fixing a typo in a name.
+
+**2026-10-08 follow-up — dashboard sections hide during Edit.** While the Edit
+form is open, the Bodyweight (last 90 days), Macro compliance (last 14 days),
+and This-week-at-a-glance cards are hidden, so the form isn't competing with
+the charts. The stat tiles and the weekly brief stay visible. Edit state lives
+in `ClientActions` but those cards are server-rendered, so the page wraps its
+content in `ClientEditModeProvider` and the three cards in `HideWhileEditing`
+(`components/ClientEditMode.tsx`); they return on Save or Cancel, and stay
+hidden if a save fails and the form remains open.

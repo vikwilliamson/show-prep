@@ -70,6 +70,11 @@ test("shows the client's saved settings read-only — no form fields until Edit"
   assert.equal(screen.queryByRole("textbox"), null);
   assert.equal(screen.queryByLabelText("Target date"), null);
   assert.equal(screen.queryByRole("button", { name: /save/i }), null);
+
+  // The dashboard sections are visible in view mode (they hide only during Edit).
+  assert.ok(screen.getByText("Bodyweight — last 90 days"));
+  assert.ok(screen.getByText("Macro compliance — last 14 days"));
+  assert.ok(screen.getByText("This week at a glance"));
 });
 
 test("renders for a brand-new client with no weekly_targets row yet (no first-access insert race)", async () => {

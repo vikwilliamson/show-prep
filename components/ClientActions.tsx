@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { errorMessage, fetchJson } from "@/lib/client-fetch";
 import { programTypeLabel } from "@/lib/program-types";
+import { useEditing } from "@/components/ClientEditMode";
 import {
   ClientSettingsFields,
   type ClientSettingsShape,
@@ -41,7 +42,7 @@ export function ClientActions({
     settings: initialSettings,
     targets: initialTargets,
   });
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useEditing();
   const [name, setName] = useState(initialName);
   const [email, setEmail] = useState(initialEmail ?? "");
   const [settings, setSettings] = useState(initialSettings);

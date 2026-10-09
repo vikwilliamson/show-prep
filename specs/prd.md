@@ -111,8 +111,8 @@ epic tag means everything under it is Live unless marked otherwise.
 
 ### Health data connections & consent
 - **Planned** — Client connects Apple Health, Google Health, or Samsung Health; weight/sleep/water/steps/nutrition sync automatically. (Aggregator vendor is Open Wearables, self-hosted, as of the 2026-08-19 pivot — see Status table above. Kept vendor-generic here deliberately; don't hardcode a vendor name into product copy or this doc.)
-- **Live** — A plain-language consent screen (what's collected, how it's processed, where it's stored) is required before any account's first connection — no exceptions, including internal testers. Built in the companion app (on-device record, versioned, withdrawable) — see `specs/phase-2-open-wearables.md`'s 2026-10-08 addendum.
-- **Live** — Manual entry keeps working as the default when nothing's connected; a wearable is optional, never required. *(Note: the manual-entry form itself doesn't exist yet either — flagged as a real gap in `specs/phase-2-terra.md`'s "Corrections to the parent spec," still applies post-pivot.)*
+- **Planned** — A plain-language consent screen (what's collected, how it's processed, where it's stored) is required before any account's first connection — no exceptions, including internal testers.
+- **Live** — Manual entry keeps working as the default when nothing's connected; a wearable is optional, never required. The **Log data** page (`/log`) takes weight, sleep, water, and daily activity for a client or, for a coach, a chosen client — see `specs/phase-2-open-wearables.md` §5 and its 2026-10-08 addendum.
 - **Planned** — Every client is identified to the aggregator only by an opaque internal `reference_id` — never name, email, or phone.
 
 ### AI weekly brief & transparency
@@ -190,9 +190,9 @@ Explicitly banned per `AGENTS.md`: `division`, `weight cap`, `peak week`,
   `specs/phase-2.5-coach-dashboard.md`. The moment a second coach account is
   created, `accounts` needs a real coach↔client relationship column; every
   `role = 'client'` query needs to become coach-scoped too.
-- **The manual health-data entry form doesn't exist yet**, despite being
-  assumed as "already there" in the original build spec — a real gap
-  Phase 2 needs to close, not optional.
+- **The manual health-data entry form was missing** despite being assumed
+  as "already there" in the original build spec — closed by the Log data
+  page (VIK-144).
 - **Deferred items are real, not abandoned.** Twilio SMS is pending Vik's
   own API research; telehealth-partner API packaging and formal HIPAA/SOC 2
   are staged for if/when a covered entity (e.g. a signed telehealth
