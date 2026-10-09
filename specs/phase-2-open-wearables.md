@@ -263,3 +263,44 @@ buildable in parallel with any of it.
   `account_id`.
 - Manual entry form: submits land in the right table with `source:
   "manual"` and the submitting account's `account_id`.
+
+## 2026-10-08 addendum — manual entry fallback built (VIK-144, §5)
+
+Shipped as `POST /api/manual-entry` plus a **Log data** page (`/log`, in the
+nav). Decisions made while building, since §5 only said "a simple form":
+
+- **One request, one day, any subset of fields.** `date` (optional — absent
+  means "today" in the *account's* timezone, resolved server-side, so a
+  browser in another timezone can't produce a bogus future date) plus any of
+  `weightLbs`, `sleepHours`, `waterMl`, `steps`, `activeCalories`,
+  `totalCalories`. At least one is required. Unknown keys are rejected
+  (`source` in particular can't be supplied — it's always `"manual"`), future
+  dates are rejected, and numeric bounds mirror `lib/ingest/schemas.ts`.
+  Nutrition is not accepted, per §5.
+- **Resubmitting a day corrects it; it doesn't duplicate.** Each row's
+  `hc_uid` is deterministic (`manual-weight-<date>`, `manual-sleep-<date>`,
+  `manual-hydration-<date>`, `manual-activity-<date>`) and written with the
+  same upsert-on-`(account_id, hc_uid)` the ingest route uses. So there is at
+  most one manual weight / sleep / water row per day. The manual **water**
+  value is that day's manual total, not an increment, and still adds to any
+  synced hydration for the day (stats sum per day).
+- **Manual rows don't replace synced rows, except daily activity.** Weight,
+  sleep and water manual rows sit alongside synced ones (weight is averaged
+  per day by `dailyWeights`, sleep/water are summed), so a manual entry is
+  additive, not a correction of a synced reading. `daily_activity` is
+  one-row-per-day by its unique index, so a manual activity entry **upserts
+  onto the synced row**, overwriting only the fields provided and stamping
+  `source: "manual"`. The next companion sync of that day overwrites it back
+  (the ingest route upserts the same key) — acceptable for a fallback tool.
+- **Sleep** is entered as hours, attributed to the wake-up date like the
+  ingest route, stored as a session ending 07:00 local (`lib/dates.ts`'s new
+  `instantOfLocal`) and starting `hours` earlier. Weight is stamped at local
+  noon.
+- **Who can write where:** the caller's own account, or — for a coach — one of
+  their real clients via `resolveWorkspaceAccountId()` (403 for a client
+  naming another account, 404 for an unknown or non-client id). The page shows
+  a "Client" selector only to a coach (detected the same way the Documents
+  page does) and requires one to be chosen, since a coach has no data of
+  their own.
+- Not built: editing or deleting a manual entry other than by resubmitting
+  the day; workouts (not in §5's list).

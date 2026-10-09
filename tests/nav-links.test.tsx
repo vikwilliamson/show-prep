@@ -71,4 +71,18 @@ describe("NavLinks", () => {
       screen.queryByRole("link", { name: "Clients" }),
     ).not.toBeInTheDocument();
   });
+
+  it("links to the manual-entry page and marks it active on /log", () => {
+    vi.mocked(usePathname).mockReturnValue("/log");
+    render(<NavLinks />);
+    const link = screen.getByRole("link", { name: "Log data" });
+    expect(link).toHaveAttribute("href", "/log");
+    expect(link).toHaveAttribute("aria-current", "page");
+  });
+
+  it("does not mark Log data active on /login, which merely shares its prefix", () => {
+    vi.mocked(usePathname).mockReturnValue("/login");
+    render(<NavLinks />);
+    expect(screen.getByRole("link", { name: "Log data" })).not.toHaveClass("bg-accent/15");
+  });
 });
