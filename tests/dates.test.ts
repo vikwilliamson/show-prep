@@ -3,6 +3,7 @@ import { test } from "vitest";
 import {
   addDays,
   daysBetween,
+  instantOfLocal,
   localDateOf,
   mondayOf,
   shortLabel,
@@ -73,4 +74,16 @@ test("daysBetween throws immediately on malformed input", () => {
 
 test("shortLabel throws immediately on malformed input", () => {
   assert.throws(() => shortLabel("15-07-2026"), /Invalid ISO date/);
+});
+
+test("instantOfLocal: a wall-clock time in a timezone maps to the right UTC instant (PDT and PST)", () => {
+  assert.equal(instantOfLocal("2026-07-14", 12, 0, "America/Los_Angeles").toISOString(), "2026-07-14T19:00:00.000Z");
+  assert.equal(instantOfLocal("2026-01-14", 12, 0, "America/Los_Angeles").toISOString(), "2026-01-14T20:00:00.000Z");
+  assert.equal(instantOfLocal("2026-01-14", 7, 0, "UTC").toISOString(), "2026-01-14T07:00:00.000Z");
+});
+
+test("instantOfLocal: round-trips through localDateOf for a zone ahead of UTC", () => {
+  const instant = instantOfLocal("2026-03-02", 7, 0, "Asia/Tokyo");
+  assert.equal(instant.toISOString(), "2026-03-01T22:00:00.000Z");
+  assert.equal(localDateOf(instant, "Asia/Tokyo"), "2026-03-02");
 });

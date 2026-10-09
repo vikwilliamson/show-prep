@@ -37,6 +37,10 @@ Monorepo layout (pnpm workspaces):
   client" — there are no coach-level goals.
 - **Doc chat** — RAG over your uploads (Voyage AI `voyage-4` embeddings,
   1024-dim, pgvector), with source citations.
+- **Log data** — manual fallback for weight, sleep, water, and daily activity
+  (`/log`, `POST /api/manual-entry`): a client logs their own days, a coach
+  picks a client. Saved with `source: "manual"`; saving a day again replaces
+  that day's manual entry. Macros/nutrition are not logged here.
 - **Ingest API** — `/api/ingest/{nutrition|weight|hydration|sleep|exercise|activity}`,
   Zod-validated, bearer-token-gated, idempotent (upserts on Health Connect
   record UIDs).
