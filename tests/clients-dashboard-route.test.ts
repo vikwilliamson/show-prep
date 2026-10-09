@@ -39,7 +39,7 @@ test("GET /api/clients/[accountId]/dashboard returns the target client's scoped 
   const today = todayLocal();
   await db.insert(weightEntries).values({
     accountId: clientId,
-    hcUid: "clients-dashboard-route-weight",
+    providerUid: "clients-dashboard-route-weight",
     measuredAt: new Date(`${today}T14:00:00Z`),
     localDate: today,
     weightLbs: 172,

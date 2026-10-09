@@ -126,3 +126,21 @@ test("seedAccountData is idempotent: reseeding the same account doesn't duplicat
   const protos = await db.select().from(protocols).where(eq(protocols.accountId, accountId));
   assert.equal(protos.length, 2);
 });
+
+test("seeded health rows carry a provider_uid (the renamed upsert key) and re-seeding doesn't duplicate them", async () => {
+  const cfg = baseConfig({ name: "Seed Test Provider Uid", role: "client", passcode: "x" });
+  const accountId = await findOrCreateAccount(cfg);
+  createdAccountIds.push(accountId);
+  await seedAccountData(accountId, cfg);
+
+  const db = await getDb();
+  const first = await db.select().from(weightEntries).where(eq(weightEntries.accountId, accountId));
+  assert.ok(first.length > 0);
+  for (const row of first) {
+    assert.match(row.providerUid ?? "", /^seed-weight-/);
+  }
+
+  await seedAccountData(accountId, cfg);
+  const second = await db.select().from(weightEntries).where(eq(weightEntries.accountId, accountId));
+  assert.equal(second.length, first.length);
+});

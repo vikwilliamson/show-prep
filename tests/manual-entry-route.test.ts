@@ -133,7 +133,7 @@ test("a manual activity entry overwrites a synced row for the same day, but only
   const db = await getDb();
   await db.insert(dailyActivity).values({
     accountId: id,
-    hcUid: "activity-synced",
+    providerUid: "activity-synced",
     source: "health_connect",
     localDate: DATE,
     steps: 4000,

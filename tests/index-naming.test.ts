@@ -20,11 +20,11 @@ test("account-scoped unique indexes are prefixed with their exact table name", a
 
   const expected = [
     "nutrition_entries_hc_uid_idx",
-    "weight_entries_hc_uid_idx",
-    "hydration_entries_hc_uid_idx",
-    "workouts_hc_uid_idx",
-    "sleep_sessions_hc_uid_idx",
-    "daily_activity_hc_uid_idx",
+    "weight_entries_provider_uid_idx",
+    "hydration_entries_provider_uid_idx",
+    "workouts_provider_uid_idx",
+    "sleep_sessions_provider_uid_idx",
+    "daily_activity_provider_uid_idx",
     "daily_activity_local_date_idx",
     "check_ins_account_week_idx",
     "coach_briefs_account_week_idx",
@@ -34,6 +34,11 @@ test("account-scoped unique indexes are prefixed with their exact table name", a
   }
 
   const stale = [
+    "weight_entries_hc_uid_idx",
+    "hydration_entries_hc_uid_idx",
+    "workouts_hc_uid_idx",
+    "sleep_sessions_hc_uid_idx",
+    "daily_activity_hc_uid_idx",
     "nutrition_hc_uid_idx",
     "weight_hc_uid_idx",
     "hydration_hc_uid_idx",

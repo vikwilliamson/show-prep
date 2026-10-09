@@ -31,6 +31,12 @@ export const accounts = pgTable("accounts", {
   role: text("role", { enum: ["coach", "client"] }).notNull(),
   passcodeHash: text("passcode_hash").notNull(),
   timezone: text("timezone").notNull().default("America/Los_Angeles"),
+  // The health-data aggregator's own opaque ID for this account's user — set
+  // when the aggregator user is provisioned. Webhooks identify users only by
+  // this ID (never by referenceId), so it's how a delivery resolves to an
+  // account. Not PII: the aggregator generates it, we never send it anything
+  // but the opaque referenceId. Vendor-neutral name on purpose.
+  aggregatorUserId: text("aggregator_user_id").unique(),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -130,7 +136,12 @@ export const protocols = pgTable("protocols", {
 
 // ---------------------------------------------------------------------------
 // Ingested health data
-// All tables carry hc_uid (Health Connect provenance, upsert key) + source.
+// Every table carries a per-record provenance ID (the upsert key) + source.
+// nutrition_entries' is still `hc_uid` (Health Connect, direct pipeline —
+// specs/phase-2-nutrition.md); the other five are `provider_uid`, because
+// their records now also arrive from the health-data aggregator's webhook
+// (specs/phase-2-open-wearables.md) and the ID is whatever the provider
+// calls it.
 // ---------------------------------------------------------------------------
 
 export const nutritionEntries = pgTable(
@@ -164,14 +175,14 @@ export const weightEntries = pgTable(
   {
     id: serial("id").primaryKey(),
     accountId: accountIdColumn(),
-    hcUid: text("hc_uid"),
+    providerUid: text("provider_uid"),
     source: text("source").notNull().default("manual"),
     measuredAt: timestamp("measured_at", { withTimezone: true }).notNull(),
     localDate: date("local_date").notNull(),
     weightLbs: real("weight_lbs").notNull(),
     bodyFatPct: real("body_fat_pct"),
   },
-  (t) => [uniqueIndex("weight_entries_hc_uid_idx").on(t.accountId, t.hcUid)],
+  (t) => [uniqueIndex("weight_entries_provider_uid_idx").on(t.accountId, t.providerUid)],
 );
 
 export const hydrationEntries = pgTable(
@@ -179,12 +190,12 @@ export const hydrationEntries = pgTable(
   {
     id: serial("id").primaryKey(),
     accountId: accountIdColumn(),
-    hcUid: text("hc_uid"),
+    providerUid: text("provider_uid"),
     source: text("source").notNull().default("manual"),
     localDate: date("local_date").notNull(),
     volumeMl: real("volume_ml").notNull(),
   },
-  (t) => [uniqueIndex("hydration_entries_hc_uid_idx").on(t.accountId, t.hcUid)],
+  (t) => [uniqueIndex("hydration_entries_provider_uid_idx").on(t.accountId, t.providerUid)],
 );
 
 export const workouts = pgTable(
@@ -192,7 +203,7 @@ export const workouts = pgTable(
   {
     id: serial("id").primaryKey(),
     accountId: accountIdColumn(),
-    hcUid: text("hc_uid"),
+    providerUid: text("provider_uid"),
     source: text("source").notNull().default("manual"),
     localDate: date("local_date").notNull(),
     startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
@@ -202,7 +213,7 @@ export const workouts = pgTable(
     caloriesBurned: real("calories_burned"),
     title: text("title"),
   },
-  (t) => [uniqueIndex("workouts_hc_uid_idx").on(t.accountId, t.hcUid)],
+  (t) => [uniqueIndex("workouts_provider_uid_idx").on(t.accountId, t.providerUid)],
 );
 
 export const sleepSessions = pgTable(
@@ -210,7 +221,7 @@ export const sleepSessions = pgTable(
   {
     id: serial("id").primaryKey(),
     accountId: accountIdColumn(),
-    hcUid: text("hc_uid"),
+    providerUid: text("provider_uid"),
     source: text("source").notNull().default("manual"),
     localDate: date("local_date").notNull(),
     startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
@@ -218,7 +229,7 @@ export const sleepSessions = pgTable(
     durationMin: real("duration_min").notNull(),
     stages: jsonb("stages"),
   },
-  (t) => [uniqueIndex("sleep_sessions_hc_uid_idx").on(t.accountId, t.hcUid)],
+  (t) => [uniqueIndex("sleep_sessions_provider_uid_idx").on(t.accountId, t.providerUid)],
 );
 
 export const dailyActivity = pgTable(
@@ -226,7 +237,7 @@ export const dailyActivity = pgTable(
   {
     id: serial("id").primaryKey(),
     accountId: accountIdColumn(),
-    hcUid: text("hc_uid"),
+    providerUid: text("provider_uid"),
     source: text("source").notNull().default("manual"),
     localDate: date("local_date").notNull(),
     steps: integer("steps"),
@@ -234,10 +245,23 @@ export const dailyActivity = pgTable(
     totalCalories: real("total_calories"),
   },
   (t) => [
-    uniqueIndex("daily_activity_hc_uid_idx").on(t.accountId, t.hcUid),
+    uniqueIndex("daily_activity_provider_uid_idx").on(t.accountId, t.providerUid),
     uniqueIndex("daily_activity_local_date_idx").on(t.accountId, t.localDate),
   ],
 );
+
+// Message-level idempotency for POST /api/health-webhook: the Svix message ID
+// (`svix-id`, stable across Svix's own retries). Written in the same
+// transaction as the records it delivered, so a failed delivery leaves no row
+// and the retry is processed rather than dropped.
+export const webhookDeliveries = pgTable("webhook_deliveries", {
+  messageId: text("message_id").primaryKey(),
+  accountId: accountIdColumn(),
+  eventType: text("event_type").notNull(),
+  receivedAt: timestamp("received_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
 
 export const syncLog = pgTable("sync_log", {
   id: serial("id").primaryKey(),

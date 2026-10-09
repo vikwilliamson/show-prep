@@ -161,7 +161,7 @@ test("an absurd weight value is rejected with a 422, not silently accepted", asy
   assert.equal(res.status, 422);
 
   const db = await getDb();
-  const [row] = await db.select().from(weightEntries).where(eq(weightEntries.hcUid, "weight-bounds-1"));
+  const [row] = await db.select().from(weightEntries).where(eq(weightEntries.providerUid, "weight-bounds-1"));
   assert.equal(row, undefined);
 });
 
@@ -188,7 +188,7 @@ test("two accounts syncing weight with the same hcUid don't collide", async () =
   assert.equal(resB.status, 200);
 
   const db = await getDb();
-  const rows = await db.select().from(weightEntries).where(eq(weightEntries.hcUid, "shared-weight-uid"));
+  const rows = await db.select().from(weightEntries).where(eq(weightEntries.providerUid, "shared-weight-uid"));
   assert.equal(rows.length, 2);
   assert.deepEqual(rows.map((r) => r.accountId).sort(), [a.id, b.id].sort());
 });
@@ -213,7 +213,7 @@ test("two accounts syncing hydration with the same hcUid don't collide", async (
   const rows = await db
     .select()
     .from(hydrationEntries)
-    .where(eq(hydrationEntries.hcUid, "shared-hydration-uid"));
+    .where(eq(hydrationEntries.providerUid, "shared-hydration-uid"));
   assert.equal(rows.length, 2);
   assert.deepEqual(rows.map((r) => r.accountId).sort(), [a.id, b.id].sort());
 });
@@ -237,7 +237,7 @@ test("two accounts syncing sleep with the same hcUid don't collide", async () =>
   assert.equal(resB.status, 200);
 
   const db = await getDb();
-  const rows = await db.select().from(sleepSessions).where(eq(sleepSessions.hcUid, "shared-sleep-uid"));
+  const rows = await db.select().from(sleepSessions).where(eq(sleepSessions.providerUid, "shared-sleep-uid"));
   assert.equal(rows.length, 2);
   assert.deepEqual(rows.map((r) => r.accountId).sort(), [a.id, b.id].sort());
 });
@@ -259,7 +259,7 @@ test("two accounts syncing an exercise session with the same hcUid don't collide
   assert.equal(resB.status, 200);
 
   const db = await getDb();
-  const rows = await db.select().from(workouts).where(eq(workouts.hcUid, "shared-exercise-uid"));
+  const rows = await db.select().from(workouts).where(eq(workouts.providerUid, "shared-exercise-uid"));
   assert.equal(rows.length, 2);
   assert.deepEqual(rows.map((r) => r.accountId).sort(), [a.id, b.id].sort());
 });

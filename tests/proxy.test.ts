@@ -23,8 +23,13 @@ test("the mobile companion's bearer-authed dashboard route passes through with n
   assert.equal(res.status, 200);
 });
 
+test("the aggregator's signature-authed webhook route passes through with no session cookie", () => {
+  // Server-to-server: authenticated by its Svix signature (app/api/health-webhook).
+  assert.equal(proxy(requestTo("/api/health-webhook")).status, 200);
+});
+
 test("paths that merely resemble the public prefixes stay gated", () => {
-  for (const pathname of ["/api/mobile", "/api/mobiles/dashboard", "/api/ingest", "/api/mobile-admin"]) {
+  for (const pathname of ["/api/health-webhook/extra", "/api/health-webhooks", "/api/mobile", "/api/mobiles/dashboard", "/api/ingest", "/api/mobile-admin"]) {
     const res = proxy(requestTo(pathname));
     assert.equal(res.status, 401, `${pathname} should 401 with no session`);
   }

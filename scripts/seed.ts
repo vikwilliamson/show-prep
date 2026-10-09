@@ -8,7 +8,7 @@
  * Run with the dev server STOPPED (PGlite is single-process):
  *   pnpm seed
  *
- * Idempotent: health rows upsert on deterministic seed hc_uids; documents,
+ * Idempotent: health rows upsert on deterministic seed provider_uids; documents,
  * protocols and settings are refreshed each run.
  */
 import {

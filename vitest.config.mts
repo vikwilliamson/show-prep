@@ -19,6 +19,8 @@ export default defineConfig({
     fileParallelism: false,
     env: {
       SESSION_SECRET: "test-session-secret-do-not-use-in-prod",
+      // Svix signing secrets are "whsec_" + base64; this is a throwaway test value.
+      HEALTH_WEBHOOK_SECRET: "whsec_dGVzdC1zZWNyZXQtYnl0ZXMtMDEyMzQ1Njc4OWFiY2RlZg==",
     },
   },
 });

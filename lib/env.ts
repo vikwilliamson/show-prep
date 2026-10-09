@@ -28,6 +28,7 @@ const rawEnvSchema = z.object({
   VOYAGE_API_KEY: z.string().optional(),
   VOYAGE_MODEL: z.string().optional(),
   SESSION_SECRET: secretSchema,
+  HEALTH_WEBHOOK_SECRET: secretSchema,
   RESEND_API_KEY: z.string().optional(),
   APP_INSTALL_URL: z.string().optional(),
   SETUP_GUIDE_URL: z.string().optional(),
@@ -78,6 +79,11 @@ export const env = {
   voyageModel: parsed.VOYAGE_MODEL ?? "voyage-4",
   /** Secret used to sign per-account session cookies (see lib/auth.ts). When unset, the login gate is disabled. */
   sessionSecret: parsed.SESSION_SECRET,
+  /** Svix signing secret ("whsec_...") for POST /api/health-webhook. Unlike
+   *  sessionSecret/ingestApiKey this is deliberately NOT required at boot in
+   *  production: the aggregator it verifies doesn't exist yet, and a missing
+   *  secret can't fail open — the route answers 503 until it's set. */
+  healthWebhookSecret: parsed.HEALTH_WEBHOOK_SECRET,
   /** Resend API key for the client onboarding email (see lib/email.ts).
    *  Optional/non-fatal when unset — a convenience feature, not an
    *  auth/security gate like sessionSecret/ingestApiKey. */

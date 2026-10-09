@@ -34,7 +34,7 @@ test("GET /api/mobile/dashboard returns the referenceId-resolved account's scope
   const today = todayLocal();
   await db.insert(weightEntries).values({
     accountId: account.id,
-    hcUid: "mobile-dashboard-route-weight",
+    providerUid: "mobile-dashboard-route-weight",
     measuredAt: new Date(`${today}T14:00:00Z`),
     localDate: today,
     weightLbs: 180,
@@ -96,7 +96,7 @@ test("GET /api/mobile/dashboard scopes stats/weekStats to the resolved account o
   const today = todayLocal();
   await db.insert(weightEntries).values({
     accountId: b.id,
-    hcUid: "mobile-dashboard-route-weight-b",
+    providerUid: "mobile-dashboard-route-weight-b",
     measuredAt: new Date(`${today}T14:00:00Z`),
     localDate: today,
     weightLbs: 999,
