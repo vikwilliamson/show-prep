@@ -132,6 +132,20 @@ export async function getAccountByReferenceId(referenceId: string): Promise<numb
   return row?.id ?? null;
 }
 
+/** Resolves the health-data aggregator's own user ID — the only identifier its
+ *  webhooks carry — to one of our accounts. Returns null for an unknown ID;
+ *  callers must reject rather than fall back to a default account. Never
+ *  accept a referenceId here: the two are different identifiers on purpose. */
+export async function getAccountByAggregatorUserId(aggregatorUserId: string): Promise<number | null> {
+  const db = await getDb();
+  const [row] = await db
+    .select({ id: accounts.id })
+    .from(accounts)
+    .where(eq(accounts.aggregatorUserId, aggregatorUserId))
+    .limit(1);
+  return row?.id ?? null;
+}
+
 /** Inverse of getAccountByReferenceId — looks up the referenceId a signed-in
  *  account should paste into the mobile companion app to pair it. Safe to
  *  expose to the account's own authenticated session (Settings page); it's

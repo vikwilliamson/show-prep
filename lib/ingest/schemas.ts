@@ -85,10 +85,14 @@ export function batchSchema<T extends IngestType>(type: T) {
   });
 }
 
-/** Cardio-ish Health Connect exercise types (subset of ExerciseType constants). */
+/** Cardio-ish exercise types: a subset of Health Connect's ExerciseType
+ *  constants, plus the extra slugs the health-data aggregator uses for the
+ *  same activities (cycling, swimming, stairs). */
 const CARDIO_TYPES = new Set([
   "biking",
   "biking_stationary",
+  "cycling",
+  "cycling_stationary",
   "elliptical",
   "hiking",
   "rowing",
@@ -97,6 +101,8 @@ const CARDIO_TYPES = new Set([
   "running_treadmill",
   "stair_climbing",
   "stair_climbing_machine",
+  "stairs",
+  "swimming",
   "swimming_open_water",
   "swimming_pool",
   "walking",

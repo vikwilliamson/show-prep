@@ -275,7 +275,7 @@ export async function seedAccountData(
       const time = at(date, 6, 45);
       weightRows.push({
         accountId,
-        hcUid: `seed-weight-${date}`,
+        providerUid: `seed-weight-${date}`,
         source: "samsung_health",
         measuredAt: new Date(time),
         localDate: localDateOf(time, SEED_TZ),
@@ -324,7 +324,7 @@ export async function seedAccountData(
       const time = at(date, n === 1 ? 11 : 19);
       hydrationRows.push({
         accountId,
-        hcUid: `seed-hydration-${date}-${n}`,
+        providerUid: `seed-hydration-${date}-${n}`,
         source: "samsung_health",
         localDate: localDateOf(time, SEED_TZ),
         volumeMl: Math.round(total * share),
@@ -337,7 +337,7 @@ export async function seedAccountData(
     const bed = new Date(new Date(wake).getTime() - hours * 3600_000);
     sleepRows.push({
       accountId,
-      hcUid: `seed-sleep-${date}`,
+      providerUid: `seed-sleep-${date}`,
       source: "samsung_health",
       localDate: localDateOf(wake, SEED_TZ),
       startedAt: bed,
@@ -352,7 +352,7 @@ export async function seedAccountData(
       const startT = at(date, 16, 30);
       workoutRows.push({
         accountId,
-        hcUid: `seed-lift-${date}`,
+        providerUid: `seed-lift-${date}`,
         source: "samsung_health",
         localDate: localDateOf(startT, SEED_TZ),
         startedAt: new Date(startT),
@@ -367,7 +367,7 @@ export async function seedAccountData(
       const startT = at(date, 6, 55);
       workoutRows.push({
         accountId,
-        hcUid: `seed-cardio-${date}`,
+        providerUid: `seed-cardio-${date}`,
         source: "samsung_health",
         localDate: localDateOf(startT, SEED_TZ),
         startedAt: new Date(startT),
@@ -380,7 +380,7 @@ export async function seedAccountData(
     }
   }
 
-  const upsert = async <T extends { hcUid?: string | null }>(
+  const upsert = async <T extends { hcUid?: string | null; providerUid?: string | null }>(
     table: typeof nutritionEntries | typeof weightEntries | typeof hydrationEntries | typeof sleepSessions | typeof workouts,
     rows: T[],
   ) => {

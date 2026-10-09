@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
     if (b.weightLbs !== undefined) {
       const values = {
         accountId,
-        hcUid: `manual-weight-${date}`,
+        providerUid: `manual-weight-${date}`,
         source: "manual",
         measuredAt: instantOfLocal(date, 12, 0, tz),
         localDate: date,
@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
       await tx
         .insert(weightEntries)
         .values(values)
-        .onConflictDoUpdate({ target: [weightEntries.accountId, weightEntries.hcUid], set: values });
+        .onConflictDoUpdate({ target: [weightEntries.accountId, weightEntries.providerUid], set: values });
       saved.push("weight");
     }
 
@@ -87,7 +87,7 @@ export async function POST(req: NextRequest) {
       const durationMin = Math.round(b.sleepHours * 60);
       const values = {
         accountId,
-        hcUid: `manual-sleep-${date}`,
+        providerUid: `manual-sleep-${date}`,
         source: "manual",
         localDate: date,
         startedAt: new Date(endedAt.getTime() - durationMin * 60_000),
@@ -97,14 +97,14 @@ export async function POST(req: NextRequest) {
       await tx
         .insert(sleepSessions)
         .values(values)
-        .onConflictDoUpdate({ target: [sleepSessions.accountId, sleepSessions.hcUid], set: values });
+        .onConflictDoUpdate({ target: [sleepSessions.accountId, sleepSessions.providerUid], set: values });
       saved.push("sleep");
     }
 
     if (b.waterMl !== undefined) {
       const values = {
         accountId,
-        hcUid: `manual-hydration-${date}`,
+        providerUid: `manual-hydration-${date}`,
         source: "manual",
         localDate: date,
         volumeMl: b.waterMl,
@@ -113,7 +113,7 @@ export async function POST(req: NextRequest) {
         .insert(hydrationEntries)
         .values(values)
         .onConflictDoUpdate({
-          target: [hydrationEntries.accountId, hydrationEntries.hcUid],
+          target: [hydrationEntries.accountId, hydrationEntries.providerUid],
           set: values,
         });
       saved.push("hydration");
@@ -127,7 +127,7 @@ export async function POST(req: NextRequest) {
         ...(b.activeCalories !== undefined && { activeCalories: b.activeCalories }),
         ...(b.totalCalories !== undefined && { totalCalories: b.totalCalories }),
       };
-      const stamp = { hcUid: `manual-activity-${date}`, source: "manual" };
+      const stamp = { providerUid: `manual-activity-${date}`, source: "manual" };
       await tx
         .insert(dailyActivity)
         .values({ accountId, localDate: date, ...stamp, ...provided })

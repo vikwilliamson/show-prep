@@ -113,6 +113,9 @@ which is exactly right if the vendor ever changes again).
     `sleep.created` → `sleepSessions`, `workout.created` → `workouts`,
     `activity.created` plus the steps/calories timeseries groups →
     `dailyActivity`, a body-composition timeseries group → `weightEntries`.
+    **Corrected 2026-10-09 (VIK-140):** there is no `activity.created`, and
+    daily activity comes only from daily-total samples — see the addendum
+    at the bottom of this file for the real mapping.
   - **Resolved 2026-09-16 — hydration is real and independent of the dead
     nutrition schema, but Android-only.** Checked the local Open Wearables
     checkout (`open-wearables-spike/`, same `d9a64bf` clone VIK-12/13 used)
@@ -150,8 +153,10 @@ which is exactly right if the vendor ever changes again).
   or per-underlying-provider like `open_wearables_healthkit`) — same "don't
   default to whatever's convenient" guidance the Terra spec gave, still
   applies, still nothing branches on it in the UI today.
-- **`account_id` resolution**: `getAccountByReferenceId()`, reject an
-  unresolvable `reference_id` rather than falling back to any default
+- **`account_id` resolution**: ~~`getAccountByReferenceId()`~~ — **wrong,
+  corrected 2026-10-09 (VIK-140):** webhooks carry only the aggregator's own
+  `user_id`, never our `reference_id`; see the addendum. Reject an
+  unresolvable user rather than falling back to any default
   account. Confirm Open Wearables' connection-time API accepts an opaque
   external ID the same way Terra's did — if its field is named differently,
   that's a one-line adapter, not a design change.
@@ -340,3 +345,87 @@ with explicit acknowledgment":
   processor identified by "an opaque, randomly generated ID", per
   `specs/prd.md` and AGENTS.md's data-handling rule; `consent.test.ts`
   asserts it never names a vendor.
+
+## 2026-10-09 addendum — webhook receiver built (VIK-140, §1)
+
+Shipped as `POST /api/health-webhook` (`app/api/health-webhook/route.ts`, pure
+parsing/normalization in `lib/health-webhook/normalize.ts`). Written against
+the real Open Wearables emitters in the local `open-wearables-spike/` checkout
+(`app/services/outgoing_webhooks/events.py`, `app/constants/webhooks/`), not
+against a live instance — VIK-139's end-to-end smoke test is still what proves
+real payloads match. Where the build contradicted this spec:
+
+- **Webhooks identify users by the aggregator's own `user_id`, not our
+  `reference_id`.** Every event is `{ type, data }` with `data.user_id` = Open
+  Wearables' internal UUID; `external_user_id` is deprecated there and absent
+  from events. So `getAccountByReferenceId()` cannot resolve a delivery (§0
+  and §1 above assumed it could). New column **`accounts.aggregator_user_id`**
+  (unique, nullable, vendor-neutral name) holds that ID, and
+  `getAccountByAggregatorUserId()` (`lib/auth.ts`) resolves it. Unknown ID →
+  404 with nothing written (Svix retries it, which also covers a user who is
+  mid-connection); a `reference_id` presented as a user ID resolves to nothing.
+  **Data-handling rule unchanged:** we still send the aggregator nothing but
+  the opaque `reference_id` (and only if its API wants an external ID); the
+  new column stores an ID *it* generated. **VIK-142 owns populating the column**
+  when it provisions the aggregator user — until then no delivery resolves.
+- **Event names.** There is no `activity.created`. Timeseries events come as a
+  category event (`body_composition.created`, `steps.created`,
+  `calories.created`, `activity_timeseries.created`) plus a granular
+  `series.<type>.created`, both with the same shape. The receiver dispatches
+  on `data.series_type`, not the event name, so subscribing to either level
+  (or both — upserts make that harmless) works. Handled series: `weight` →
+  `weightEntries`, `hydration` → `hydrationEntries` (arrives under
+  `activity_timeseries.created` / `series.hydration.created`), `steps` and
+  `energy` → `dailyActivity`. Everything else (heart rate, HRV, connection,
+  sync, `menstrual_cycle.created`, body fat/height/BMI, …) is acknowledged
+  with 200 and not stored.
+- **Daily activity stores provider-reported daily totals only.** `steps` /
+  `energy` samples count only when `is_daily_total` is true; interval samples
+  are skipped and counted in the response's `skipped`. Summing intervals into
+  a day is not idempotent (a redelivery or overlapping batch double counts),
+  and a silently wrong step count is worse than a missing one. **Open
+  question for VIK-139's smoke test: does Android Health Connect ever set
+  `is_daily_total`?** If not, Android daily activity won't land via this
+  route and needs a decision (per-sample storage + SUM, or keep the
+  companion's own activity pipeline for it). `energy` maps to
+  `activeCalories` only; `totalCalories` is not populated from webhooks.
+- **Two-layer idempotency, as specified, with one subtlety.** The `svix-id` is
+  claimed in a new `webhook_deliveries` table *inside the same transaction*
+  as the record writes, so a delivery that errors midway rolls the claim back
+  and Svix's retry is processed (a separate "mark processed" write would
+  silently drop it). Records upsert on `(account_id, provider_uid)`; duplicate
+  samples inside one payload are collapsed first (a multi-row upsert can't
+  touch a key twice), last occurrence winning.
+- **`provider_uid` values.** Sleep and workouts use the aggregator's record
+  ID. Timeseries samples have none, so they use a deterministic
+  `<series_type>:<provider>:<sample timestamp>`. `daily_activity` upserts on
+  `(account_id, local_date)` like the ingest route, stamping
+  `activity-<date>`, and sets only the fields its batch carried so steps and
+  calories batches for one day merge instead of clobbering each other.
+- **`source` value: `open_wearables_<underlying provider>`** (e.g.
+  `open_wearables_apple`, `open_wearables_garmin`) — the per-provider option,
+  so an iOS-vs-Android or wearable-vs-phone double-record is diagnosable.
+  Nothing in the UI branches on it.
+- **Naps are skipped** (`is_nap: true`): sleep stats sum a day's sessions, so a
+  nap would read as extra night sleep. Sleep duration is the provider's
+  `duration_seconds` when present, else the start/end window; a night is
+  attributed to the wake-up date in the account's timezone. `stages` is stored
+  as the aggregator's minutes-per-stage object (the ingest route stores an
+  interval array in the same column — nothing reads it yet; reconcile before
+  something does). Weight is converted to lbs and bounds-checked; body fat is
+  not captured (separate series, would need to join a weight row — not built).
+- **Schema.** `hc_uid` → `provider_uid` on the five non-nutrition ingest tables
+  (`drizzle/0020`, hand-written as pure renames — drizzle-kit's generated
+  drop+add would have lost data on two tables; `tests/db-schema-provider-uid-
+  migration.test.ts` proves existing rows survive). The ingest API's request
+  field stays `hcUid` so the companion app is untouched; `nutrition_entries`
+  keeps `hc_uid`. Cardio detection gained the aggregator's `cycling`,
+  `cycling_stationary`, `swimming`, `stairs` slugs.
+- **Operational.** Signature verification uses `svix`'s `Webhook` over the raw
+  body (including its 5-minute timestamp tolerance). `HEALTH_WEBHOOK_SECRET`
+  is deliberately *not* required at boot in production — the aggregator
+  doesn't exist yet, so requiring it would crash every deploy; with it unset
+  the route answers 503 rather than failing open. The route is public in
+  `proxy.ts` (exact path) because the signature is its only auth. A malformed
+  payload of a handled type answers 422, not 200: Svix retries and surfaces it
+  rather than it vanishing.

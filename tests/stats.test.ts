@@ -74,14 +74,14 @@ test("dailyWeights and dailyMacros only return the requesting account's rows", a
   await db.insert(weightEntries).values([
     {
       accountId: a,
-      hcUid: "stats-test-weight-a",
+      providerUid: "stats-test-weight-a",
       measuredAt: new Date("2026-01-05T14:00:00Z"),
       localDate: "2026-01-05",
       weightLbs: 180,
     },
     {
       accountId: b,
-      hcUid: "stats-test-weight-b",
+      providerUid: "stats-test-weight-b",
       measuredAt: new Date("2026-01-05T14:00:00Z"),
       localDate: "2026-01-05",
       weightLbs: 250,

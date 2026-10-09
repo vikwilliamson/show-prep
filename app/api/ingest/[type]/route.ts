@@ -28,7 +28,7 @@ import { getAccountByReferenceId } from "@/lib/auth";
 import { getSettings } from "@/lib/stats";
 
 // POST /api/ingest/{nutrition|weight|hydration|sleep|exercise|activity}
-// Batched, Zod-validated, idempotent: upserts on the Health Connect UID.
+// Batched, Zod-validated, idempotent: upserts on the record's provenance ID (request field `hcUid`; stored as provider_uid, or hc_uid for nutrition).
 
 const KG_TO_LBS = 2.2046226218;
 
@@ -103,10 +103,10 @@ export async function POST(
         case "weight": {
           const rec = r as z.infer<typeof weightRecord>;
           table = weightEntries;
-          target = [weightEntries.accountId, weightEntries.hcUid];
+          target = [weightEntries.accountId, weightEntries.providerUid];
           values = {
             accountId,
-            hcUid: rec.hcUid,
+            providerUid: rec.hcUid,
             source,
             measuredAt: new Date(rec.time),
             localDate: localDateOf(rec.time, tz),
@@ -118,10 +118,10 @@ export async function POST(
         case "hydration": {
           const rec = r as z.infer<typeof hydrationRecord>;
           table = hydrationEntries;
-          target = [hydrationEntries.accountId, hydrationEntries.hcUid];
+          target = [hydrationEntries.accountId, hydrationEntries.providerUid];
           values = {
             accountId,
-            hcUid: rec.hcUid,
+            providerUid: rec.hcUid,
             source,
             localDate: localDateOf(rec.startTime, tz),
             volumeMl: rec.volumeMl,
@@ -133,10 +133,10 @@ export async function POST(
           const start = new Date(rec.startTime);
           const end = new Date(rec.endTime);
           table = sleepSessions;
-          target = [sleepSessions.accountId, sleepSessions.hcUid];
+          target = [sleepSessions.accountId, sleepSessions.providerUid];
           values = {
             accountId,
-            hcUid: rec.hcUid,
+            providerUid: rec.hcUid,
             source,
             // A night's sleep is attributed to the wake-up date.
             localDate: localDateOf(end, tz),
@@ -150,10 +150,10 @@ export async function POST(
         case "exercise": {
           const rec = r as z.infer<typeof exerciseRecord>;
           table = workouts;
-          target = [workouts.accountId, workouts.hcUid];
+          target = [workouts.accountId, workouts.providerUid];
           values = {
             accountId,
-            hcUid: rec.hcUid,
+            providerUid: rec.hcUid,
             source,
             localDate: localDateOf(rec.startTime, tz),
             startedAt: new Date(rec.startTime),
@@ -169,12 +169,12 @@ export async function POST(
           const rec = r as z.infer<typeof activityRecord>;
           table = dailyActivity;
           // The unique constraint is on (account_id, local_date) — one row
-          // per account per day, not on hc_uid. Upsert on that composite so
+          // per account per day, not on provider_uid. Upsert on that composite so
           // re-syncing the same day overwrites rather than conflicting.
           target = [dailyActivity.accountId, dailyActivity.localDate];
           values = {
             accountId,
-            hcUid: rec.hcUid,
+            providerUid: rec.hcUid,
             source,
             localDate: rec.date,
             steps: rec.steps ?? null,
